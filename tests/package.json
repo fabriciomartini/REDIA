@@ -1,0 +1,19 @@
+{
+  "name": "redia-p83-testes",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Testes da REDIA P-83 V1.0: SQL/RLS (PGlite), ponta a ponta no modo demonstração e na nuvem com Supabase simulado",
+  "type": "commonjs",
+  "scripts": {
+    "sql": "node sql.test.mjs",
+    "cadastro": "node provisionar.test.mjs",
+    "e2e": "node e2e.cjs",
+    "nuvem": "node nuvem.cjs",
+    "movel": "node movel.cjs",
+    "todos": "node sql.test.mjs && node provisionar.test.mjs && node e2e.cjs && node nuvem.cjs && node movel.cjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.9",
+    "playwright": "1.56.0"
+  }
+}

@@ -1,0 +1,28 @@
+-- =====================================================================
+-- REDIA P-83 · V1.0 · cadastro manual de perfis (alternativa ao script)
+--
+-- 1) No painel do Supabase: Authentication › Users › Add user › Create new user
+--      e-mail : <CHAVE>@<domínio do config.js, padrão redia.local>   ex.: ABC1@redia.local
+--      senha  : senha temporária (o usuário troca no primeiro acesso)
+--      marque "Auto Confirm User"
+-- 2) Rode, no SQL Editor, uma linha por usuário (exemplos FICTÍCIOS abaixo):
+-- =====================================================================
+-- select public.redia_vincular_perfil('ABC1@redia.local', 'ABC1', 'Nome Sobrenome', 'GEPLAT',  'P-83', true);   -- administrador
+-- select public.redia_vincular_perfil('DEF2@redia.local', 'DEF2', 'Nome Sobrenome', 'COPROD',  'P-83');
+-- select public.redia_vincular_perfil('GHI3@redia.local', 'GHI3', 'Nome Sobrenome', 'SUEMB',   'P-83');
+-- select public.redia_vincular_perfil('JKL4@redia.local', 'JKL4', 'Nome Sobrenome', 'SUEIN',   'P-83');
+--
+-- Postos reconhecidos → coordenação:
+--   GEOP, GEPLAT, GESTÃO                                  → GEPLAT
+--   COPROD, SUPROD, ENG PROCESSAMENTO, ENG PETRÓLEO       → COPROD
+--   COEMB, SUEMB                                          → COEMB
+--   COMAN, SUEIN, SUMEC, ENG ELETRICISTA, ENG MECÂNICO    → COMAN
+--
+-- Desativar um usuário (mantém a autoria dos registros antigos):
+-- update public.perfis set ativo = false where chave = 'DEF2';
+--
+-- Forçar nova troca de senha no próximo acesso:
+-- update public.perfis set trocar_senha = true where chave = 'DEF2';
+--
+-- Conferir os perfis:
+-- select chave, nome, posto, coord, uep, admin, ativo, trocar_senha from public.perfis order by coord, chave;

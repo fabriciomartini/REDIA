@@ -1,0 +1,7 @@
+{
+  "_leia": "Copie para config.local.json (não versionado) para montar localmente com o Supabase. No GitHub, use as Variables do repositório (ver docs/IMPLANTACAO.md).",
+  "supabaseUrl": "https://SEU-PROJETO.supabase.co",
+  "supabaseAnonKey": "COLE-AQUI-A-CHAVE-PUBLICA-anon-OU-publishable",
+  "emailDominio": "redia.local",
+  "tempoReal": true
+}

@@ -1,0 +1,27 @@
+// Testa tools/provisionar_usuarios.py contra o Supabase simulado (Auth admin + tabela perfis).
+import { iniciarServidor, CHAVE_SERVICO_TESTE } from './servidor.mjs';
+import { execFile } from 'node:child_process'; import { promisify } from 'node:util';
+import { writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
+import path from 'node:path'; import os from 'node:os'; import { fileURLToPath } from 'node:url';
+const P = path.dirname(fileURLToPath(import.meta.url)), T = mkdtempSync(path.join(os.tmpdir(), 'redia-prov-'));
+const erros = []; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FALHA') + ' ' + m); if (!c) erros.push(m); };
+const srv = await iniciarServidor({ estatico: T, supabase: true });
+const csv = path.join(T, 'usuarios.csv');
+writeFileSync(csv, 'chave;nome;posto;admin\nab12;Pessoa Um;GEPLAT;sim\nCD34;Pessoa Dois;SUPROD;\nEF56;Pessoa Três;ENG MECÂNICO;\n');
+const rodar = async (...a) => (await promisify(execFile)('python3', [path.join(P, '..', 'tools', 'provisionar_usuarios.py'), csv, ...a], { cwd: T, encoding: 'utf8', env: { ...process.env, SUPABASE_URL: srv.url, SUPABASE_SERVICE_ROLE_KEY: CHAVE_SERVICO_TESTE, NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost' } })).stdout;
+const sim = await rodar('--simular');
+ok(/CD34\s+SUPROD\s+→ COPROD/.test(sim) && /EF56\s+ENG MECÂNICO\s+→ COMAN/.test(sim), 'simulação mostra o mapa posto → coordenação');
+const out1 = await rodar('--saida', 'senhas.csv');
+const senhas = readFileSync(path.join(T, 'senhas.csv'), 'utf8').trim().split(/\r?\n/).slice(1).map(l => l.split(';'));
+const perf = (await srv.sql('select chave, coord, admin, trocar_senha from public.perfis order by chave')).rows;
+ok(senhas.length === 3 && senhas.every(s => s[2].length === 12 && /\d/.test(s[2]) && /[A-Za-z]/.test(s[2])), 'gera senha temporária forte para cada usuário');
+ok(perf.length === 3 && perf[0].chave === 'AB12' && perf[0].admin && perf[1].coord === 'COPROD' && perf[2].coord === 'COMAN' && perf.every(p => p.trocar_senha), 'perfis gravados com coordenação, administrador e troca de senha pendente');
+const u = (await srv.sql(`select senha from auth.users where email = 'cd34@redia.local'`)).rows[0];
+ok(u && u.senha === senhas.find(s => s[0] === 'CD34')[2], 'usuário criado no Auth com a senha temporária informada');
+const out2 = await rodar('--saida', 'senhas2.csv');
+ok(/CD34: atualizado/.test(out2) && !/senha temporária gerada/.test(out2), 'rodar de novo atualiza sem trocar senhas');
+const out3 = await rodar('--redefinir', '--saida', 'senhas3.csv');
+const s3 = readFileSync(path.join(T, 'senhas3.csv'), 'utf8').trim().split(/\r?\n/).slice(1).map(l => l.split(';'));
+ok(s3.length === 3 && (await srv.sql(`select senha from auth.users where email = 'cd34@redia.local'`)).rows[0].senha === s3.find(s => s[0] === 'CD34')[2], '--redefinir gera senha nova para quem já existe');
+await srv.fechar();
+console.log(erros.length ? `\n${erros.length} FALHA(S)` : '\nCADASTRO DE USUÁRIOS OK'); process.exit(erros.length ? 1 : 0);
