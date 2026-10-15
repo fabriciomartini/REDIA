@@ -80,6 +80,7 @@ O comando roda cinco conjuntos de testes:
 
 ## Documentos
 
+- [docs/CONFIGURAR_SUPABASE.md](docs/CONFIGURAR_SUPABASE.md): passo a passo para ligar o site ao Supabase
 - [docs/IMPLANTACAO.md](docs/IMPLANTACAO.md): Supabase, usuários, GitHub Pages e servidor interno
 - [docs/SEGURANCA.md](docs/SEGURANCA.md): modelo de acesso, o que é público e o que nunca pode ser, pendências com a TIC
 - [docs/ARQUITETURA.md](docs/ARQUITETURA.md): modelo de dados, sincronização, congelamento e arquivos
