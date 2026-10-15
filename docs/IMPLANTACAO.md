@@ -64,12 +64,12 @@ update public.perfis set trocar_senha = true where chave = 'ABC1';
 
 ## 3. Publicação no GitHub Pages
 
-1. No GitHub, crie um repositório **privado** (ex.: `redia-p83`) e suba o conteúdo desta pasta:
+1. No repositório do GitHub (`fabriciomartini/REDIA`), suba o conteúdo desta pasta:
    ```bash
-   git init && git add . && git commit -m "REDIA P-83 V1.0"
-   git branch -M main
-   git remote add origin https://github.com/<organização>/redia-p83.git
-   git push -u origin main
+   git clone https://github.com/fabriciomartini/REDIA.git && cd REDIA
+   # copie aqui o conteúdo do pacote
+   git add . && git commit -m "REDIA P-83 V1.0"
+   git push origin main
    ```
 2. Em **Settings › Pages › Build and deployment › Source**, escolha **GitHub Actions**.
 3. Em **Settings › Secrets and variables › Actions › aba Variables**, crie:
@@ -81,7 +81,7 @@ update public.perfis set trocar_senha = true where chave = 'ABC1';
    | `REDIA_EMAIL_DOMINIO` | (opcional) só se mudar o padrão `redia.local` |
    | `REDIA_SEM_EXEMPLO` | (opcional) `1` para publicar sem os dados de exemplo |
 
-4. Em **Actions › Publicar no GitHub Pages › Run workflow** (ou num novo push), o endereço aparece no resumo da execução: `https://<organização>.github.io/redia-p83/`.
+4. Em **Actions › Publicar no GitHub Pages › Run workflow** (ou num novo push), o endereço aparece no resumo da execução: `https://fabriciomartini.github.io/REDIA/`. O deck de explicação do sistema fica em `https://fabriciomartini.github.io/REDIA/apresentacao/`.
 
 > **Plano do GitHub:** no GitHub Free, o Pages só publica repositório público. Repositório privado com Pages exige plano pago, e restringir quem acessa o site só é possível no GitHub Enterprise Cloud. Confirme com a TIC o plano corporativo. A chave anon é pública por desenho: a proteção dos dados está no login e nas políticas de acesso da base (RLS), não no sigilo do site.
 

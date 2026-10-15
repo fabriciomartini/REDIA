@@ -152,6 +152,8 @@ def montar(saida, unico):
         with open(os.path.join(saida, nome), 'w', encoding='utf8') as f:
             f.write(conteudo)
     shutil.copytree(os.path.join(P, 'assets'), os.path.join(saida, 'assets'))
+    if os.path.isdir(os.path.join(P, 'apresentacao')):   # deck de explicação do sistema, publicado em <site>/apresentacao/
+        shutil.copytree(os.path.join(P, 'apresentacao'), os.path.join(saida, 'apresentacao'))
     if nuvem:
         os.makedirs(os.path.join(saida, 'vendor'))
         shutil.copy(os.path.join(P, 'vendor', VENDOR_SUPABASE), os.path.join(saida, 'vendor', VENDOR_SUPABASE))

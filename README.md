@@ -27,11 +27,21 @@ Sem as chaves do Supabase, o mesmo app abre em **modo demonstração**, com usu�
 
 O passo a passo completo, inclusive a hospedagem na rede interna, está em **[docs/IMPLANTACAO.md](docs/IMPLANTACAO.md)**.
 
+## Endereços depois da publicação
+
+| O quê | Endereço |
+|---|---|
+| App | `https://fabriciomartini.github.io/REDIA/` |
+| Deck de explicação do sistema | `https://fabriciomartini.github.io/REDIA/apresentacao/` (setas ou toque para navegar, F para tela cheia, Ctrl+P para PDF) |
+
+Sem as variáveis do Supabase, o app publicado roda em **modo demonstração**: qualquer pessoa testa o fluxo completo com as chaves GP01, CP01, CE01 ou CM01 e a senha 1234, e cada navegador guarda os próprios dados. Para várias pessoas trabalharem no mesmo dia e na mesma pauta, ligue o site à base Supabase (variáveis `SUPABASE_URL` e `SUPABASE_ANON_KEY`).
+
 ## Estrutura
 
 ```
 ├─ src/                 código do app (core, nuvem, model, stage, detalhe, views, app.css)
 ├─ assets/              vídeo e imagem da tela de acesso, marca Petrobras
+├─ apresentacao/        deck de explicação do sistema (HTML), publicado em <site>/apresentacao/
 ├─ vendor/              supabase-js 2.112.4 (MIT), servido junto com o app
 ├─ supabase/            01_schema.sql · 02_storage.sql · 03_perfis_modelo.sql · usuarios_modelo.csv
 ├─ tools/               provisionar_usuarios.py (cadastro em lote no Supabase)
@@ -64,7 +74,7 @@ O comando roda cinco conjuntos de testes:
 |---|---|
 | SQL/RLS (35) | schema em PostgreSQL local (PGlite) |
 | Cadastro (6) | script de cadastro de usuários |
-| Ponta a ponta, demonstração (136) | fluxo completo no modo demonstração |
+| Ponta a ponta, demonstração (137) | fluxo completo no modo demonstração e o deck publicado |
 | Ponta a ponta, nuvem (44) | fluxo completo contra um Supabase simulado que roda o mesmo schema |
 | Telas móveis (60) | smartphone, tablet e notebook |
 

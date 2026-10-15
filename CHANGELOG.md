@@ -31,6 +31,10 @@ Versão web com base de dados na nuvem. Telas, regras e indicadores iguais aos d
 - **Publicação** automática no GitHub Pages (`.github/workflows/publicar.yml`).
 - **Testes automatizados:** SQL/RLS, cadastro, ponta a ponta (demonstração e nuvem simulada) e telas móveis.
 
+### Apresentação do sistema
+
+- Deck de explicação do sistema em HTML (`apresentacao/`, 17 slides), publicado junto com o app em `<site>/apresentacao/`, com navegação por teclado e toque e saída em PDF.
+
 ### Removido em relação à v0.8.2
 
 - Modo pasta compartilhada (OneDrive/SharePoint) e ponte de arquivos com tablet/celular: na versão web, todos os dispositivos acessam a base diretamente. A v0.8.2 continua disponível como versão de pasta.

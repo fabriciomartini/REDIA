@@ -395,6 +395,16 @@ async function checarPalco(page, nome) {
   ok(r2.n === 0 && r2.v === 11111 && r2.erro, `armazenamento cheio: erro visível e registro não fica pela metade (${JSON.stringify(r2)})`);
   await rc.close();
 
+  /* ---- deck de explicação publicado junto com o app ---- */
+  const dk = await browser.newPage({ viewport: { width: 1920, height: 1080 } }); const falhas = [];
+  dk.on('requestfailed', r => falhas.push(r.url())); dk.on('pageerror', e => falhas.push(e.message));
+  await dk.goto(srv.url + '/apresentacao/#6'); await dk.waitForTimeout(600);
+  const dkInfo = await dk.evaluate(() => ({ n: document.querySelectorAll('.sl').length, on: document.querySelector('.sl.on')?.dataset.t, imgs: [...document.querySelectorAll('img')].filter(i => i.complete && i.naturalWidth > 0).length, total: document.querySelectorAll('img').length }));
+  await dk.keyboard.press('ArrowRight'); await dk.waitForTimeout(150);
+  const dkProx = await dk.evaluate(() => document.querySelector('.sl.on')?.dataset.t);
+  ok(dkInfo.n === 17 && dkInfo.on === 'Curadoria' && dkProx === 'Dados com origem' && !falhas.length, `deck publicado em /apresentacao/ (17 slides, navegação por teclado e #n) ${falhas.join(' ')}`);
+  await dk.close();
+
   await browser.close(); await srv.fechar();
   console.log('\n' + (erros.length ? `${erros.length} FALHA(S):\n - ` + erros.join('\n - ') : 'TODOS OS TESTES PASSARAM'));
   process.exit(erros.length ? 1 : 0);

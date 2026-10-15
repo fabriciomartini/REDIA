@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#008542">
+<title>REDIA P-83 · Apresentação do sistema</title>
+<style>
+/* Identidade Petrobras (D-35): verde e amarelo como cores principais, fundo claro, cantos retos, vermelho só para "Não OK".
+   Palco fixo 1920×1080 escalado para a janela, como a apresentação do próprio app. */
+:root{
+  --verde:#008542; --verde-esc:#00693a; --amarelo:#FDC82F; --cinza:#75787B; --claro:#E8E8E8; --fundo:#F3F4F2;
+  --texto:#111; --texto2:#4a4d4f; --vermelho:#DA291C; --borda:#d5d7d5; --palco:#232526;
+  --f:'Petrobras Sans', Arial, 'Segoe UI', Helvetica, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--palco);color:var(--texto);font-family:var(--f);overflow:hidden}
+a{color:var(--verde)}
+.deck{position:fixed;inset:0}
+.stw{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+.sl{position:absolute;inset:0;background:#fff;display:none;flex-direction:column;padding:72px 96px 88px;overflow:hidden}
+.sl.on{display:flex}
+/* cabeçalho de slide: sobretítulo verde, título, traço amarelo (mesmo padrão das telas do app) */
+.k{font-size:24px;font-weight:700;color:var(--verde);letter-spacing:.02em}
+h1,h2{margin:6px 0 0;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:64px;line-height:1.05}
+.dash{width:72px;height:7px;background:var(--amarelo);margin:22px 0 40px}
+.marca{position:absolute;right:96px;top:62px;height:52px}
+.rod{position:absolute;left:96px;right:96px;bottom:30px;display:flex;align-items:center;gap:24px;font-size:20px;color:var(--cinza)}
+.rod .sp{flex:1}
+.selo{display:inline-flex;align-items:center;gap:8px}
+.selo i{display:inline-flex;width:26px;height:26px;border-radius:50%;background:var(--verde);color:#fff;font-style:normal;font-weight:800;align-items:center;justify-content:center;font-size:16px}
+p,li{font-size:31px;line-height:1.38}
+p{margin:0}
+.lead{font-size:36px;line-height:1.35;color:var(--texto2);max-width:1500px}
+ul.l{margin:0;padding:0;list-style:none;display:grid;gap:22px;align-content:start}
+ul.l li{padding-left:34px;position:relative}
+ul.l li::before{content:"";position:absolute;left:0;top:.5em;width:14px;height:14px;background:var(--verde)}
+b,strong{font-weight:800}
+.mut{color:var(--texto2)}
+.peq{font-size:24px;line-height:1.4;color:var(--texto2)}
+.cols{display:grid;gap:56px;flex:1;min-height:0}
+.c2{grid-template-columns:1fr 1fr}
+.c37{grid-template-columns:5fr 8fr}
+.c73{grid-template-columns:8fr 5fr}
+.c3{grid-template-columns:repeat(3,1fr)}
+.c4{grid-template-columns:repeat(4,1fr)}
+.topo{align-items:start}
+.shot{display:block;width:100%;height:auto;border:1px solid var(--borda);box-shadow:0 14px 40px rgba(0,0,0,.14)}
+.fig{min-width:0;display:flex;flex-direction:column;gap:14px;justify-content:flex-start}
+.leg{font-size:21px;color:var(--cinza)}
+.bloco{background:var(--fundo);padding:30px 32px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.bloco h3{margin:0;font-size:34px;font-weight:800}
+.bloco p,.bloco li{font-size:27px}
+.bloco .n{font-size:22px;font-weight:800;color:var(--verde);letter-spacing:.04em}
+.tag{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:36px;padding:0 10px;border-radius:9px;background:var(--claro);font-weight:800;font-size:21px;color:#222;margin-right:10px;vertical-align:middle}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:5px 14px 5px 10px;border-radius:999px;font-weight:700;font-size:23px;vertical-align:middle}
+.pill svg{width:24px;height:24px;flex:none}
+.p-ok{background:#e3f1e8;color:#0b5a32}.p-at{background:#fdf1c8;color:#6b5000}.p-nok{background:var(--vermelho);color:#fff}.p-sd{background:var(--claro);color:#444}
+.tab{width:100%;border-collapse:collapse}
+.tab td,.tab th{text-align:left;vertical-align:top;padding:16px 18px;border-bottom:1px solid var(--borda);font-size:27px;line-height:1.35}
+.tab th{font-size:20px;letter-spacing:.06em;text-transform:uppercase;color:var(--cinza);border-bottom:3px solid #111}
+.tab td:first-child{font-weight:800;white-space:nowrap}
+/* capa */
+.capa{padding:0;background:#0b3d24}
+.capa .bg{position:absolute;inset:0;background:url('../assets/poster.jpg') center/cover no-repeat;filter:saturate(.7)}
+.capa .ov{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,80,40,.92) 0%,rgba(0,90,45,.78) 48%,rgba(0,0,0,.25) 100%)}
+.capa .ct{position:relative;margin:auto 0;padding:0 120px;color:#fff;display:flex;flex-direction:column;gap:20px}
+.capa .k{color:var(--amarelo);font-size:30px}
+.capa h1{font-size:220px;line-height:.92;letter-spacing:-.02em}
+.capa .sub{font-size:52px;font-weight:700}
+.capa .dash{margin:12px 0 18px}
+.capa .fl{display:flex;gap:28px;align-items:center;font-size:34px;font-weight:700}
+.capa .fl span:not(:last-child)::after{content:"";display:inline-block;width:40px;height:4px;background:var(--amarelo);margin-left:28px;vertical-align:middle}
+.capa .rod{color:rgba(255,255,255,.85)}
+.capa .selo i{background:#fff;color:var(--verde)}
+.capa .marca-c{position:absolute;right:110px;top:90px;height:70px;background:#fff;padding:14px 18px}
+/* linha do tempo */
+.tl{position:relative;height:420px;margin-top:40px}
+.tl .eixo{position:absolute;left:0;right:0;top:150px;height:64px;background:var(--fundo)}
+.tl .sg{position:absolute;top:150px;height:64px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:24px;color:#fff;white-space:nowrap}
+.tl .mk{position:absolute;top:150px;height:74px;width:6px;background:#111;transform:translateX(-3px)}
+.tl .rt{position:absolute;font-size:24px;line-height:1.25;width:270px}
+.tl .rt b{display:block;font-size:30px}
+.tl .rt.cima{bottom:290px}
+.tl .rt.baixo{top:270px}
+.tl .hr{position:absolute;top:230px;font-size:20px;color:var(--cinza);transform:translateX(-50%)}
+/* fluxo */
+.fluxo{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:10px}
+.etp{position:relative;padding:34px 36px 36px;background:var(--fundo);border-top:10px solid var(--verde);display:flex;flex-direction:column;gap:14px;min-height:430px}
+.etp:nth-child(2){border-top-color:#00a259}.etp:nth-child(3){border-top-color:var(--amarelo)}.etp:nth-child(4){border-top-color:var(--cinza)}
+.etp+.etp{margin-left:18px}
+.etp h3{margin:0;font-size:44px;font-weight:800}
+.etp .q{font-size:22px;font-weight:800;color:var(--verde);letter-spacing:.05em;text-transform:uppercase}
+.etp p{font-size:27px}
+/* arquitetura */
+.arq{display:grid;grid-template-columns:420px 120px 440px 120px 1fr;align-items:center;margin-top:20px}
+.cx{border:3px solid #111;padding:28px 30px;background:#fff;display:flex;flex-direction:column;gap:10px}
+.cx h3{margin:0;font-size:32px;font-weight:800}
+.cx p{font-size:24px}
+.cx.verde{border-color:var(--verde)}
+.seta{height:4px;background:#111;position:relative;margin:0 14px}
+.seta::after{content:"";position:absolute;right:-4px;top:-10px;border-left:20px solid #111;border-top:12px solid transparent;border-bottom:12px solid transparent}
+.supa{border:3px solid var(--verde);padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px;position:relative}
+.supa::before{content:"Supabase";position:absolute;top:-20px;left:20px;background:#fff;padding:0 10px;font-weight:800;font-size:26px;color:var(--verde)}
+.supa .cx{border-width:2px;padding:20px 22px}
+.supa .cx h3{font-size:27px}
+.supa .cx p{font-size:21px}
+/* controles do leitor */
+.ui{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:rgba(20,20,20,.86);padding:6px;border-radius:10px;transition:opacity .3s;z-index:5}
+.ui.hide{opacity:0;pointer-events:none}
+.ui button,.ui a{font:700 14px var(--f);color:#fff;background:transparent;border:1px solid rgba(255,255,255,.25);border-radius:7px;height:34px;min-width:38px;padding:0 12px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.ui button:hover,.ui a:hover{background:rgba(255,255,255,.12)}
+.ui button:focus-visible,.ui a:focus-visible{outline:2px solid var(--amarelo);outline-offset:2px}
+.ui .num{color:#fff;font:700 14px var(--f);min-width:64px;text-align:center}
+.prog{position:fixed;left:0;top:0;height:4px;background:var(--amarelo);transition:width .25s;z-index:5}
+@media (prefers-reduced-motion: reduce){.prog,.ui{transition:none}}
+/* impressão / PDF: um slide por página 16:9 */
+@media print{
+  @page{size:1920px 1080px;margin:0}
+  html,body{overflow:visible;height:auto;background:#fff}
+  .deck{position:static}
+  .stw{position:static;transform:none!important}
+  .sl{display:flex!important;position:relative;width:1920px;height:1080px;page-break-after:always;break-after:page}
+  .ui,.prog{display:none}
+}
+</style>
+</head>
+<body>
+<div class="prog" id="prog"></div>
+<div class="deck" id="deck"><div class="stw" id="stw">
+
+<!-- 1 · capa -->
+<section class="sl capa" data-t="Capa">
+  <div class="bg"></div><div class="ov"></div>
+  <img class="marca-c" src="../assets/petrobras.png" alt="Petrobras">
+  <div class="ct">
+    <span class="k">FPSO P-83 · Búzios · Ativo III</span>
+    <h1>REDIA</h1>
+    <span class="sub">Reunião Diária bordo × base</span>
+    <span class="dash"></span>
+    <div class="fl"><span>Coleta</span><span>Curadoria</span><span>Apresentação</span><span>Ata</span></div>
+    <p style="font-size:30px;color:rgba(255,255,255,.85);margin-top:26px">Sistema de consolidação e apresentação · versão 1.0 · piloto de testes</p>
+  </div>
+  <div class="rod"><span>Desenvolvimento: Breno Martins e Fabricio Martini</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span></div>
+</section>
+
+<!-- 2 · o desafio -->
+<section class="sl" data-t="O desafio">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Por que um sistema</span>
+  <h2>A REDIA nivela bordo e base em 75 minutos, todos os dias</h2>
+  <span class="dash"></span>
+  <div class="cols c2">
+    <ul class="l">
+      <li><b>Informação pulverizada:</b> BDO, SITOP, PFCEO, passagens de turno e planilhas, em sistemas e diretórios diferentes.</li>
+      <li><b>Material sem padrão:</b> cada FPSO monta o seu em PowerPoint, Excel ou PDF, preenchido à mão por coordenação.</li>
+      <li><b>Janela curta:</b> o BDO fecha entre 03:00 e 04:00 e a reunião começa às 08:45.</li>
+    </ul>
+    <ul class="l">
+      <li><b>Abertura decisiva:</b> o GEOP tem agenda concorrida e nem sempre fica a reunião toda. O essencial precisa aparecer nos primeiros minutos.</li>
+      <li><b>Leitura à distância:</b> duas TVs de 75" por sala, via Teams. O que vai para a tela precisa ser lido em segundos.</li>
+      <li><b>Bordo executa, base processa:</b> o sistema tem de reduzir o trabalho de bordo, nunca aumentar.</li>
+    </ul>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 3 · o dia -->
+<section class="sl" data-t="O dia da REDIA">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Janela de tempo</span>
+  <h2>O dia da REDIA, das 03:00 às 10:00</h2>
+  <span class="dash"></span>
+  <div class="tl">
+    <div class="eixo"></div>
+    <div class="sg" style="left:0;width:13.33%;background:var(--cinza)">BDO</div>
+    <div class="sg" style="left:13.33%;width:26.67%;background:#9a9c9e">SITOP</div>
+    <div class="sg" style="left:40%;width:28.89%;background:var(--verde)">Preenchimento</div>
+    <div class="sg" style="left:68.89%;width:6.67%;background:var(--amarelo);color:#111">Pré</div>
+    <div class="sg" style="left:76.67%;width:16.67%;background:var(--verde-esc)">REDIA</div>
+    <div class="sg" style="left:93.33%;width:6.67%;background:#bbb;color:#111">Ata</div>
+    <div class="mk" style="left:40%"></div>
+    <div class="mk" style="left:75.56%;background:var(--vermelho)"></div>
+    <span class="hr" style="left:0;transform:none">03:00</span><span class="hr" style="left:13.33%">04:00</span><span class="hr" style="left:40%">06:00</span><span class="hr" style="left:68.89%">08:10</span><span class="hr" style="left:75.56%;color:var(--vermelho);font-weight:800">08:40</span><span class="hr" style="left:93.33%">10:00</span>
+    <div class="rt cima" style="left:0"><b>03:00–04:00</b>BDO consolidado com os dados D-1, fechados às 24:00</div>
+    <div class="rt cima" style="left:16%"><b>até 06:00</b>SITOP preenchido pelo bordo</div>
+    <div class="rt cima" style="left:40.5%;width:300px"><b>06:00</b>Passagem de turno: sugestões dos supervisores das 18:00 e das 06:00</div>
+    <div class="rt cima" style="left:63%;width:300px"><b>08:10–08:40</b>Pré-REDIAs de produção, manutenção e embarcação</div>
+    <div class="rt baixo" style="left:41%;width:380px"><b>até 08:10</b>Cada coordenação faz a curadoria e conclui o preenchimento</div>
+    <div class="rt baixo" style="left:70%;width:300px"><b style="color:var(--vermelho)">08:40</b>O GEPLAT congela a pauta, que vira a versão oficial</div>
+    <div class="rt baixo" style="right:0;left:auto;width:230px"><b>08:45–10:00</b>REDIA; depois, fechamento e ata</div>
+  </div>
+  <p class="peq" style="margin-top:auto">Horários configuráveis por UEP na tela Configuração. O app mostra a fase atual no cabeçalho e na tela Início.</p>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 4 · quatro camadas -->
+<section class="sl" data-t="Quatro camadas">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Como funciona</span>
+  <h2>Do turno à ata em quatro camadas</h2>
+  <span class="dash"></span>
+  <div class="fluxo">
+    <div class="etp"><span class="q">Fontes + bordo</span><h3>Coleta</h3><p>Valores do BDO e do SITOP, situação do PFCEO e as sugestões das duas passagens de turno.</p><p class="peq">Todo dado automático tem correção manual, com a origem sempre visível.</p></div>
+    <div class="etp"><span class="q">Coordenações</span><h3>Curadoria</h3><p>GEPLAT, COPROD, COEMB e COMAN revisam, aprovam, escrevem destaques e concluem o preenchimento.</p><p class="peq">O muito importante vai também para a abertura.</p></div>
+    <div class="etp"><span class="q">Gerada sozinha</span><h3>Apresentação</h3><p>Cinco blocos 16:9 montados com o que foi aprovado, com semáforo padronizado e referência em cada valor.</p><p class="peq">Clique no título de um card para abrir o detalhe.</p></div>
+    <div class="etp"><span class="q">Registro</span><h3>Ata</h3><p>Pauta congelada, demandas base ↔ bordo, decisões e a transcrição do Teams, arquivados.</p><p class="peq">PDF da pauta pela impressão do navegador.</p></div>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 5 · quem faz o quê -->
+<section class="sl" data-t="Quem faz o quê">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Papéis</span>
+  <h2>Quem faz o quê</h2>
+  <span class="dash"></span>
+  <table class="tab">
+    <thead><tr><th style="width:330px">Quem</th><th>No sistema</th><th style="width:420px">Quando</th></tr></thead>
+    <tbody>
+      <tr><td>Supervisores</td><td>Sugerem itens para a REDIA na passagem de turno (SUPROD, SUEMB, SUEIN, SUMEC e os técnicos que reportam ao GEPLAT)</td><td>Passagens das 18:00 (D-1) e das 06:00</td></tr>
+      <tr><td>COPROD · COEMB · COMAN</td><td>Corrigem dados, aprovam ou recusam sugestões, criam destaques, escolhem o PFCEO e os serviços do dia, registram demandas e concluem o preenchimento</td><td>Até 08:10, ajustes nas pré-REDIAs</td></tr>
+      <tr><td>GEPLAT</td><td>Situação da unidade e pauta extra; vê quem concluiu; notifica, congela e descongela a pauta; abre a reunião; fecha a ata</td><td>08:40 congela · 08:45 abre</td></tr>
+      <tr><td>Base</td><td>Acompanha a curadoria, comenta itens antes da aprovação, registra e cobra demandas</td><td>Pré-REDIAs e reunião</td></tr>
+    </tbody>
+  </table>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 6 · curadoria -->
+<section class="sl" data-t="Curadoria">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Curadoria</span>
+  <h2>Cada coordenação decide o que vai para a tela</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/curadoria.jpg" alt="Tela de curadoria da COPROD com a fila de sugestões e o editor"><span class="leg">Curadoria COPROD · fila das duas passagens à esquerda, editor do item à direita</span></div>
+    <ul class="l">
+      <li><b>Fila</b> com as passagens das 06:00 e das 18:00, por urgência, com "aberto há N dias".</li>
+      <li><b>Editor</b> com o texto original do supervisor ao lado. O coordenador ajusta título, TAG, impacto, semáforo e o pedido à base.</li>
+      <li><b>Muito importante:</b> o item também entra na abertura do GEPLAT.</li>
+      <li><b>Concluir preenchimento</b> avisa o GEPLAT que a coordenação está pronta.</li>
+    </ul>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 7 · dados com origem -->
+<section class="sl" data-t="Dados com origem">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Regras de dados</span>
+  <h2>Todo valor com origem e referência</h2>
+  <span class="dash"></span>
+  <div class="cols c37">
+    <div style="display:flex;flex-direction:column;gap:30px;min-width:0">
+      <div class="bloco"><span class="n">ORIGEM SEMPRE VISÍVEL</span>
+        <p><span class="tag">A</span>automático (BDO, SITOP, metas)</p>
+        <p><span class="tag">M</span>manual, com nome e hora de quem alterou</p>
+        <p><span class="tag">C</span>escrito pela coordenação</p>
+        <p><span class="tag">PS</span>sugerido na passagem de turno</p>
+        <p><span class="tag">PT</span>serviço do planejamento (APLAT)</p>
+      </div>
+      <div class="bloco"><span class="n">SEMÁFORO PADRONIZADO</span>
+        <p style="display:flex;flex-wrap:wrap;gap:12px">
+          <span class="pill p-ok"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#008542"/><path d="M7 12.5l3.2 3.2L17 9" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>OK</span>
+          <span class="pill p-at"><svg viewBox="0 0 24 24"><path d="M12 2.5L23 21.5H1z" fill="#FDC82F"/><path d="M12 9v6" stroke="#111" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18.2" r="1.4" fill="#111"/></svg>Atenção</span>
+          <span class="pill p-nok"><svg viewBox="0 0 24 24"><path d="M7.3 1.5h9.4l6.8 6.8v9.4l-6.8 6.8H7.3L.5 17.7V8.3z" fill="#fff"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="#DA291C" stroke-width="2.6" stroke-linecap="round"/></svg>Não OK</span>
+          <span class="pill p-sd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#75787B"/><path d="M7 12h10" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>Sem dado</span>
+        </p>
+        <p class="peq">Cor, símbolo e texto sempre juntos. Zero é dado; só a ausência é "Sem dado".</p>
+      </div>
+    </div>
+    <div class="fig"><img class="shot" src="img/dados.jpg" alt="Tela de dados automáticos com origem, fonte e hora de cada valor"><span class="leg">Dados automáticos · cada valor com fonte, hora da captura e correção manual. A referência acompanha o valor: meta ou potencial, D-1 × projetado D, acumulado do mês.</span></div>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 8 · apresentação -->
+<section class="sl" data-t="Apresentação">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Apresentação</span>
+  <h2>Cinco blocos, um por vez, na ordem da reunião</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/pres_1.jpg" alt="Bloco 1, abertura do GEPLAT"><span class="leg">Bloco 1 · Abertura do GEPLAT: situação da unidade, SMS, POB, offloading, produção, IUGA, injeção, destaques e atividades do dia</span></div>
+    <div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+      <table class="tab">
+        <tbody>
+          <tr><td>1</td><td>Abertura · GEPLAT</td></tr>
+          <tr><td>2</td><td>Produção · COPROD</td></tr>
+          <tr><td>3</td><td>Embarcação · COEMB</td></tr>
+          <tr><td>4</td><td>Manutenção · COMAN</td></tr>
+          <tr><td>5</td><td>Fechamento: demandas, ata e retorno às passagens</td></tr>
+        </tbody>
+      </table>
+      <p class="peq">Tela 16:9 legível a 4 m nas TVs de 75". Setas ou números trocam o bloco; espaço controla o cronômetro de cada coordenação; F abre em tela cheia.</p>
+    </div>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 9 · bloco da coordenação -->
+<section class="sl" data-t="Bloco da coordenação">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Blocos 2, 3 e 4</span>
+  <h2>Mesmo desenho para as três coordenações</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/pres_2.jpg" alt="Bloco 2, produção da COPROD"><span class="leg">Bloco 2 · COPROD com dados de exemplo</span></div>
+    <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
+      <div class="bloco"><span class="n">ESQUERDA</span><p><b>Indicadores</b> da coordenação: meta, realizado D-1, %, projetado D. Na COPROD: queima projetada e poços.</p></div>
+      <div class="bloco"><span class="n">CENTRO</span><p><b>Equipamentos e Sistemas · PFCEO</b> escolhidos pelo coordenador, piores primeiro, e <b>Últimas 24h</b>.</p></div>
+      <div class="bloco"><span class="n">DIREITA</span><p><b>Serviços planejados hoje</b> e <b>Demandas para a base</b>.</p></div>
+    </div>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 10 · detalhe -->
+<section class="sl" data-t="Detalhes">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Detalhe por assunto</span>
+  <h2>Clique no título do card para aprofundar</h2>
+  <span class="dash"></span>
+  <div class="cols c2">
+    <div class="fig"><img class="shot" src="img/pres_2_pocos.jpg" alt="Detalhe de poços"><span class="leg">Poços · produtores por trem, próximo teste de vazão, injetores, operações em poços e cilindros de amostra</span></div>
+    <div class="fig"><img class="shot" src="img/pres_2_queima.jpg" alt="Detalhe da queima projetada"><span class="leg">Queima · acumulado do mês somado dia a dia do SITOP, IUGA parcial × meta e reserva de queima no mês</span></div>
+  </div>
+  <p class="peq" style="margin-top:22px">Cada detalhe tem "Tela COPROD/COEMB/COMAN" para voltar e "Próximo" para seguir para a coordenação seguinte. Esc também volta.</p>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 11 · congelamento -->
+<section class="sl" data-t="Congelamento">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">08:40</span>
+  <h2>Pauta congelada é a versão oficial</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/congelar_aviso.jpg" alt="Aviso de coordenações sem conclusão ao congelar"><span class="leg">Ao congelar com coordenação pendente: cancelar, notificar o coordenador ou congelar mesmo assim</span></div>
+    <ul class="l">
+      <li>Congelar guarda uma <b>cópia fiel da pauta</b> com código de integridade. A apresentação passa a mostrar essa cópia.</li>
+      <li>A curadoria fica <b>bloqueada para todos</b>. Na V1.0 a própria base de dados recusa alterações, mesmo de quem estava com a tela aberta.</li>
+      <li><b>Demandas, anexos e ata</b> continuam liberados.</li>
+      <li>Descongelar exige motivo e fica registrado.</li>
+    </ul>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 12 · ata -->
+<section class="sl" data-t="Fechamento e ata">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Depois das 10:00</span>
+  <h2>Demandas rastreáveis e ata arquivada</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/ata.jpg" alt="Tela de fechamento e ata"><span class="leg">Fechamento e ata · pauta congelada, demandas da reunião, transcrição do Teams e ata</span></div>
+    <ul class="l">
+      <li><b>Demandas</b> base ↔ bordo com responsável, prazo e situação (no prazo, vence hoje, vencida). Ficam abertas de um dia para o outro.</li>
+      <li><b>Transcrição</b> do Teams anexada (.docx ou .vtt).</li>
+      <li><b>Ata</b> com participantes, situação, indicadores, destaques por bloco, demandas e decisões.</li>
+      <li><b>PDF da pauta</b>, uma página 16:9 por bloco.</li>
+    </ul>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 13 · celular -->
+<section class="sl" data-t="Celular e tablet">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Em campo</span>
+  <h2>Preparar a REDIA pelo tablet ou celular</h2>
+  <span class="dash"></span>
+  <div class="cols topo" style="grid-template-columns:300px 300px 1fr;gap:48px">
+    <div class="fig"><img class="shot" src="img/celular_fila.jpg" alt="Curadoria no celular, fila de sugestões"><span class="leg">Fila de sugestões</span></div>
+    <div class="fig"><img class="shot" src="img/celular_editor.jpg" alt="Curadoria no celular, editor do item"><span class="leg">Editor e "Concluir preenchimento" fixo</span></div>
+    <ul class="l" style="align-content:start">
+      <li>Se o GEPLAT ou um coordenador precisar ir à área no início do dia, adianta a curadoria no aparelho.</li>
+      <li>Telas de acesso, Início e curadoria adaptadas: abas roláveis, fila e editor em tela cheia, botões grandes para o toque.</li>
+      <li>Na V1.0 o aparelho acessa o mesmo site e a mesma base. O que é gravado aparece para todos em segundos.</li>
+    </ul>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 14 · arquitetura -->
+<section class="sl" data-t="Arquitetura">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Por dentro da V1.0</span>
+  <h2>Site estático + base de dados na nuvem</h2>
+  <span class="dash"></span>
+  <div class="arq">
+    <div class="cx"><h3>Navegadores</h3><p>PC de bordo e da base, tablet, celular e as TVs da reunião via Teams</p></div>
+    <div class="seta"></div>
+    <div class="cx verde"><h3>Site do app</h3><p>GitHub Pages no piloto ou servidor web interno da TIC (HTTPS)</p><p class="peq" style="font-size:20px">Arquivos estáticos: sem servidor de aplicação</p></div>
+    <div class="seta"></div>
+    <div class="supa">
+      <div class="cx"><h3>Login</h3><p>Chave + senha pessoal</p></div>
+      <div class="cx"><h3>PostgreSQL</h3><p>Registros só de acréscimo, separados por UEP</p></div>
+      <div class="cx"><h3>Arquivos</h3><p>Pauta congelada, ata, transcrição</p></div>
+      <div class="cx"><h3>Tempo real</h3><p>Avisa todos quando alguém grava</p></div>
+    </div>
+  </div>
+  <div class="cols c3" style="margin-top:48px;flex:0 0 auto;gap:40px">
+    <p><b>Nada se apaga.</b> Uma correção é um registro novo; o histórico fica completo.</p>
+    <p><b>O servidor carimba</b> quem gravou e a hora oficial. O navegador não decide.</p>
+    <p><b>Portável:</b> o mesmo app roda com o Supabase em nuvem ou instalado na rede da Petrobras.</p>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 15 · segurança -->
+<section class="sl" data-t="Segurança">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Acesso e segurança</span>
+  <h2>Cada um entra com a própria chave</h2>
+  <span class="dash"></span>
+  <div class="cols c2">
+    <ul class="l">
+      <li><b>Chave Petrobras + senha pessoal.</b> A senha temporária é trocada no primeiro acesso.</li>
+      <li><b>Perfil cadastrado</b> pelo administrador: nome, posto, coordenação e UEP. Sem perfil, ninguém lê nem grava.</li>
+      <li><b>Cada UEP só vê os próprios dados.</b> A regra está na base, não só na tela.</li>
+    </ul>
+    <ul class="l">
+      <li><b>Configuração da UEP</b> só pelo GEPLAT ou pelo administrador.</li>
+      <li><b>Nenhuma lista de pessoas no código.</b> A chave secreta da base nunca vai para o site.</li>
+      <li><b>Dados reais só após aprovação da TIC/SI.</b> No piloto, só dados de exemplo.</li>
+    </ul>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 16 · como testar -->
+<section class="sl" data-t="Como testar">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Piloto</span>
+  <h2>Como testar agora</h2>
+  <span class="dash"></span>
+  <div class="cols c2 topo">
+    <div class="bloco" style="gap:20px"><span class="n">MODO DEMONSTRAÇÃO · SEM CADASTRO</span>
+      <p>1 · Abra o app: <a href="../" data-app><b>REDIA P-83 ›</b></a></p>
+      <p>2 · Entre com uma chave fictícia e a senha <b>1234</b>:<br><span class="tag">GP01</span>GEPLAT <span class="tag" style="margin-left:14px">CP01</span>COPROD <span class="tag" style="margin-left:14px">CE01</span>COEMB <span class="tag" style="margin-left:14px">CM01</span>COMAN</p>
+      <p>3 · No Início, clique em <b>Carregar dados de exemplo</b>.</p>
+      <p>4 · Siga o roteiro: curadoria, conclusão, congelamento, apresentação e ata.</p>
+      <p class="peq">Na demonstração, cada navegador guarda os próprios dados. Para várias pessoas no mesmo dia, o administrador liga o site à base Supabase (docs/IMPLANTACAO.md).</p>
+    </div>
+    <div class="bloco" style="gap:20px"><span class="n">O QUE OBSERVAR</span>
+      <ul class="l" style="gap:16px">
+        <li>A tela da coordenação é lida de longe em segundos?</li>
+        <li>A curadoria cabe até 08:10 sem retrabalho?</li>
+        <li>Falta algum dado, indicador ou fonte?</li>
+        <li>Funciona no seu aparelho e no Teams?</li>
+      </ul>
+      <p class="peq">Registre problemas e sugestões nas Issues do repositório, sem dados reais, nomes ou senhas.</p>
+    </div>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<!-- 17 · próximos passos -->
+<section class="sl" data-t="Próximos passos">
+  <img class="marca" src="../assets/petrobras.png" alt="Petrobras">
+  <span class="k">Situação</span>
+  <h2>Onde estamos e o que falta</h2>
+  <span class="dash"></span>
+  <div class="cols c3 topo">
+    <div class="bloco"><span class="n">PRONTO</span>
+      <ul class="l" style="gap:14px"><li>Fluxo completo: coleta manual, curadoria, apresentação, congelamento e ata</li><li>Versão web com base de dados, login e tempo real</li><li>281 verificações automáticas aprovadas</li></ul></div>
+    <div class="bloco"><span class="n">DEPENDE DA TIC</span>
+      <ul class="l" style="gap:14px"><li>Aprovação da base de dados e da hospedagem interna</li><li>Login corporativo (Microsoft)</li><li>Backup, retenção e LGPD</li><li>Rede de bordo liberada para o site e a base</li></ul></div>
+    <div class="bloco"><span class="n">PRÓXIMAS VERSÕES</span>
+      <ul class="l" style="gap:14px"><li>Captura automática: SITOP, BDO e PFCEO</li><li>Ligação com o app de passagem de serviço</li><li>Modo pré-operação (comissionamento)</li><li>Outras UEPs de Búzios</li></ul></div>
+  </div>
+  <div class="rod"><span>REDIA P-83 · V1.0</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+</div></div>
+
+<nav class="ui" id="ui" aria-label="Navegação da apresentação">
+  <button type="button" id="ant" aria-label="Slide anterior">‹</button>
+  <span class="num" id="num" aria-live="polite">1 / 1</span>
+  <button type="button" id="prox" aria-label="Próximo slide">›</button>
+  <button type="button" id="cheia" title="Tela cheia (F)">Tela cheia</button>
+  <a href="../" id="app">Abrir o app</a>
+</nav>
+
+<script>
+'use strict';
+(() => {
+  const stw = document.getElementById('stw'), sls = [...document.querySelectorAll('.sl')], N = sls.length;
+  const num = document.getElementById('num'), prog = document.getElementById('prog'), ui = document.getElementById('ui');
+  let atual = 0;
+  sls.forEach((s, i) => { const pg = s.querySelector('.pg'); if (pg) pg.textContent = (i + 1) + ' / ' + N; });
+  function ajustar() {
+    const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stw.style.transform = `translate(${(innerWidth - 1920 * k) / 2}px, ${(innerHeight - 1080 * k) / 2}px) scale(${k})`;
+  }
+  function ir(i, empurrar = true) {
+    atual = Math.max(0, Math.min(N - 1, i));
+    sls.forEach((s, j) => s.classList.toggle('on', j === atual));
+    num.textContent = (atual + 1) + ' / ' + N;
+    prog.style.width = ((atual + 1) / N * 100) + '%';
+    document.title = 'REDIA P-83 · ' + (sls[atual].dataset.t || 'Apresentação');
+    if (empurrar) { try { history.replaceState(null, '', '#' + (atual + 1)); } catch (e) { location.hash = String(atual + 1); } }
+  }
+  function cheia() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
+  document.getElementById('ant').onclick = () => ir(atual - 1);
+  document.getElementById('prox').onclick = () => ir(atual + 1);
+  document.getElementById('cheia').onclick = cheia;
+  addEventListener('keydown', e => {
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); ir(atual + 1); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); ir(atual - 1); }
+    else if (e.key === 'Home') ir(0);
+    else if (e.key === 'End') ir(N - 1);
+    else if (e.key.toLowerCase() === 'f') cheia();
+  });
+  let x0 = null;
+  addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+  addEventListener('touchend', e => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50) ir(atual + (dx < 0 ? 1 : -1)); x0 = null; });
+  document.getElementById('deck').addEventListener('click', e => { if (e.target.closest('a')) return; const x = e.clientX / innerWidth; if (x > .66) ir(atual + 1); else if (x < .33) ir(atual - 1); });
+  let t = null; const mostrar = () => { ui.classList.remove('hide'); clearTimeout(t); t = setTimeout(() => ui.classList.add('hide'), 3000); };
+  addEventListener('mousemove', mostrar); addEventListener('touchstart', mostrar, { passive: true });
+  addEventListener('resize', ajustar);
+  addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (n) ir(n - 1, false); });
+  ajustar();
+  const n0 = parseInt(location.hash.slice(1), 10);
+  ir(n0 ? n0 - 1 : 0, false); mostrar();
+})();
+</script>
+</body>
+</html>

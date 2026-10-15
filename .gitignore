@@ -1,0 +1,21 @@
+# saídas da montagem
+dist/
+dist-unico/
+# configuração local com as chaves do Supabase (a anon é pública, mas fica fora do repositório)
+config.local.json
+# testes
+tests/node_modules/
+tests/out/
+tests/.saida/
+tests/package-lock.json
+# NUNCA versionar: cadastro real de usuários e senhas temporárias
+*PRIVADO*
+senhas_temporarias_*.csv
+usuarios_*.csv
+!supabase/usuarios_modelo.csv
+.env
+*.key
+# sistema
+.DS_Store
+Thumbs.db
+__pycache__/
