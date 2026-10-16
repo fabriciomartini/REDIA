@@ -34,7 +34,7 @@ function chaveServidor(): string {
 }
 
 Deno.serve(async req => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: { ...CORS, 'Access-Control-Allow-Headers': req.headers.get('access-control-request-headers') || CORS['Access-Control-Allow-Headers'] } });
   if (req.method !== 'POST') return resposta({ ok: false, mensagem: 'Use POST.' }, 405);
   let chave = '';
   try { chave = String((await req.json())?.chave || '').trim().toUpperCase(); } catch { /* corpo inválido */ }

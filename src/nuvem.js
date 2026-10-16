@@ -75,16 +75,15 @@ const Nuvem = {
   },
   /* D-56: "Esqueci a senha" · a Edge Function gera a senha temporária e a envia ao e-mail do administrador */
   async recuperarSenha(chave) {
-    let r;
-    try { r = await this.cliente().functions.invoke('redia-recuperar-senha', { body: { chave } }); }
-    catch (e) { throw erroNuvem(e); }
-    if (r.error) {
-      let m = '';
-      try { m = (await r.error.context?.json())?.mensagem || ''; } catch { }
-      if (!m && /404|not found/i.test(String(r.error.message || r.error.context?.status))) m = 'A recuperação de senha ainda não está instalada na base. Procure o administrador da REDIA.';
-      throw new ErroNuvem(m || 'Não foi possível enviar o pedido agora. Tente mais tarde ou procure o administrador.', 'RECUPERAR');
-    }
-    return r.data?.mensagem || 'Pedido registrado.';
+    let r, corpo = {};
+    try {
+      r = await fetch(NUVEM.supabaseUrl.replace(/\/$/, '') + '/functions/v1/redia-recuperar-senha', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: NUVEM.supabaseAnonKey, Authorization: 'Bearer ' + NUVEM.supabaseAnonKey }, body: JSON.stringify({ chave }) });
+    } catch (e) { throw new ErroNuvem('Sem conexão com a base de dados. Verifique a rede e tente de novo.', 'REDE'); }
+    try { corpo = await r.json(); } catch { }
+    if (r.status === 404) throw new ErroNuvem('A recuperação de senha ainda não está instalada na base. Procure o administrador da REDIA.', 'RECUPERAR');
+    if (!r.ok) throw new ErroNuvem(corpo.mensagem || 'Não foi possível enviar o pedido agora. Tente mais tarde ou procure o administrador.', 'RECUPERAR');
+    return corpo.mensagem || 'Pedido registrado.';
   },
   async pedidosSenha(uep) { try { return await this.rpc('redia_pedidos_senha', { p_uep: uep }); } catch { return []; } },
   async sair() { this.pararTempoReal(); try { await this.cli?.auth.signOut({ scope: 'local' }); } catch { } },
