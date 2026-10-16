@@ -10,7 +10,7 @@
 //   RESEND_API_KEY      chave da conta Resend (envio do e-mail)
 //   REDIA_EMAIL_ADMIN   e-mail que recebe as senhas temporárias
 //   REDIA_EMAIL_DE      remetente (opcional; padrão "REDIA P-83 <onboarding@resend.dev>")
-// SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY já existem no ambiente das Edge Functions (não vão para o app).
+// SUPABASE_URL e a chave do servidor (SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_SECRET_KEYS) já existem no ambiente das Edge Functions (não vão para o app).
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
@@ -26,6 +26,13 @@ function senhaTemporaria(): string {
   return s;
 }
 
+/* chave do servidor: a antiga service_role ou a primeira chave secreta nova (sb_secret_…) do ambiente da função */
+function chaveServidor(): string {
+  const legado = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (legado) return legado;
+  try { const k = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}'); return String(k.default || Object.values(k)[0] || ''); } catch { return ''; }
+}
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return resposta({ ok: false, mensagem: 'Use POST.' }, 405);
@@ -33,7 +40,7 @@ Deno.serve(async req => {
   try { chave = String((await req.json())?.chave || '').trim().toUpperCase(); } catch { /* corpo inválido */ }
   if (!/^[A-Z0-9]{4}$/.test(chave)) return resposta({ ok: false, mensagem: 'Informe a chave com 4 letras ou números.' }, 400);
 
-  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+  const sb = createClient(Deno.env.get('SUPABASE_URL')!, chaveServidor(), { auth: { persistSession: false } });
   const registrar = (situacao: string, detalhe: string, uep: string | null = null) => sb.from('pedidos_senha').insert({ chave, uep, situacao, detalhe });
 
   const { data: perfil } = await sb.from('perfis').select('user_id, chave, nome, posto, uep, ativo, compartilhado').eq('chave', chave).maybeSingle();
