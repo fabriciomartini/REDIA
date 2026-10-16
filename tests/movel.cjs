@@ -3,10 +3,10 @@
 const { chromium } = require('playwright'); const path = require('path'), fs = require('fs');
 const P = __dirname, OUT = path.join(P, 'out', 'movel'); fs.mkdirSync(OUT, { recursive: true });
 const DIST = path.join(P, '.saida', 'demo');
-if (!fs.existsSync(path.join(DIST, 'index.html'))) require('child_process').execFileSync('python3', [path.join(P, '..', 'build.py'), '--saida', DIST], { stdio: 'inherit', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '' } });
+if (!fs.existsSync(path.join(DIST, 'app', 'index.html'))) require('child_process').execFileSync('python3', [path.join(P, '..', 'build.py'), '--saida', DIST], { stdio: 'inherit', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '' } });
 const erros = []; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FALHA') + ' ' + m); if (!c) erros.push(m); };
 (async () => {
-  const { iniciarServidor } = await import('./servidor.mjs'); const srv = await iniciarServidor({ estatico: DIST }); const U = srv.url + '/index.html';
+  const { iniciarServidor } = await import('./servidor.mjs'); const srv = await iniciarServidor({ estatico: DIST }); const U = srv.url + '/app/index.html';
   const b = await chromium.launch();
   for (const [nome, vp] of [['phone', { width: 390, height: 844 }], ['phone-s', { width: 360, height: 740 }], ['tablet', { width: 820, height: 1180 }], ['tablet-l', { width: 1180, height: 820 }], ['note', { width: 1366, height: 768 }]]) {
     const ctx = await b.newContext({ viewport: vp, deviceScaleFactor: 1, hasTouch: nome !== 'note', isMobile: nome.startsWith('phone') });

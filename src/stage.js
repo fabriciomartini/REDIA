@@ -24,6 +24,18 @@ const DOTS = {
 };
 DOTS.legRe = DOTS.reaberto;
 const chip = (txt, st = 'aberto', q = '') => `<span class="w${st === 'reaberto' ? ' ra' : st === 'fechado' ? ' fe' : st ? '' : ' nt'}">${st ? DOTS[st] : ''}${q ? `<span class="q">${esc(q)}</span>` : ''}${esc(txt)}</span>`;
+/* status dos equipamentos (D-53): forma + cor + letra da unidade; o nome do status fica na legenda e no texto acessível */
+const DOT_EQ = {
+  'eq-op': '<svg class="ic" width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.2" fill="#008542"/></svg>',
+  'eq-sb': '<svg class="ic" width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.4" fill="none" stroke="#008542" stroke-width="2"/></svg>',
+  'eq-lm': '<svg class="ic" width="14" height="13" viewBox="0 0 13 12" aria-hidden="true"><path d="M6.5.8c.4 0 .75.2.95.55l4.9 8.6c.4.7-.1 1.55-.9 1.55H1.55c-.8 0-1.3-.85-.9-1.55l4.9-8.6c.2-.35.55-.55.95-.55z" fill="#FDC82F" stroke="rgba(0,0,0,.55)" stroke-width=".9"/></svg>',
+  'eq-mn': '<svg class="ic" width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6l5.4 5.4L6 11.4.6 6z" fill="#75787B"/></svg>',
+  'eq-in': '<svg class="ic" width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><rect x=".8" y=".8" width="10.4" height="10.4" rx="2.4" fill="#DA291C"/><path d="M3.9 3.9l4.2 4.2M8.1 3.9L3.9 8.1" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  'eq-sd': '<svg class="ic" width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.2" fill="none" stroke="#75787B" stroke-width="1.4" stroke-dasharray="2 1.6"/></svg>',
+};
+const eqBullet = (i) => { const k = ST_EQ_CLS[i.status] || 'eq-sd'; return `<span class="eb ${k}" role="img" aria-label="${esc(i.nome)}: ${esc(i.status || 'sem dado')}" title="${esc(i.nome)}: ${esc(i.status || 'sem dado')}">${DOT_EQ[k]}${esc(i.un)}</span>`; };
+const chipsEq = (E, conj) => equipDe(E, conj).map(g => `<span class="w eqg"><span class="q">${esc(g.grupo)}</span>${g.itens.map(eqBullet).join('')}</span>`).join('');
+const legendaEq = () => `<span class="lge">${ST_EQ.map(s => `<span class="eb ${ST_EQ_CLS[s]}">${DOT_EQ[ST_EQ_CLS[s]]}${esc(s)}</span>`).join('')}</span>`;
 const legendaPocos = (aberto = 'aberto 24 h') => `<span class="lgp">${chip(aberto, 'aberto')}${chip('reaberto', 'reaberto')}${chip('fechado agora', 'fechado')}</span>`;
 const tag = t => `<span class="o">${esc(t)}</span>`;
 const tagAb = '<span class="o ab">Abertura</span>';
@@ -86,7 +98,6 @@ const SELO = '<span class="selo"><span class="seal" aria-hidden="true">I</span>I
 const rodapeSelo = () => `<div class="rod">${SELO}</div>`;
 const ordemPoco = { reaberto: 0, fechado: 1, aberto: 2 };
 const pocos = (E, tipo) => L(E, 'pocos').filter(p => p.tipo === tipo).sort((a, b) => ordemPoco[a.status] - ordemPoco[b.status]);
-const chipsEq = (E, campo) => L(E, campo).filter(e => e.unidades).map(e => chip(e.unidades, 'aberto', e.grupo)).join('');
 const chipsPoco = (E, tipo) => pocos(E, tipo).map(p => chip(p.poco, p.status)).join('');
 function piorSem(...s) { return ['nok', 'at', 'ok'].find(x => s.includes(x)) || 'sd'; }
 
@@ -153,12 +164,12 @@ function telaAbertura(E, ctx) {
           <div class="row-sb"><span class="gh">Últimas 24 h</span>${V(E, 'queima.ref') ? tag(V(E, 'queima.ref')) : ''}</div>
           ${ev.length ? ev.map(e => `<div class="li ev"><span>${T(e.evento)}</span><div class="row-sb"><span class="cap">Flare ${esc(e.flare)}</span><span class="v">${fmtU(e.volume, 1, 'Mm³')}</span></div></div>`).join('') : '<div class="li"><span class="sec">Sem evento relevante</span></div>'}
           <span class="gh">Modo do flare</span><div class="cps">${flare('HP', V(E, 'flare.hp'))}${flare('LP', V(E, 'flare.lp'))}</div>
-          <span class="gh">Recuperação de gás</span><div class="cps">${chipsEq(E, 'eq.recuperacao') || '<span class="cap">Nenhuma em operação</span>'}</div></div></div>
+          <span class="gh">Recuperação de gás</span><div class="cps">${chipsEq(E, 'recuperacao')}</div></div></div>
       <div class="card col6">${hd('Injeção de gás', pill(ga.sem, semNome(ga.sem)), 'gas')}
         <div><span class="big">${fmtN(gR)}</span><span class="unit">Mm³/d</span></div>
         <span class="cap row-w">${ga.pct != null ? fmtN(ga.pct, 1) + '% da meta' : 'Sem dado'} · sem exportação ${V(E, 'gas.ref') ? tag(V(E, 'gas.ref')) : ''}</span>
         <div>${li('Meta', fmtN(gM))}${li('Projetado D', fmtN(VN(E, 'gas.proj')), 1)}</div>
-        <span class="gh">Compressores e injetores</span><div class="cps">${chipsEq(E, 'eq.gas')}${chipsPoco(E, 'inj_gas')}</div></div>
+        <span class="gh">Compressores e injetores</span><div class="cps">${chipsEq(E, 'gas')}${chipsPoco(E, 'inj_gas')}</div></div>
       <div class="card col6">${hd('Injeção de água', pill(ag.sem, semNome(ag.sem)), 'agua')}
         <div><span class="big">${fmtN(aR)}</span><span class="unit">m³/d</span></div><span class="cap">${ag.pct != null ? fmtN(ag.pct, 1) + '% da meta' : 'Sem dado'} · projetado D ${fmtN(VN(E, 'agua.proj'))}</span>
         <div class="row-sb mt4"><span class="gh">Composição da água injetada</span>${V(E, 'agua.ref') ? tag(V(E, 'agua.ref')) : ''}</div>
@@ -166,7 +177,7 @@ function telaAbertura(E, ctx) {
         <div class="comp"><span class="lg"><i style="background:#00B2A9"></i>Dessulfatada (URS)</span><b>${fmtU(urs, 0, 'm³')}</b><span class="sec">${pct(urs)}</span>
           <span class="lg"><i style="background:#75787B"></i>Produzida reinjetada</span><b>${fmtU(pr, 0, 'm³')}</b><span class="sec">${pct(pr)}</span></div>
         <span class="cap">Produzida descartada no mar: ${fmtU(VN(E, 'agua.prod_desc'), 0, 'm³')}</span>
-        <span class="gh">Bombas e injetores</span><div class="cps">${chipsEq(E, 'eq.bombas')}${chipsPoco(E, 'inj_agua')}</div></div>
+        <span class="gh">Bombas e injetores</span><div class="cps">${chipsEq(E, 'bombas')}${chipsPoco(E, 'inj_agua')}</div></div>
     </section>
     <section class="g r3">
       <div class="card col0">${hd('Destaques e ameaças', '<span class="cap">indicados pelas coordenações</span>')}${ameacas}</div>
@@ -176,7 +187,7 @@ function telaAbertura(E, ctx) {
     </section>
     <footer class="ft">
       <span>${tag('A')} automático</span><span>${tag('M')} manual</span><span>${tag('PT')} APLAT</span>
-      <span>${legendaPocos('aberto 24 h · em operação')}</span>
+      <span>${legendaPocos('poço aberto 24 h')}</span><span>${legendaEq()}</span>
       <span class="ell">Sem registro hoje: ${esc(semReg.join(', ') || '—')}</span><span class="sp"></span>${SELO}
     </footer>
   </main></div>`;

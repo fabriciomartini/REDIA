@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.2.0 · D-53 (2026-10-16)
+
+- **Página inicial** na raiz do site: escolha entre **Acessar o app** (agora em `/app/`) e **Conhecer o sistema** (deck em `/apresentacao/`). Endereços antigos do app com `#/…` seguem para `/app/`.
+- **Dados automáticos sem botões Salvar e Adicionar linha:** o que a captura encontra entra confirmado (A); um valor digitado grava ao sair do campo, vira M com autor e horário, e o destaque de falha some. Nas listas, a linha em branco do fim serve para incluir. As abas de preenchimento manual e do PFCEO não mudaram.
+- **Equipamentos com status individual** (compressores de gás, recuperação de gás, bombas de injeção de água): uma linha e uma caixa de seleção por equipamento (Operando, Stand By, Em manutenção, Indisponível, Limitado). **Capturar dados** traz o status da passagem de serviço do posto que opera o equipamento (modo simulado até a integração, I-13).
+- **Abertura (GEPLAT) e detalhe de indicadores da COPROD:** um bullet por equipamento, com forma e cor por status e legenda.
+
 ## 1.1.0 · D-52 (2026-10-15)
 
 - **Exemplo:** ao carregar os dados de demonstração, todas as sugestões dos supervisores chegam às caixas de entrada das curadorias **sem classificação**.

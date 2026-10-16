@@ -124,11 +124,10 @@ const DETALHES = {
           <span class="cap mt-auto">A cota de queima é do campo inteiro: a P-83 é lida junto com o ${esc(CFG.ativo)} e ${esc(CFG.campo)}.</span></div>
       </div>
       <div class="colg">
-        <div class="card col">${hd('Equipamentos em operação')}
-          <span class="gh">Compressores de gás</span><div class="cps">${chipsEq(E, 'eq.gas') || '<span class="cap">Nenhum</span>'}</div>
-          <span class="gh">Recuperação de gás</span><div class="cps">${chipsEq(E, 'eq.recuperacao') || '<span class="cap">Nenhuma</span>'}</div>
-          <span class="gh">Bombas de injeção de água</span><div class="cps">${chipsEq(E, 'eq.bombas') || '<span class="cap">Nenhuma</span>'}</div>
-          <span class="gh">Modo do flare</span><div class="cps">${flare('HP', V(E, 'flare.hp'))}${flare('LP', V(E, 'flare.lp'))}</div></div>
+        <div class="card col">${hd('Equipamentos · status')}
+          ${EQUIP.map(e => `<span class="gh">${esc(e.rot)}</span><div class="cps">${chipsEq(E, e.id)}</div>`).join('')}
+          <span class="gh">Modo do flare</span><div class="cps">${flare('HP', V(E, 'flare.hp'))}${flare('LP', V(E, 'flare.lp'))}</div>
+          <span class="mt4">${legendaEq()}</span></div>
         <div class="card col fill">${hd('Composição da água injetada', V(E, 'agua.ref') ? tag(V(E, 'agua.ref')) : '')}
           <div class="bar b16"><div style="width:${tot ? urs / tot * 100 : 0}%;background:#00B2A9"></div><div style="width:${tot ? pr / tot * 100 : 0}%;min-width:${pr ? 4 : 0}px;background:#75787B"></div></div>
           <div class="comp"><span class="lg"><i style="background:#00B2A9"></i>Dessulfatada (URS)</span><b>${fmtU(urs, 0, 'm³')}</b><span class="sec">${pct(urs)}</span>

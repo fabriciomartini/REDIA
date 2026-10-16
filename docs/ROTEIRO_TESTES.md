@@ -28,7 +28,9 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | # | Passo | Esperado |
 |---|---|---|
 | 2.1 | Abrir minha curadoria › Dados automáticos | Valores com origem, fonte e hora |
-| 2.1a | Clicar em **Capturar dados** num bloco (ex.: IUGA e queima; Resultados de análises) | Barra de progresso por etapa; alerta lista o que não foi encontrado e pede preenchimento manual. Hoje os conectores rodam em modo **simulado** |
+| 2.1a | Clicar em **Capturar dados** num bloco (ex.: IUGA e queima; Compressores de gás; Resultados de análises) | Barra de progresso por etapa; o que foi encontrado entra confirmado (A); alerta lista o que não foi encontrado. Hoje os conectores rodam em modo **simulado** |
+| 2.1c | Digitar o valor que faltou (ou corrigir um capturado) e clicar em outro campo | Grava sozinho, sem botão Salvar: vira M com seu nome e horário e o destaque some |
+| 2.1d | Compressores, recuperação de gás e bombas: mudar o status de um equipamento | Abertura (GEPLAT) e detalhe de indicadores da COPROD mostram o bullet do equipamento no novo status |
 | 2.1b | Resultados de análises: conferir a data de cada resultado | Data em destaque ("Atrasada · N dias") quando passa da periodicidade |
 | 2.2 | Corrigir um valor manualmente | Aparece como "M" com seu nome, também para os outros usuários em segundos |
 | 2.3 | Sugestões: aprovar uma, marcar outra como "Abertura", recusar uma | Fila atualiza; o item aprovado vai para o bloco; "Abertura" leva à tela do GEPLAT |

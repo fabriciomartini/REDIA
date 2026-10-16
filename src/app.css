@@ -621,3 +621,15 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .stage .tbl.lab{grid-template-columns:minmax(0,1.6fr) auto auto auto auto minmax(0,.9fr);column-gap:22px}
 .stage .tbl.lab .u{color:var(--cinza);font-size:16px}
 .stage .tbl.cnl{grid-template-columns:minmax(0,1fr) auto minmax(0,.5fr) auto;column-gap:18px}
+
+/* D-53 · status individual dos equipamentos */
+.stage .w.eqg{gap:4px;padding:5px 10px 5px 10px}
+.stage .w.eqg .q{margin-right:4px}
+.stage .eb{display:inline-flex;align-items:center;gap:3px;font-weight:700}
+.stage .eb.eq-sb,.stage .eb.eq-mn,.stage .eb.eq-sd{font-weight:500;color:#3b3d3f}
+.stage .eb.eq-in{color:#DA291C}
+.stage .lge{display:inline-flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:15px}
+.stage .lge .eb{font-weight:500;color:#000;gap:5px}
+.stage .ft>span:not(.ell):not(.sp){flex-shrink:0}
+.stage .ft .lgp,.stage .ft .lge{flex-wrap:nowrap}
+.stage .ft .lge{gap:10px}

@@ -103,6 +103,23 @@ function labDe(E, coord, hojeIso = (typeof DIA !== 'undefined' ? DIA : isoData(n
     return { ...a, id, valor: valor === '' ? null : valor, data, dias, atrasada: dias !== null && dias > a.per, origem: v?.origem || null, fonte: v?.fonte || '', em: v?.em || null };
   });
 }
+/* Equipamentos da COPROD com status individual (D-53): uma linha por equipamento, com caixa de seleção do status.
+   Captura: status informado na passagem de serviço pelo operador do posto que opera o equipamento.
+   PREMISSA: grupos e unidades conforme D-31/D-32; posto de cada grupo a confirmar. Configurável por UEP aqui. */
+const ST_EQ = ['Operando', 'Stand By', 'Em manutenção', 'Indisponível', 'Limitado'];
+const ST_EQ_CLS = { 'Operando': 'eq-op', 'Stand By': 'eq-sb', 'Em manutenção': 'eq-mn', 'Indisponível': 'eq-in', 'Limitado': 'eq-lm' };   // prefixo próprio (R-05)
+const EQUIP = [
+  { id: 'gas', rot: 'Compressores de gás', posto: 'Gás', grupos: [['VRU', 'A B'], ['Main', 'A B C'], ['Injection', 'A B C'], ['CO2', 'A B']] },
+  { id: 'recuperacao', rot: 'Recuperação de gás', posto: 'Gás', grupos: [['FGRU', 'A B C'], ['TGRU', 'A B'], ['SRGU', 'A B']] },
+  { id: 'bombas', rot: 'Bombas de injeção de água', posto: 'Água', grupos: [['Booster', 'A B C'], ['Principal', 'A B C']] },
+].map(e => ({ ...e, itens: e.grupos.flatMap(([g, us]) => us.split(' ').map(u => ({ id: `eq.${e.id}.${g.toLowerCase()}.${u.toLowerCase()}`, grupo: g, un: u, nome: `${g} ${u}` }))) }));
+for (const e of EQUIP) for (const it of e.itens) CAMPOS.push({ id: it.id, coord: 'COPROD', grupo: e.rot, rot: it.nome, tipo: 'opcao', opcoes: ST_EQ, equip: e.id });
+CAMPOS.sort((a, b) => (a.lab ? 1 : 0) - (b.lab ? 1 : 0));   // análises de laboratório por último na aba (ordenação estável)
+/* status atual dos equipamentos de um conjunto, por grupo: [{ grupo, itens: [{ un, nome, status }] }] */
+function equipDe(E, conj) {
+  const e = EQUIP.find(x => x.id === conj); if (!e) return [];
+  return e.grupos.map(([g]) => ({ grupo: g, itens: e.itens.filter(i => i.grupo === g).map(i => ({ ...i, status: E.valores[i.id]?.valor || '' })) }));
+}
 const CAMPO = Object.fromEntries(CAMPOS.map(c => [c.id, c]));
 
 /* ---- campos de lista (substituídos inteiros a cada edição) ---- */
@@ -113,9 +130,6 @@ const LISTAS = [
   { id: 'cilindros', coord: 'COPROD', rot: 'Cilindros de amostra a bordo', cols: [{ k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['gas', 'pvt'], nomes: { gas: 'Amostra de gás pressurizado', pvt: 'PVT · petróleo pressurizado' } }, { k: 'serie', rot: 'Nº de série', tipo: 'texto' }, { k: 'chegada', rot: 'Chegada a bordo', tipo: 'data' }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Disponível', 'Coletado'] }] },
   { id: 'queima.eventos', coord: 'COPROD', rot: 'Últimas 24 h · maiores queimas (até 2)', max: 2, cols: [{ k: 'evento', rot: 'Evento', tipo: 'texto' }, { k: 'flare', rot: 'Flare', tipo: 'opcao', opcoes: ['HP', 'LP'] }, { k: 'volume', rot: 'Volume (Mm³)', tipo: 'num', dec: 1 }] },
   { id: 'queima.causas', coord: 'COPROD', rot: 'Queima projetada D por causa', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'valor', rot: 'Mm³/d', tipo: 'num' }, { k: 'evitavel', rot: 'Evitável', tipo: 'opcao', opcoes: ['sim', 'não'] }] },
-  { id: 'eq.gas', coord: 'COPROD', rot: 'Compressores de gás em operação', cols: [{ k: 'grupo', rot: 'Grupo', tipo: 'opcao', opcoes: ['VRU', 'Main', 'Injection', 'CO2'] }, { k: 'unidades', rot: 'Unidades em operação (ex.: A · B)', tipo: 'texto' }] },
-  { id: 'eq.recuperacao', coord: 'COPROD', rot: 'Recuperação de gás em operação', cols: [{ k: 'grupo', rot: 'Grupo', tipo: 'opcao', opcoes: ['FGRU', 'TGRU', 'SRGU'] }, { k: 'unidades', rot: 'Unidades em operação', tipo: 'texto' }] },
-  { id: 'eq.bombas', coord: 'COPROD', rot: 'Bombas de injeção de água em operação', cols: [{ k: 'grupo', rot: 'Grupo', tipo: 'opcao', opcoes: ['Booster', 'Principal'] }, { k: 'unidades', rot: 'Unidades em operação', tipo: 'texto' }] },
   { id: 'tq.atencao', coord: 'COEMB', rot: 'Tanques em atenção', cols: [{ k: 'tanque', rot: 'Tanque', tipo: 'texto' }, { k: 'nota', rot: 'Situação', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ST_SIS }] },
   { id: 'util', coord: 'COEMB', rot: 'Utilidades · estoque × mínimo', cols: [{ k: 'nome', rot: 'Utilidade', tipo: 'texto' }, { k: 'estoque', rot: 'Estoque (m³)', tipo: 'num' }, { k: 'minimo', rot: 'Mínimo (m³)', tipo: 'num' }, { k: 'consumo', rot: 'Consumo (m³/d)', tipo: 'num' }, { k: 'producao', rot: 'Produção (m³/d)', tipo: 'num' }] },
   { id: 'ger.tgs', coord: 'COMAN', rot: 'Turbogeradores', cols: [{ k: 'tg', rot: 'TG', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ['Operando', 'Stand-by', 'Indisponível', 'Em manutenção'] }, { k: 'linha1', rot: 'Combustível · carga · limitador', tipo: 'texto' }, { k: 'linha2', rot: 'WHRU / observação', tipo: 'texto' }, { k: 'alerta', rot: 'Destacar observação', tipo: 'opcao', opcoes: ['não', 'sim'] }] },
@@ -414,9 +428,11 @@ function montarExemplo(iso) {
   ], 'M', 'COPROD · exemplo');
   lst('queima.eventos', [{ evento: 'Partida do TC-A', flare: 'LP', volume: 57.0 }, { evento: 'Passagem de válvulas', flare: 'HP', volume: 15.1 }], 'A', 'BDO ' + ddmm(D2));
   lst('queima.causas', [{ causa: 'Queda do TC-A e da FGRU', valor: 90, evitavel: 'sim' }, { causa: 'Gás de assistência', valor: 24, evitavel: 'não' }, { causa: 'Indisponibilidade da FGRU A', valor: 22, evitavel: 'sim' }, { causa: 'Purga do flare', valor: 4, evitavel: 'não' }]);
-  lst('eq.gas', [{ grupo: 'VRU', unidades: 'A' }, { grupo: 'Main', unidades: 'A · B' }, { grupo: 'Injection', unidades: 'B · C' }, { grupo: 'CO2', unidades: 'A' }], 'A', 'SITOP Equipamentos');
-  lst('eq.recuperacao', [{ grupo: 'FGRU', unidades: 'B' }, { grupo: 'TGRU', unidades: 'A' }, { grupo: 'SRGU', unidades: 'A' }], 'M', 'Passagem 06:00');
-  lst('eq.bombas', [{ grupo: 'Booster', unidades: 'A · B' }, { grupo: 'Principal', unidades: 'A · B' }], 'M', 'Passagem 06:00');
+  /* status dos equipamentos (D-53): o da passagem de serviço das 06:00; CO2 B fica sem informação para mostrar o alerta da captura */
+  const ST_EX = { 'vru.a': 'Operando', 'vru.b': 'Stand By', 'main.a': 'Operando', 'main.b': 'Operando', 'main.c': 'Stand By', 'injection.a': 'Indisponível', 'injection.b': 'Operando', 'injection.c': 'Operando', 'co2.a': 'Operando',
+    'fgru.a': 'Indisponível', 'fgru.b': 'Operando', 'fgru.c': 'Em manutenção', 'tgru.a': 'Operando', 'tgru.b': 'Stand By', 'srgu.a': 'Operando', 'srgu.b': 'Stand By',
+    'booster.a': 'Operando', 'booster.b': 'Operando', 'booster.c': 'Stand By', 'principal.a': 'Operando', 'principal.b': 'Limitado', 'principal.c': 'Stand By' };
+  for (const e of EQUIP) for (const it of e.itens) { const st = ST_EX[it.id.split('.').slice(2).join('.')]; if (st) val(it.id, st, 'A', `Passagem 06:00 · posto ${e.posto}`); }
   lst('tq.atencao', [
     { tanque: 'TQ-4S', nota: 'Tratamento e pintura abaixo da voluta; bomba desmontada', status: 'Em manutenção' },
     { tanque: 'TQ-5C', nota: 'Aberto e inspecionado; aguarda fechamento', status: 'Em manutenção' },

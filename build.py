@@ -12,6 +12,7 @@ Conexão com o Supabase (sem ela, o app abre em modo demonstração):
   REDIA_SEM_EXEMPLO=1 retira os dados de exemplo (derivados de material da P-75) da montagem.
 Só usa a biblioteca padrão do Python 3.8+.
 """
+import re
 import argparse, base64, hashlib, json, os, shutil, sys
 from urllib.parse import urlparse
 
@@ -146,17 +147,27 @@ def montar(saida, unico):
 </body>
 </html>
 '''
-    arquivos = {'index.html': html, 'app.css': css, 'app.js': "/* REDIA P-83 · v1.0 · gerado por build.py */\n" + js, 'config.js': cfg_js,
-                'robots.txt': 'User-agent: *\nDisallow: /\n', '.nojekyll': ''}
+    app = os.path.join(saida, 'app')   # o app fica em <site>/app/; a raiz abre a página inicial (landing)
+    os.makedirs(app)
+    arquivos = {'index.html': html, 'app.css': css, 'app.js': "/* REDIA P-83 · gerado por build.py */\n" + js, 'config.js': cfg_js}
     for nome, conteudo in arquivos.items():
+        with open(os.path.join(app, nome), 'w', encoding='utf8') as f:
+            f.write(conteudo)
+    shutil.copytree(os.path.join(P, 'assets'), os.path.join(app, 'assets'))
+    if nuvem:
+        os.makedirs(os.path.join(app, 'vendor'))
+        shutil.copy(os.path.join(P, 'vendor', VENDOR_SUPABASE), os.path.join(app, 'vendor', VENDOR_SUPABASE))
+    versao = re.search(r"versao:\s*'([^']+)'", ler('src', 'core.js')).group(1)
+    landing = ler('landing', 'index.html').replace('{{VERSAO}}', versao).replace('{{MODO}}', 'Base de dados na nuvem · login individual' if nuvem else 'Modo demonstração')
+    raiz = {'index.html': landing, 'robots.txt': 'User-agent: *\nDisallow: /\n', '.nojekyll': ''}
+    for nome, conteudo in raiz.items():
         with open(os.path.join(saida, nome), 'w', encoding='utf8') as f:
             f.write(conteudo)
-    shutil.copytree(os.path.join(P, 'assets'), os.path.join(saida, 'assets'))
+    for nome in os.listdir(os.path.join(P, 'landing')):
+        if nome != 'index.html':
+            shutil.copy(os.path.join(P, 'landing', nome), os.path.join(saida, nome))
     if os.path.isdir(os.path.join(P, 'apresentacao')):   # deck de explicação do sistema, publicado em <site>/apresentacao/
         shutil.copytree(os.path.join(P, 'apresentacao'), os.path.join(saida, 'apresentacao'))
-    if nuvem:
-        os.makedirs(os.path.join(saida, 'vendor'))
-        shutil.copy(os.path.join(P, 'vendor', VENDOR_SUPABASE), os.path.join(saida, 'vendor', VENDOR_SUPABASE))
     total = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(saida) for f in fs)
     print(f'{saida}/  {total // 1024} kB  ·  {"nuvem: " + cfg["supabaseUrl"] if nuvem else "modo demonstração"}{"  ·  sem dados de exemplo" if sem_exemplo else ""}')
 

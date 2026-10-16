@@ -14,7 +14,7 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
   const { iniciarServidor } = await import('./servidor.mjs');
   const srv = await iniciarServidor({ estatico: DIST, porta: PORTA, supabase: true });
-  const URL = srv.url + '/index.html';
+  const URL = srv.url + '/app/index.html';
   await srv.criarUsuario('GP01', 'Temp1234', 'Usuário GEPLAT Teste', 'GEPLAT', { admin: true });
   await srv.criarUsuario('CP01', 'Senha2026', 'Usuário COPROD Teste', 'SUPROD', { trocarSenha: false });
   await srv.criarUsuario('ZZ01', 'Senha2026', 'Sem perfil', 'GEOP', { semPerfil: true });
@@ -162,14 +162,14 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   ok(await g.$('.login') !== null && await g.evaluate(() => USUARIO === null && !sessionStorage.getItem('redia.sb.sessao') && Store.cache.size === 0), 'sair encerra a sessão do Supabase e limpa os dados da memória');
 
   /* ---- o que vai para o navegador ---- */
-  const js = fs.readFileSync(path.join(DIST, 'app.js'), 'utf8'), cfg = fs.readFileSync(path.join(DIST, 'config.js'), 'utf8'), idx = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(DIST, 'app', 'app.js'), 'utf8'), cfg = fs.readFileSync(path.join(DIST, 'app', 'config.js'), 'utf8'), idx = fs.readFileSync(path.join(DIST, 'app', 'index.html'), 'utf8');
   const linhasAcesso = js.match(/\b[A-Z0-9]{4}\|[A-ZÃÂÉÍÓÚÇ ]{4,20}\|[^\n|`]+/g) || [];
   ok(!/service_role/.test(cfg) && linhasAcesso.length === 7 && linhasAcesso.every(l => /\(demo\)/.test(l)), 'app publicado sem chave service_role e só com os 7 usuários fictícios da demonstração');
   ok(/connect-src http:\/\/127\.0\.0\.1:8791 ws:\/\/127\.0\.0\.1:8791;/.test(idx) && /script-src 'self';/.test(idx), 'CSP libera só o Supabase configurado e scripts do próprio site');
 
   const SEMEX = path.join(P, '.saida', 'sem-exemplo');
   execFileSync('python3', [path.join(P, '..', 'build.py'), '--saida', SEMEX], { stdio: 'ignore', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '', REDIA_SEM_EXEMPLO: '1' } });
-  const jsSem = fs.readFileSync(path.join(SEMEX, 'app.js'), 'utf8');
+  const jsSem = fs.readFileSync(path.join(SEMEX, 'app', 'app.js'), 'utf8');
   ok(!/BUZ-061|Maran Libra|EX-GAS/.test(jsSem) && /EXEMPLO_DISPONIVEL = false/.test(jsSem), 'REDIA_SEM_EXEMPLO=1 publica sem os dados de exemplo');
 
   await browser.close(); await srv.fechar();

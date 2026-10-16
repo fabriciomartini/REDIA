@@ -637,38 +637,38 @@ function abaDados(coord, manual = null) {
     if (c.tipo === 'data') return `<input class="in" type="date" data-campo="${c.id}" value="${esc(val ?? '')}" ${dis}>`;
     return `<input class="in" data-campo="${c.id}" value="${esc(val ?? '')}" ${c.max ? `maxlength="${c.max}"` : ''} ${dis}>`;
   };
-  const temA = id => (E.hist[id] || []).some(r => r.payload.origem === 'A');
   const html = `<section class="ed" style="grid-column:2 / -1">
     ${bloqueado() ? '<div class="banner">Pauta congelada: os dados estão bloqueados para edição.</div>' : ''}
-    ${manual ? `<div class="pn"><h2>${esc(manual[1])} · ${coord}</h2><p class="note">Preenchimento manual: este item não tem captura automática. Cada gravação fica registrada com autor e horário.</p><p class="note">Aparece em: <b>${esc(manual[4][1])}</b> · <a href="${manual[4][0]}">Ver na apresentação ›</a></p></div>` : `<p class="note">Valores capturados automaticamente (origem A) podem ser corrigidos à mão: a correção vira origem M, com autor e horário, e o valor automático continua no histórico. Itens sem captura automática ficam em “Preenchimento manual”, no menu.</p>
+    ${manual ? `<div class="pn"><h2>${esc(manual[1])} · ${coord}</h2><p class="note">Preenchimento manual: este item não tem captura automática. Cada gravação fica registrada com autor e horário.</p><p class="note">Aparece em: <b>${esc(manual[4][1])}</b> · <a href="${manual[4][0]}">Ver na apresentação ›</a></p></div>` : `<p class="note">Clique em <b>Capturar dados</b> em cada bloco: o que a captura encontra já entra confirmado (origem A). Se não concordar com um valor, ou se a captura não o encontrou, digite no campo: ao sair dele, o valor fica gravado e confirmado como origem M, com seu nome e horário; o valor automático continua no histórico. Itens sem captura automática ficam em “Preenchimento manual”, no menu.</p>
     ${coord === 'COPROD' ? notaAcumulado() : ''}`}
     ${grupos.map(g => {
       const cs = campos.filter(c => c.grupo === g), ids = cs.map(c => c.id).filter(capturavel), chave = coord + '|' + g;
       const falta = new Set((UI.captura?.[chave]?.faltando || []).map(f => f.id));
       const fontes = [...new Set(ids.map(fonteDoCampo))].map(f => FONTES_CAPTURA[f].nome);
-      const linha = c => `<tr class="${falta.has(c.id) ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td>${origemTxt(E.valores[c.id])}</td><td>${E.valores[c.id]?.origem === 'M' && temA(c.id) && !bloqueado() ? `<button class="btn sm lnk" data-rest="${c.id}">Restaurar automático</button>` : ''}</td></tr>`;
+      const linha = c => `<tr class="${falta.has(c.id) ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td data-orig="${c.id}">${origemTxt(E.valores[c.id])}</td><td data-restc="${c.id}">${botaoRestaurar(c.id)}</td></tr>`;
       const linhaLab = c => { const d = CAMPO[c.id + '.data'], a = labDe(E, coord).find(x => x.id === c.id); const f = falta.has(c.id) || falta.has(d.id);
-        return `<tr class="${f ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td>${inp(d).replace('data-campo=', `id="cp-${d.id}" aria-label="Data do resultado · ${esc(c.rot)}" data-campo=`)}${a.atrasada ? `<span class="chip at">Atrasada · ${a.dias} dias</span>` : ''}</td><td>a cada ${c.lab.per} ${c.lab.per === 1 ? 'dia' : 'dias'}</td><td>${origemTxt(E.valores[c.id])}</td></tr>`; };
-      const lab = g === LAB_GRUPO;
+        return `<tr class="${f ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td>${inp(d).replace('data-campo=', `id="cp-${d.id}" aria-label="Data do resultado · ${esc(c.rot)}" data-campo=`)}${a.atrasada ? `<span class="chip at">Atrasada · ${a.dias} dias</span>` : ''}</td><td>a cada ${c.lab.per} ${c.lab.per === 1 ? 'dia' : 'dias'}</td><td data-orig="${c.id}">${origemTxt(E.valores[c.id])}</td></tr>`; };
+      const lab = g === LAB_GRUPO, eqp = cs.some(c => c.equip);
       return `<div class="pn" data-bloco="${esc(chave)}"><div class="pn-h"><h2>${esc(g)}</h2><span class="note">Origem: ${esc(fontes.join(', ') || 'manual')}</span><span style="flex:1"></span>${ids.length ? `<button class="btn sm pri" data-capturar="${esc(chave)}" ${dis}>Capturar dados</button>` : ''}</div>
       <div class="capt" data-capt="${esc(chave)}">${resultadoCaptura(chave)}</div>
-      <div class="tbw"><table class="tb dd${lab ? ' lab' : ''}"><thead><tr>${lab ? '<th>Análise</th><th>Resultado</th><th>Unidade</th><th>Data do resultado</th><th>Periodicidade</th><th>Origem</th>' : '<th>Campo</th><th style="width:34%">Valor</th><th>Unidade</th><th>Origem</th><th></th>'}</tr></thead><tbody>
+      <div class="tbw"><table class="tb dd${lab ? ' lab' : ''}"><thead><tr>${lab ? '<th>Análise</th><th>Resultado</th><th>Unidade</th><th>Data do resultado</th><th>Periodicidade</th><th>Origem</th>' : (eqp ? '<th>Equipamento</th><th style="width:34%">Status</th>' : '<th>Campo</th><th style="width:34%">Valor</th>') + '<th>Unidade</th><th>Origem</th><th></th>'}</tr></thead><tbody>
       ${lab ? cs.filter(c => !c.labData).map(linhaLab).join('') : cs.map(linha).join('')}
-    </tbody></table></div><div class="row end" style="margin-top:8px"><button class="btn sec" data-grupo="${esc(g)}" ${dis}>Salvar ${esc(g.toLowerCase())}</button></div></div>`; }).join('')}
-    ${listas.map(l => editorLista(l, !manual)).join('')}
+    </tbody></table></div>${manual ? `<div class="row end" style="margin-top:8px"><button class="btn sec" data-grupo="${esc(g)}" ${dis}>Salvar ${esc(g.toLowerCase())}</button></div>` : ''}</div>`; }).join('')}
+    ${listas.map(l => editorLista(l, !manual, !manual)).join('')}
   </section>`;
-  return { html, dois: true, bind: () => bindDados(coord) };
+  return { html, dois: true, bind: () => bindDados(coord, !manual) };
 }
-function editorLista(l, capturar = false) {
+/* auto (D-53, aba Dados automáticos): sem botões Salvar/Adicionar linha; cada alteração grava ao sair do campo e há sempre uma linha em branco no fim para incluir */
+function editorLista(l, capturar = false, auto = false) {
   const it = L(E, l.id), dis = bloqueado() ? 'disabled' : '', chave = l.coord + '|lista:' + l.id;
   const falta = (UI.captura?.[chave]?.faltando || []).length > 0;
   const cel = (c, val) => c.tipo === 'opcao' ? `<select class="in" data-k="${c.k}" ${dis}>${c.opcoes.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(c.nomes?.[o] || o)}</option>`).join('')}</select>` : `<input class="in" data-k="${c.k}" ${c.tipo === 'num' ? 'type="number" step="any"' : c.tipo === 'data' ? 'type="date"' : ''} value="${esc(val ?? '')}" ${dis}>`;
   const linha = r => `<tr>${l.cols.map(c => `<td>${cel(c, r[c.k])}</td>`).join('')}<td><button class="btn sm lnk" data-del ${dis}>Remover</button></td></tr>`;
   return `<div class="pn${falta ? ' falta' : ''}" data-lista="${l.id}"><div class="pn-h"><h2>${esc(l.rot)}</h2>${capturar ? `<span class="note">Origem: ${esc(FONTES_CAPTURA[fonteDoCampo(l.id)].nome)}</span><span style="flex:1"></span><button class="btn sm pri" data-capturar="${esc(chave)}" ${dis}>Capturar dados</button>` : ''}</div><p class="note">${origemTxt(E.listas[l.id])}</p>
     ${capturar ? `<div class="capt" data-capt="${esc(chave)}">${resultadoCaptura(chave)}</div>` : ''}
-    <div class="tbw"><table class="tb"><thead><tr>${l.cols.map(c => `<th>${esc(c.rot)}</th>`).join('')}<th></th></tr></thead><tbody>${it.map(linha).join('')}</tbody>
+    <div class="tbw"><table class="tb"><thead><tr>${l.cols.map(c => `<th>${esc(c.rot)}</th>`).join('')}<th></th></tr></thead><tbody>${it.map(linha).join('')}${auto && !(l.max && it.length >= l.max) ? linha({}) : ''}</tbody>
     <template>${linha({})}</template></table></div>
-    <div class="row" style="margin-top:8px"><button class="btn sm" data-add ${dis}>Adicionar linha</button><span style="flex:1"></span><button class="btn sec" data-salvar ${dis}>Salvar lista</button></div></div>`;
+    ${auto ? '<p class="note">Altere direto na tabela: ao sair do campo, a lista fica gravada (origem M). Para incluir, preencha a linha em branco do fim.</p>' : `<div class="row" style="margin-top:8px"><button class="btn sm" data-add ${dis}>Adicionar linha</button><span style="flex:1"></span><button class="btn sec" data-salvar ${dis}>Salvar lista</button></div>`}</div>`;
 }
 /* resultado da última captura do bloco: resumo, origem simulada e o que não foi encontrado */
 function resultadoCaptura(chave) {
@@ -676,7 +676,7 @@ function resultadoCaptura(chave) {
   const nome = id => CAMPO[id]?.rot || LISTA[id]?.rot || id;
   const erro = r.passos.find(p => p.st === 'erro');
   return `${erro ? `<div class="banner erro"><b>Captura interrompida:</b> ${esc(erro.txt)} · ${esc(erro.nota || '')}</div>` : `<div class="banner ok"><b>Captura concluída às ${hhmm(r.em)}</b> · ${r.gravados} valor(es) gravado(s)${r.iguais ? `, ${r.iguais} sem alteração` : ''}${r.substituidos.length ? `, ${r.substituidos.length} correção(ões) manual(is) substituída(s)` : ''}${r.mantidos?.length ? `, ${r.mantidos.length} sem valor na origem mantido(s) com o valor manual atual (${r.mantidos.map(m => esc(nome(m.id))).join(', ')})` : ''}.${r.simulado ? ' <span class="note">Integração ainda não liberada: valores de demonstração (modo simulado).</span>' : ''}</div>`}
-    ${r.faltando.length ? `<div class="banner at falta-al" role="alert"><b>${r.faltando.length} dado(s) não encontrado(s) nas origens.</b> Insira manualmente nos campos destacados e salve:
+    ${r.faltando.length ? `<div class="banner at falta-al" role="alert"><b>${r.faltando.length} dado(s) não encontrado(s) nas origens.</b> Digite o valor nos campos destacados; ao sair do campo, ele fica gravado e confirmado:
       <ul>${r.faltando.map(f => `<li>${esc(nome(f.id))} <span class="note">· ${esc(f.fonte)}</span></li>`).join('')}</ul></div>` : ''}`;
 }
 function progressoCaptura(box, { pct, passos }) {
@@ -700,8 +700,70 @@ async function capturarBloco(coord, chave, botao) {
   } catch (e) { await tratarErroGravacao(e); }
   finally { UI.capturando = false; rerender(); const al = [...document.querySelectorAll('[data-capt]')].find(b => b.dataset.capt === chave); al?.scrollIntoView({ block: 'nearest' }); document.querySelector('tr.falta input, tr.falta select')?.focus({ preventScroll: true }); }
 }
-function bindDados(coord) {
+const temA = id => (E.hist[id] || []).some(r => r.payload.origem === 'A');
+const botaoRestaurar = id => E.valores[id]?.origem === 'M' && temA(id) && !bloqueado() ? `<button class="btn sm lnk" data-rest="${id}">Restaurar automático</button>` : '';
+const vazio = v => v === null || v === undefined || v === '';
+/* D-53: grava um campo ao sair dele (evento change). Valor diferente do atual vira origem M (C no GEPLAT), com autor e horário */
+async function gravarCampoDados(el) {
+  const c = CAMPO[el.dataset.campo]; if (!c) return;
+  let val = el.value.trim(); if (c.tipo === 'num') val = val === '' ? null : +val;
+  const atual = E.valores[c.id]?.valor ?? (c.tipo === 'num' ? null : '');
+  if (String(val ?? '') === String(atual ?? '')) return;
+  try {
+    if (!(await podeEditar('valor'))) return;
+    await registrar('valor', { campo: c.id, valor: val, origem: c.coord === 'GEPLAT' && /geplat\./.test(c.id) ? 'C' : 'M', fonte: 'Manual' });
+    atualizarEstado();
+    if (!vazio(val)) for (const r of Object.values(UI.captura || {})) r.faltando = r.faltando.filter(f => f.id !== c.id);
+    if (!el.isConnected) return rerender();
+    atualizarLinhaDados(el);
+    aviso(`${c.rot}: gravado (manual).`, 'ok');
+  } catch (e) { await tratarErroGravacao(e); }
+}
+/* atualiza só a linha e o alerta do bloco, sem redesenhar a tela (o foco segue no campo clicado) */
+function atualizarLinhaDados(el) {
+  const tr = el.closest('tr'), pn = el.closest('[data-bloco]');
+  for (const td of $$('[data-orig]', tr)) td.innerHTML = origemTxt(E.valores[td.dataset.orig]);
+  for (const td of $$('[data-restc]', tr)) { td.innerHTML = botaoRestaurar(td.dataset.restc); bindRestaurar(td); }
+  if (!pn) return;
+  const r = UI.captura?.[pn.dataset.bloco], falta = new Set((r?.faltando || []).map(f => f.id));
+  tr.classList.toggle('falta', $$('[data-campo]', tr).some(i => falta.has(i.dataset.campo)));
+  const box = $('[data-capt]', pn); if (box) box.innerHTML = resultadoCaptura(pn.dataset.bloco);
+}
+function bindRestaurar(raiz = document) {
+  $$('[data-rest]', raiz).forEach(b => b.onclick = () => {
+    const id = b.dataset.rest, a = [...E.hist[id]].reverse().find(r => r.payload.origem === 'A');
+    salvarE('valor', { campo: id, valor: a.payload.valor, origem: 'A', fonte: (a.payload.fonte || '') + ' (restaurado)' }, {}, 'Valor automático restaurado.');
+  });
+}
+/* lista em modo automático: grava a tabela inteira a cada alteração e mantém uma linha em branco no fim */
+async function gravarListaDados(box, l) {
+  const tb = $('tbody', box), tpl = $('template', box);
+  const itens = [...tb.rows].map(tr => Object.fromEntries(l.cols.map(c => { const el = $(`[data-k="${c.k}"]`, tr); let v = el.value.trim(); if (c.tipo === 'num') v = v === '' ? null : +v; return [c.k, v]; })));
+  const preenchido = o => l.cols.some(c => c.tipo !== 'opcao' && !vazio(o[c.k]));
+  const validos = itens.filter(preenchido);
+  if (l.max && validos.length > l.max) return aviso(`Máximo de ${l.max} linhas.`, 'erro');
+  const erro = l.validar ? l.validar(validos) : null; if (erro) return aviso(erro, 'erro');
+  if (JSON.stringify(validos) === JSON.stringify(L(E, l.id))) return;
+  try {
+    if (!(await podeEditar('lista'))) return;
+    await registrar('lista', { campo: l.id, itens: validos, origem: 'M', fonte: 'Manual' });
+    atualizarEstado();
+    if (!box.isConnected) return rerender();
+    const chave = l.coord + '|lista:' + l.id;
+    if (UI.captura && validos.length) { delete UI.captura[chave]; box.classList.remove('falta'); const cb = $('[data-capt]', box); if (cb) cb.innerHTML = ''; }
+    $('p.note', box).innerHTML = origemTxt(E.listas[l.id]);
+    const ult = tb.rows[tb.rows.length - 1];
+    if ((!ult || preenchido(Object.fromEntries(l.cols.map(c => [c.k, $(`[data-k="${c.k}"]`, ult).value.trim()])))) && !(l.max && validos.length >= l.max)) { tb.appendChild(tpl.content.firstElementChild.cloneNode(true)); rotularTabelas(box); bindListaAuto(box, l); }
+    aviso(`${l.rot}: lista gravada (manual).`, 'ok');
+  } catch (e) { await tratarErroGravacao(e); }
+}
+function bindListaAuto(box, l) {
+  $$('[data-k]', box).forEach(el => el.onchange = () => gravarListaDados(box, l));
+  $$('[data-del]', box).forEach(d => d.onclick = () => { const tr = d.closest('tr'), tb = tr.parentNode; tr.remove(); if (!tb.rows.length) tb.appendChild($('template', box).content.firstElementChild.cloneNode(true)); gravarListaDados(box, l); });
+}
+function bindDados(coord, auto = false) {
   $$('[data-capturar]').forEach(b => b.onclick = () => capturarBloco(coord, b.dataset.capturar, b));
+  if (auto) $$('[data-bloco] [data-campo]').forEach(el => el.onchange = () => gravarCampoDados(el));
   $$('[data-grupo]').forEach(b => b.onclick = async () => {
     const g = b.dataset.grupo; let n = 0;
     try {
@@ -718,12 +780,10 @@ function bindDados(coord) {
       rerender();
     } catch (e) { aviso(e.message, 'erro'); }
   });
-  $$('[data-rest]').forEach(b => b.onclick = () => {
-    const id = b.dataset.rest, a = [...E.hist[id]].reverse().find(r => r.payload.origem === 'A');
-    salvarE('valor', { campo: id, valor: a.payload.valor, origem: 'A', fonte: (a.payload.fonte || '') + ' (restaurado)' }, {}, 'Valor automático restaurado.');
-  });
+  bindRestaurar();
   $$('[data-lista]').forEach(box => {
     const l = LISTA[box.dataset.lista], tb = $('tbody', box), tpl = $('template', box);
+    if (auto && !$('[data-salvar]', box)) return bindListaAuto(box, l);
     const bindDel = () => $$('[data-del]', tb).forEach(d => d.onclick = () => d.closest('tr').remove());
     bindDel();
     $('[data-add]', box).onclick = () => { if (l.max && tb.rows.length >= l.max) return aviso(`Máximo de ${l.max} linhas.`, 'erro'); tb.appendChild(tpl.content.firstElementChild.cloneNode(true)); rotularTabelas(box); bindDel(); };

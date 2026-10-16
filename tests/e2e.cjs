@@ -19,7 +19,7 @@ async function checarPalco(page, nome) {
       if (el.scrollWidth > el.clientWidth + 2) out.push(`HORIZ +${el.scrollWidth - el.clientWidth} ${el.className}`);
     });
     const runs = []; const w = document.createTreeWalker(st, NodeFilter.SHOW_TEXT); let n;
-    while ((n = w.nextNode())) { if (!n.textContent.trim()) continue; const r = document.createRange(); r.selectNodeContents(n); for (const rc of r.getClientRects()) if (rc.width > 1 && rc.height > 1) runs.push({ el: n.parentElement, rc, t: n.textContent.trim().slice(0, 25) }); }
+    while ((n = w.nextNode())) { if (!n.textContent.trim()) continue; const r = document.createRange(); r.selectNodeContents(n); const pe = n.parentElement, clip = getComputedStyle(pe).overflow === 'hidden' ? pe.getBoundingClientRect() : null; for (let rc of r.getClientRects()) { if (clip) rc = { left: Math.max(rc.left, clip.left), right: Math.min(rc.right, clip.right), top: Math.max(rc.top, clip.top), bottom: Math.min(rc.bottom, clip.bottom), get width() { return this.right - this.left; }, get height() { return this.bottom - this.top; } }; if (rc.width > 1 && rc.height > 1) runs.push({ el: pe, rc, t: n.textContent.trim().slice(0, 25) }); } }   /* texto cortado com reticências (overflow hidden): vale só a parte visível */
     let k = 0;
     for (let i = 0; i < runs.length; i++) for (let j = i + 1; j < runs.length; j++) {
       const a = runs[i], b = runs[j]; if (a.el === b.el) continue;
@@ -39,7 +39,7 @@ async function checarPalco(page, nome) {
 (async () => {
   const { iniciarServidor } = await import('./servidor.mjs');
   const srv = await iniciarServidor({ estatico: DIST });
-  URL = srv.url + '/index.html';
+  URL = srv.url + '/app/index.html';
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, acceptDownloads: true });
   const page = await ctx.newPage();
@@ -82,8 +82,28 @@ async function checarPalco(page, nome) {
   ok(cap.mant.includes('flare.hp') && !cap.falta.includes('flare.hp'), 'captura: sem valor na origem, o valor manual atual é mantido e não vira pendência');
   const prog = await page.evaluate(async () => { const box = document.createElement('div'); progressoCaptura(box, { pct: 40, passos: [{ txt: 'Conectando ao SITOP', st: 'ok' }, { txt: 'Consultando', st: 'exec' }] }); return { bar: box.querySelector('.capt-bar i').style.width, pct: box.querySelector('.capt-pct').textContent, spin: !!box.querySelector('.spin') }; });
   ok(prog.bar === '40%' && prog.pct === '40%' && prog.spin, 'captura: barra de progresso, percentual e etapa em execução');
-  await page.fill('[data-campo="iuga.atp"]', '97.1'); await page.click('[data-grupo="IUGA e queima"]'); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => UI.captura['COPROD|IUGA e queima'].faltando.map(f => f.id).join() === 'iuga.buzios' && VN(E, 'iuga.atp') === 97.1), 'preencher manualmente remove o item do alerta');
+  ok(await page.$('[data-grupo]') === null && await page.$('[data-add]') === null && await page.$('[data-salvar]') === null, 'D-53: Dados automáticos sem botões Salvar e Adicionar linha');
+  await page.fill('[data-campo="iuga.atp"]', '97.1'); await page.press('[data-campo="iuga.atp"]', 'Tab'); await page.waitForTimeout(300);
+  const d53a = await page.evaluate(() => ({ falta: UI.captura['COPROD|IUGA e queima'].faltando.map(f => f.id).join(), v: E.valores['iuga.atp'], linha: document.querySelector('#cp-iuga\\.atp').closest('tr').className, orig: document.querySelector('[data-orig="iuga.atp"]').textContent, foco: document.activeElement?.dataset?.campo, nAl: document.querySelectorAll('tr.falta').length }));
+  ok(d53a.falta === 'iuga.buzios' && d53a.v.valor === 97.1 && d53a.v.origem === 'M', 'ao sair do campo, o valor digitado grava sozinho e sai do alerta');
+  ok(!/falta/.test(d53a.linha) && d53a.nAl === 1 && /^M/.test(d53a.orig) && /GP01|\(demo\)/.test(d53a.orig + JSON.stringify(d53a.v.autor)), `campo preenchido perde o destaque de falha e mostra M com autor e hora (${d53a.orig})`);
+  ok(d53a.foco === 'iuga.buzios', `gravar não redesenha a tela: o foco segue no próximo campo (${d53a.foco})`);
+  await page.selectOption('[data-campo="flare.lp"]', 'Fechado'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => E.valores['flare.lp'].valor === 'Fechado' && E.valores['flare.lp'].origem === 'M'), 'caixa de seleção grava ao escolher (origem M)');
+  /* D-53: equipamentos com status individual, capturados da passagem de serviço */
+  const eqs = await page.evaluate(() => ({ n: EQUIP.reduce((a, e) => a + e.itens.length, 0), sel: document.querySelectorAll('[data-campo^="eq."]').length, op: [...document.querySelector('[data-campo="eq.gas.main.a"]').options].map(o => o.value).filter(Boolean).join('|') }));
+  ok(eqs.n === 23 && eqs.sel === 23 && eqs.op === 'Operando|Stand By|Em manutenção|Indisponível|Limitado', `equipamentos: uma linha e uma caixa de status por equipamento (${eqs.sel}; ${eqs.op})`);
+  await page.click('[data-capturar="COPROD|Compressores de gás"]'); await page.waitForTimeout(600);
+  const capEq = await page.evaluate(() => ({ falta: UI.captura['COPROD|Compressores de gás'].faltando.map(f => f.id).join(), fonte: E.valores['eq.gas.injection.a'].fonte, st: E.valores['eq.gas.injection.a'].valor, org: E.valores['eq.gas.injection.a'].origem, pas: UI.captura['COPROD|Compressores de gás'].passos.some(p => /Passagem de serviço/.test(p.txt)) }));
+  ok(capEq.falta === 'eq.gas.co2.b' && capEq.st === 'Indisponível' && capEq.org === 'A' && /Passagem.* posto Gás/.test(capEq.fonte) && capEq.pas, `captura dos compressores pela passagem de serviço (${capEq.fonte}; falta ${capEq.falta})`);
+  await page.selectOption('[data-campo="eq.gas.co2.b"]', 'Stand By'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => UI.captura['COPROD|Compressores de gás'].faltando.length === 0 && !document.querySelector('[data-bloco="COPROD|Compressores de gás"] tr.falta') && !document.querySelector('[data-bloco="COPROD|Compressores de gás"] .falta-al') && E.valores['eq.gas.co2.b'].origem === 'M'), 'status digitado no equipamento que faltou: grava, confirma e o alerta some');
+  /* D-53: lista na aba Dados automáticos grava ao sair do campo, com linha em branco no fim para incluir */
+  const lc = '[data-lista="queima.causas"]';
+  const nCausas = await page.evaluate(() => L(E, 'queima.causas').length);
+  ok(await page.$$eval(lc + ' tbody tr', t => t.length) === nCausas + 1, 'lista: linha em branco no fim, no lugar do botão Adicionar linha');
+  await page.fill(lc + ' tbody tr:last-child [data-k="causa"]', 'Teste de causa'); await page.press(lc + ' tbody tr:last-child [data-k="causa"]', 'Tab'); await page.waitForTimeout(300);
+  ok(await page.evaluate(n => L(E, 'queima.causas').length === n + 1 && E.listas['queima.causas'].origem === 'M' && document.querySelectorAll('[data-lista="queima.causas"] tbody tr').length === n + 2, nCausas), 'lista: preencher a linha em branco grava o item e abre nova linha em branco');
   await page.goto(URL + '#/curadoria/COMAN/dados'); await page.waitForTimeout(250);
   await page.click('[data-capturar="COMAN|Resultados de análises (eplab)"]'); await page.waitForTimeout(600);
   const capLab = await page.evaluate(() => UI.captura['COMAN|Resultados de análises (eplab)'].faltando.map(f => f.id));
@@ -128,6 +148,8 @@ async function checarPalco(page, nome) {
     if (c.length) colisoes[r] = c;
   }
   ok(!Object.keys(colisoes).length, `palco sem colisão com classes do app ${JSON.stringify(colisoes)}`);
+  await page.goto(URL + '#/apresentacao/2/indicadores'); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => document.querySelectorAll('.stage .w.eqg').length === 9 && document.querySelectorAll('.stage .w.eqg .eb').length === 23 && document.querySelectorAll('.stage .lge .eb').length === 5 && /Equipamentos · status/.test(document.querySelector('.stage').textContent)), 'COPROD · detalhe de indicadores: status individual dos equipamentos com legenda');
   await page.goto(URL + '#/apresentacao/2/pocos'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => { const c = document.querySelector('.stage .tbl.ops').closest('.card'); return c.querySelectorAll('.opr').length === 4 && [...c.querySelectorAll('.opr')].every(r => r.style.display !== 'none') && !/não exibid/.test(c.textContent); }), 'as 4 operações de exemplo aparecem inteiras no detalhe de poços');
   await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(200);
@@ -187,6 +209,9 @@ async function checarPalco(page, nome) {
   await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => { const c = [...document.querySelectorAll('.stage .card')].find(x => /Previsão de TOP/.test(x.textContent)); return c && /Offloading · Previsão de TOP/.test(c.textContent) && /Maran Libra/.test(c.querySelector('.b').textContent) && !!c.querySelector('.tq2 > div') && /Ocupado/.test(c.textContent) && /livre/.test(c.textContent); }), 'abertura: offloading com “Previsão de TOP”, navio designado e barra ocupado × livre');
   ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /3,9%/.test(t) && /679\s?m³/.test(t) && /Produzida descartada no mar: 0\s?m³/.test(t); }), 'abertura: água produzida reinjetada = 3,9% e descarte preservado (0 m³)');
+  const eqAb = await page.evaluate(() => { const st = document.querySelector('.stage'); const card = t => [...st.querySelectorAll('.card')].find(c => c.querySelector('.hd')?.textContent.includes(t)); return { grupos: st.querySelectorAll('.w.eqg').length, bul: st.querySelectorAll('.w.eqg .eb').length, injA: st.querySelector('.eb[aria-label="Injection A: Indisponível"]')?.className, fgruC: !!st.querySelector('.eb.eq-mn[aria-label="FGRU C: Em manutenção"]'), lim: !!st.querySelector('.eb.eq-lm[aria-label="Principal B: Limitado"]'), sb: !!st.querySelector('.eb.eq-sb[aria-label="VRU B: Stand By"]'), leg: [...st.querySelectorAll('.lge .eb')].map(e => e.textContent).join('|'), gas: card('Injeção de gás')?.querySelectorAll('.eqg').length, agua: card('Injeção de água')?.querySelectorAll('.eqg').length }; });
+  ok(eqAb.grupos === 9 && eqAb.bul === 23 && eqAb.gas === 4 && eqAb.agua === 2 && /\beq-in\b/.test(eqAb.injA || '') && eqAb.fgruC && eqAb.lim && eqAb.sb, `abertura: um bullet de status por equipamento nos cards de IUGA, injeção de gás e de água (${eqAb.bul} bullets)`);
+  ok(eqAb.leg === 'Operando|Stand By|Em manutenção|Indisponível|Limitado', `abertura: legenda dos 5 status de disponibilidade (${eqAb.leg})`);
 
   // teclado e cronômetro
   await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(200);
@@ -250,7 +275,7 @@ async function checarPalco(page, nome) {
 
   /* ---- dados automáticos: correção manual e restauração ---- */
   await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(200);
-  await page.fill('[data-campo="oleo.real"]', '25000'); await page.click('[data-grupo="Produção de óleo"]'); await page.waitForTimeout(200);
+  await page.fill('[data-campo="oleo.real"]', '25000'); await page.press('[data-campo="oleo.real"]', 'Tab'); await page.waitForTimeout(250);
   let v = await page.evaluate(() => E.valores['oleo.real']); ok(v.valor === 25000 && v.origem === 'M', `correção manual (valor ${v.valor}, origem ${v.origem})`);
   await page.click('[data-rest="oleo.real"]'); await page.waitForTimeout(200);
   v = await page.evaluate(() => E.valores['oleo.real']); ok(v.valor === 26925 && v.origem === 'A', 'restaurar automático');
@@ -433,6 +458,14 @@ async function checarPalco(page, nome) {
   /* ---- deck de explicação publicado junto com o app ---- */
   const dk = await browser.newPage({ viewport: { width: 1920, height: 1080 } }); const falhas = [];
   dk.on('requestfailed', r => falhas.push(r.url())); dk.on('pageerror', e => falhas.push(e.message));
+  /* página inicial (landing): raiz do site com acesso ao app e ao deck; endereços antigos do app seguem para /app/ */
+  const lp = await browser.newPage({ viewport: { width: 1280, height: 800 } }); await lp.goto(srv.url + '/'); await lp.waitForTimeout(400);
+  const ld = await lp.evaluate(() => ({ app: !!document.querySelector('a.op[href="app/"]'), deck: !!document.querySelector('a.op[href="apresentacao/"]'), app0: typeof APP === 'undefined', h: document.documentElement.scrollWidth <= innerWidth, v: /versão \d+\.\d+\.\d+/.test(document.querySelector('footer').textContent) }));
+  ok(ld.app && ld.deck && ld.app0 && ld.h && ld.v, `landing na raiz: escolher entre o app e o deck (${JSON.stringify(ld)})`);
+  await lp.click('a.op[href="app/"]'); await lp.waitForTimeout(500);
+  ok(/\/app\/$/.test(lp.url()) && await lp.$('#lg-chave') !== null, 'landing › Entrar no app abre a tela de acesso'); await lp.close();
+  const dk2 = await browser.newPage(); await dk2.goto(srv.url + '/#/curadoria/COPROD'); await dk2.waitForTimeout(500);
+  ok(/\/app\/#\/curadoria\/COPROD$/.test(dk2.url()), 'endereço antigo do app (raiz + #/rota) segue para /app/'); await dk2.close();
   await dk.goto(srv.url + '/apresentacao/#6'); await dk.waitForTimeout(600);
   const dkInfo = await dk.evaluate(() => ({ n: document.querySelectorAll('.sl').length, on: document.querySelector('.sl.on')?.dataset.t, imgs: [...document.querySelectorAll('img')].filter(i => i.complete && i.naturalWidth > 0).length, total: document.querySelectorAll('img').length }));
   await dk.keyboard.press('ArrowRight'); await dk.waitForTimeout(150);

@@ -5,7 +5,7 @@
    valida e grava o que encontrou como origem A (automático), com a fonte e a hora. O que não for
    encontrado vira alerta, com pedido de preenchimento manual.
    ESTADO ATUAL: as integrações com os sistemas da Petrobras ainda não estão liberadas (I-01 SITOP,
-   I-02 BDO, I-03 PFCEO, I-51 eplab). Até lá, cada conector roda em modo SIMULADO: devolve os valores
+   I-02 BDO, I-03 PFCEO, I-51 eplab, I-13 passagem de serviço). Até lá, cada conector roda em modo SIMULADO: devolve os valores
    do conjunto de exemplo do dia e marca a fonte como "simulado". Para ligar um sistema real, troque
    o método buscar() do conector, mantendo o mesmo contrato ({ campo: { valor } | { itens } }). */
 const FONTES_CAPTURA = {
@@ -13,6 +13,7 @@ const FONTES_CAPTURA = {
   SITOP: { nome: 'SITOP', desc: 'SITOP Digital', pendencia: 'I-01' },
   METAS: { nome: 'Metas da UEP', desc: 'Metas anuais e potencial da UEP', pendencia: 'I-05' },
   EPLAB: { nome: 'eplab', desc: 'Resultados de análises laboratoriais', pendencia: 'I-51' },
+  PASSAGEM: { nome: 'Passagem de serviço', desc: 'Status dos equipamentos informado pelo operador do posto', pendencia: 'I-13' },
 };
 /* campos que nunca são capturados: correções manuais dos acumulados do mês (D-43) */
 const NAO_CAPTURAR = new Set(['iuga.gas_prod_mes', 'queima.acum_mes']);
@@ -20,6 +21,7 @@ const CAMPOS_BDO = new Set(['oleo.real', 'iuga.real', 'gas.real', 'gas.ref', 'ag
 const LISTAS_BDO = new Set(['queima.eventos']);
 function fonteDoCampo(id) {
   if (id.startsWith('lab.')) return 'EPLAB';
+  if (id.startsWith('eq.')) return 'PASSAGEM';
   if (/\.meta$/.test(id)) return 'METAS';
   if (CAMPOS_BDO.has(id) || LISTAS_BDO.has(id)) return 'BDO';
   return 'SITOP';
@@ -80,7 +82,7 @@ const Captura = {
         for (const id of porFonte[f]) {
           const r = resp[id], c = CAMPO[id];
           const ok = r && (r.itens ? r.itens.length > 0 : r.valor !== null && r.valor !== undefined && r.valor !== '' && !(c?.tipo === 'num' && isNaN(+r.valor)));
-          if (ok) achados[id] = { ...r, fonte: `${FONTES_CAPTURA[f].nome} ${hora}${con.modo === 'simulado' ? ' · simulado' : ''}` };
+          if (ok) achados[id] = { ...r, fonte: `${FONTES_CAPTURA[f].nome} ${hora}${f === 'PASSAGEM' && CAMPO[id]?.equip ? ' · posto ' + EQUIP.find(e => e.id === CAMPO[id].equip).posto : ''}${con.modo === 'simulado' ? ' · simulado' : ''}` };
           else {
             if (r) ruins++;
             const atual = LISTA[id] ? (E.listas[id]?.itens || []).length : (v => v !== null && v !== undefined && v !== '')(E.valores[id]?.valor);

@@ -78,7 +78,7 @@ python tools/provisionar_usuarios.py usuarios_P83_PRIVADO.csv
 
 ## 6. Primeiro teste conjunto (5 min)
 
-1. Abra o site e entre com a chave do administrador e a senha temporária. Troque a senha quando o app pedir.
+1. Abra o site, clique em **Entrar no app** e entre com a chave do administrador e a senha temporária. Troque a senha quando o app pedir.
 2. O Início deve mostrar o painel **Base de dados · Supabase**, e o cabeçalho, "Nuvem · sincronizado hh:mm:ss · tempo real".
 3. Clique em **Carregar dados de exemplo**. Só o administrador e o GEPLAT veem esse botão.
 4. Em outro computador ou celular, entre com a chave de um coordenador. Os mesmos dados devem aparecer.

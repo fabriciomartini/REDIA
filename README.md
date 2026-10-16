@@ -31,7 +31,8 @@ O passo a passo completo, inclusive a hospedagem na rede interna, está em **[do
 
 | O quê | Endereço |
 |---|---|
-| App | `https://fabriciomartini.github.io/REDIA/` |
+| Página inicial (escolha entre o app e o deck) | `https://fabriciomartini.github.io/REDIA/` |
+| App | `https://fabriciomartini.github.io/REDIA/app/` (endereços antigos com `#/…` seguem para cá) |
 | Deck de explicação do sistema | `https://fabriciomartini.github.io/REDIA/apresentacao/` (setas ou toque para navegar, F para tela cheia, Ctrl+P para PDF) |
 
 Sem as variáveis do Supabase, o app publicado roda em **modo demonstração**: qualquer pessoa testa o fluxo completo com as chaves GP01, CP01, CE01 ou CM01 e a senha 1234, e cada navegador guarda os próprios dados. Para várias pessoas trabalharem no mesmo dia e na mesma pauta, ligue o site à base Supabase (variáveis `SUPABASE_URL` e `SUPABASE_ANON_KEY`).
@@ -74,7 +75,7 @@ O comando roda cinco conjuntos de testes:
 |---|---|
 | SQL/RLS (41) | schema em PostgreSQL local (PGlite) |
 | Cadastro (6) | script de cadastro de usuários |
-| Ponta a ponta, demonstração (153) | fluxo completo no modo demonstração e o deck publicado |
+| Ponta a ponta, demonstração (168) | fluxo completo no modo demonstração e o deck publicado |
 | Ponta a ponta, nuvem (49) | fluxo completo contra um Supabase simulado que roda o mesmo schema |
 | Telas móveis (60) | smartphone, tablet e notebook |
 
