@@ -643,3 +643,8 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .pfk .pfa .btn{margin-top:0}
 .pfk .ab{font-size:14px}
 @media (max-width:900px){.pf-resumo{grid-template-columns:repeat(2,minmax(0,1fr))}.pfk .pfa .btn{flex:1 1 100%}}
+/* D-55 · ata em PDF: captura das telas fora da área visível e progresso */
+.ata-cap{position:fixed;left:-30000px;top:0;width:1920px;height:1080px;overflow:hidden;pointer-events:none}
+.ata-prog{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.45);display:grid;place-items:center}
+.ata-prog-c{background:#fff;padding:22px 24px;width:min(520px,92vw);display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.ata-prog-c b{font-size:18px}

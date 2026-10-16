@@ -43,7 +43,17 @@ const jpg = (png, nome, w = 1600, h = 900) => execFileSync('python3', ['-c', `fr
   await c.click('[data-mdl="congelar"]'); await c.waitForTimeout(500);
   await c.goto(U + '#/ata'); await c.waitForTimeout(300);
   await c.fill('#d-tit', 'Apoio para o retorno da FGRU A e da Injection A'); await c.fill('#d-resp', '4º COPROD'); await c.selectOption('#d-coord', 'COPROD'); await c.click('[data-act="add-dem"]'); await c.waitForTimeout(300);
-  await c.evaluate(() => scrollTo(0, 0)); await foto(c, 'ata.jpg');
+  await c.fill('#at-part', 'GEPLAT de bordo\nCOPROD de bordo\nCOEMB de bordo\nCOMAN de bordo\n4º COPROD (base)'); await c.fill('#at-obs', 'Priorizar o retorno da FGRU A e da Injection A.');
+  /* ata em PDF (D-55): progresso da geração e páginas do PDF */
+  await c.evaluate(() => document.querySelector('[data-act="fechar-ata"]').scrollIntoView({ block: 'center' }));
+  const [dl] = await Promise.all([c.waitForEvent('download', { timeout: 120000 }), (async () => { await c.click('[data-act="fechar-ata"]'); await c.waitForFunction(() => /tela (8|9|1\d) de/.test(document.querySelector('.ata-prog')?.textContent || ''), null, { timeout: 60000 }); const f = path.join(TMP, 'ata_gerando.png'); await c.screenshot({ path: f }); jpg(f, 'ata_gerando.jpg'); console.log('ok ata_gerando.jpg'); })()]);
+  const pdf = path.join(TMP, 'ata.pdf'); await dl.saveAs(pdf);
+  execFileSync('pdftoppm', ['-r', '110', '-png', '-f', '1', '-l', '1', pdf, path.join(TMP, 'ata_p')]);
+  execFileSync('pdftoppm', ['-r', '110', '-png', '-f', '4', '-l', '4', pdf, path.join(TMP, 'ata_p')]);
+  const pg = n => fs.readdirSync(TMP).find(f => new RegExp('^ata_p-0*' + n + '\\.png$').test(f));
+  execFileSync('python3', ['-c', `from PIL import Image; Image.open(${JSON.stringify(path.join(TMP, pg(1)))}).convert('RGB').save(${JSON.stringify(path.join(IMG, 'ata_pdf_relatorio.jpg'))}, quality=88)`]);
+  execFileSync('python3', ['-c', `from PIL import Image; Image.open(${JSON.stringify(path.join(TMP, pg(4)))}).convert('RGB').save(${JSON.stringify(path.join(IMG, 'ata_pdf_tela.jpg'))}, quality=88)`]);
+  console.log('ok ata_pdf_relatorio.jpg, ata_pdf_tela.jpg');
 
   /* celular (390×844, escala 1,5 → 585×1266) */
   const m = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1.5, isMobile: true, hasTouch: true })).newPage();

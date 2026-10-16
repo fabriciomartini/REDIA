@@ -72,7 +72,7 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | # | Passo | Esperado |
 |---|---|---|
 | 6.1 | Anexar a transcrição do Teams (.docx/.vtt) | "Transcrição anexada"; botão **Baixar** funciona |
-| 6.2 | Fechar a ata | Arquivo gravado na base; botão **Baixar arquivo da ata** |
+| 6.2 | Fechar a ata (**Fechar ata e gerar PDF**) | Barra de progresso; PDF gravado na base (botão **Baixar arquivo da ata**) com o relatório e, em seguida, uma página em paisagem para cada tela da apresentação, com os dados de referência da REDIA |
 | 6.3 | Imprimir / salvar PDF da pauta | Uma página 16:9 por bloco |
 
 ## 7. Configuração

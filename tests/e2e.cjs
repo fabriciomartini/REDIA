@@ -413,11 +413,24 @@ async function checarPalco(page, nome) {
   ok(await page.evaluate(() => document.querySelectorAll('.printroot .stage').length === 5 && window.__printed >= 1), 'impressão da pauta com 5 páginas');
   await page.goto(URL + '#/ata'); await page.waitForTimeout(200);
   await page.fill('#at-part', 'GEPLAT de bordo\nCOPROD de bordo\n4º COPROD (base)'); await page.fill('#at-obs', 'Priorizar retorno da FGRU A.');
-  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 3000 }).catch(() => null), page.click('[data-act="fechar-ata"]')]);
-  ok(!!dl, 'ata gerada e baixada no modo demonstração');
-  if (dl) { const f = path.join(OUT, 'ata.html'); await dl.saveAs(f); const t = fs.readFileSync(f, 'utf8'); ok(/Ata de sexta, 09\/10\/2026/.test(t) && /Apoio para o retorno da FGRU A/.test(t) && /código de integridade [0-9a-f]{8}/.test(t), 'conteúdo da ata (data, demandas, código de integridade)'); }
-  await page.click('[data-act="ver-ata"]'); await page.waitForTimeout(500);
-  ok(await page.evaluate(() => /Ata de sexta/.test(document.querySelector('#ifr-ata').contentDocument?.body?.innerText || '')), 'ata renderizada para impressão');
+  /* D-55: ata em PDF = relatório (retrato) + print de todas as telas da apresentação (paisagem), capturadas no fechamento */
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }).catch(() => null), page.click('[data-act="fechar-ata"]')]);
+  ok(!!dl && /^ata_REDIA_P-83_2026-10-09\.pdf$/.test(dl.suggestedFilename()), `ata gerada em PDF e baixada no modo demonstração (${dl && dl.suggestedFilename()})`);
+  if (dl) {
+    const f = path.join(OUT, 'ata.pdf'); await dl.saveAs(f);
+    const info = JSON.parse(execFileSync('python3', ['-c', `import pypdf,json,sys
+r=pypdf.PdfReader(sys.argv[1]); pg=r.pages
+land=[i+1 for i,p in enumerate(pg) if float(p.mediabox.width)>float(p.mediabox.height)]
+print(json.dumps({'n':len(pg),'land':land,'p1':pg[0].extract_text(),'pl':pg[land[0]-1].extract_text() if land else '','imgs':sum(1 for i in land if b' Do' in pg[i-1].get_contents().get_data()),'titulo':r.metadata.title}))`, f]).toString());
+    const nTel = await page.evaluate(() => telasDaAta().length);
+    ok(/Ata de sexta, 09\/10\/2026/.test(info.p1) && /código de integridade [0-9a-f]{8}/.test(info.p1) && /GEPLAT de bordo/.test(info.p1) && /Ata REDIA P-83 09\/10\/2026/.test(info.titulo), 'PDF: relatório com data, pauta congelada e participantes');
+    ok(nTel === 26 && info.land.length === nTel && info.imgs === nTel && info.land.every((p, k) => k === 0 || p === info.land[k - 1] + 1) && info.land[info.land.length - 1] === info.n, `PDF: depois do relatório, uma página em paisagem com o print de cada tela (${info.land.length} telas, ${info.n} páginas)`);
+    ok(/Bloco 1 · GEPLAT · Abertura/.test(info.pl) && /Dados de referência: REDIA de 09\/10\/2026/.test(info.pl) && /realizado D-1 = 08\/10\/2026/.test(info.pl) && /Pauta congelada às .* código de integridade/.test(info.pl) && /capturada em 09\/10\/2026 às/.test(info.pl), 'PDF: cada tela com os dados de referência da REDIA e a hora da captura');
+    ok(await page.evaluate(() => { const a = E.atas.at(-1).payload; return a.formato === 'pdf' && a.telas === 26 && a.paginas > 26; }), 'registro da ata guarda formato, páginas e telas');
+  }
+  const nAtas = await page.evaluate(() => E.atas.length);
+  const [dlp] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }).catch(() => null), page.click('[data-act="ver-ata"]')]);
+  ok(!!dlp && /_previa\.pdf$/.test(dlp.suggestedFilename()) && await page.evaluate(n => E.atas.length === n, nAtas), 'prévia da ata em PDF baixa sem registrar a ata');
   await page.fill('#mot-re', 'Correção de valor'); await page.click('[data-act="reabrir-pauta"]'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => !E.congelamento), 'pauta reaberta com motivo');
   await page.screenshot({ path: path.join(OUT, 'ata_tela.png'), fullPage: true });
@@ -490,11 +503,11 @@ async function checarPalco(page, nome) {
   const dkInfo = await dk.evaluate(() => ({ n: document.querySelectorAll('.sl').length, on: document.querySelector('.sl.on')?.dataset.t, imgs: [...document.querySelectorAll('img')].filter(i => i.complete && i.naturalWidth > 0).length, total: document.querySelectorAll('img').length }));
   await dk.keyboard.press('ArrowRight'); await dk.waitForTimeout(150);
   const dkProx = await dk.evaluate(() => document.querySelector('.sl.on')?.dataset.t);
-  ok(dkInfo.n === 19 && dkInfo.on === 'Curadoria' && dkProx === 'Dados com origem' && !falhas.length, `deck publicado em /apresentacao/ (19 slides, navegação por teclado e #n) ${falhas.join(' ')}`);
+  ok(dkInfo.n === 20 && dkInfo.on === 'Curadoria' && dkProx === 'Dados com origem' && !falhas.length, `deck publicado em /apresentacao/ (20 slides, navegação por teclado e #n) ${falhas.join(' ')}`);
   await dk.goto(srv.url + '/apresentacao/#1'); await dk.waitForTimeout(1500);
   const capa = await dk.evaluate(async () => { const imgs = [...document.querySelectorAll('img')]; await Promise.all(imgs.map(i => i.decode().catch(() => null))); const v = document.querySelector('.capa video'); const bg = getComputedStyle(document.querySelector('.capa .bg')).backgroundImage.match(/url\("?([^")]+)/)?.[1]; return { ok: imgs.filter(i => i.complete && i.naturalWidth > 0).length, total: imgs.length, video: v ? v.readyState : -1, err: v?.error?.code || 0, bg: bg ? await new Promise(res => { const im = new Image(); im.onload = () => res(200); im.onerror = () => res(404); im.src = bg; }) : 0, texto: document.body.innerText }; });
   ok(capa.ok === capa.total && capa.total >= 20 && capa.video >= 2 && capa.bg === 200 && !http404.length, `deck: capa com vídeo, imagem de fundo, marca e todas as capturas carregadas (${capa.ok}/${capa.total} imagens, vídeo ${capa.video}, fundo ${capa.bg}) ${http404.join(' ')}`);
-  ok(!/75 minutos/.test(capa.texto) && /versão 1\.2/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
+  ok(!/75 minutos/.test(capa.texto) && /versão 1\.4/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
   await dk.close();
 
   await browser.close(); await srv.fechar();

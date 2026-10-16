@@ -113,9 +113,10 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
 
   /* ---- ata e transcrição no Storage ---- */
   await g.goto(URL + '#/ata'); await g.waitForTimeout(300);
-  await g.fill('#at-part', 'Participante 1\nParticipante 2'); await g.click('[data-act="fechar-ata"]'); await g.waitForTimeout(1000);
-  const kAta = [...srv.arquivos.keys()].find(k => /ata_REDIA_P-83_.*_\d{6}\.html$/.test(k));
-  ok(!!kAta && /Ata de/.test(srv.arquivos.get(kAta).dados.toString()), 'ata gravada no Storage');
+  await g.fill('#at-part', 'Participante 1\nParticipante 2'); await g.click('[data-act="fechar-ata"]');
+  await g.waitForFunction(() => E.atas.length > 0 && !document.querySelector('.ata-prog'), null, { timeout: 90000 }).catch(() => null); await g.waitForTimeout(500);
+  const kAta = [...srv.arquivos.keys()].find(k => /ata_REDIA_P-83_.*_\d{6}\.pdf$/.test(k));
+  ok(!!kAta && srv.arquivos.get(kAta).dados.includes('%PDF-') && srv.arquivos.get(kAta).dados.length > 200000, 'ata em PDF (relatório + telas) gravada no Storage');
   const [dl] = await Promise.all([g.waitForEvent('download', { timeout: 4000 }).catch(() => null), g.click('button:has-text("Baixar arquivo da ata")')]);
   ok(!!dl && /^ata_REDIA_P-83_/.test(dl.suggestedFilename()), `ata baixada do Storage (${dl && dl.suggestedFilename()})`);
   const tf = path.join(OUT, 'transcricao_teste.vtt'); fs.writeFileSync(tf, 'WEBVTT\n\n00:00.000 --> 00:01.000\nteste\n');
@@ -165,7 +166,7 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   const js = fs.readFileSync(path.join(DIST, 'app', 'app.js'), 'utf8'), cfg = fs.readFileSync(path.join(DIST, 'app', 'config.js'), 'utf8'), idx = fs.readFileSync(path.join(DIST, 'app', 'index.html'), 'utf8');
   const linhasAcesso = js.match(/\b[A-Z0-9]{4}\|[A-ZÃÂÉÍÓÚÇ ]{4,20}\|[^\n|`]+/g) || [];
   ok(!/service_role/.test(cfg) && linhasAcesso.length === 7 && linhasAcesso.every(l => /\(demo\)/.test(l)), 'app publicado sem chave service_role e só com os 7 usuários fictícios da demonstração');
-  ok(/connect-src http:\/\/127\.0\.0\.1:8791 ws:\/\/127\.0\.0\.1:8791;/.test(idx) && /script-src 'self';/.test(idx), 'CSP libera só o Supabase configurado e scripts do próprio site');
+  ok(/connect-src 'self' http:\/\/127\.0\.0\.1:8791 ws:\/\/127\.0\.0\.1:8791;/.test(idx) && /script-src 'self';/.test(idx), 'CSP libera só o próprio site e o Supabase configurado, e scripts do próprio site');
 
   const SEMEX = path.join(P, '.saida', 'sem-exemplo');
   execFileSync('python3', [path.join(P, '..', 'build.py'), '--saida', SEMEX], { stdio: 'ignore', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '', REDIA_SEM_EXEMPLO: '1' } });

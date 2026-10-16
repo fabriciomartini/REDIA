@@ -977,10 +977,11 @@ function telaAta() {
         ${!Store.remoto() ? '<p class="note">No modo demonstração só o nome do arquivo é registrado.</p>' : '<p class="note">Limite de 25 MB por arquivo.</p>'}
       </section>
       <section class="pn"><h2>Ata</h2>
-        ${ata ? `<div class="banner ok">Ata fechada por ${esc(ata.autor.nome)} às ${hhmm(ata.criadoEm)}.${ata.payload.caminho ? ` <button class="btn sm sec" data-arq="${esc(ata.payload.caminho)}">Baixar arquivo da ata</button>` : ''}</div>` : ''}
+        ${ata ? `<div class="banner ok">Ata fechada por ${esc(ata.autor.nome)} às ${hhmm(ata.criadoEm)}${ata.payload.paginas ? ` · PDF com ${ata.payload.paginas} páginas (${ata.payload.telas} telas)` : ''}.${ata.payload.caminho ? ` <button class="btn sm sec" data-arq="${esc(ata.payload.caminho)}">Baixar arquivo da ata</button>` : ''}</div>` : ''}
         <label class="lbl" for="at-part">Participantes (um por linha)</label><textarea id="at-part" class="in" rows="4">${esc((ata?.payload.participantes || []).join('\n'))}</textarea>
         <label class="lbl" for="at-obs">Decisões e observações</label><textarea id="at-obs" class="in" rows="4">${esc(ata?.payload.observacoes || '')}</textarea>
-        <div class="row end" style="margin-top:8px"><button class="btn sec" data-act="ver-ata">Imprimir ata</button><button class="btn pri" data-act="fechar-ata">${ata ? 'Atualizar ata' : 'Fechar ata e gerar arquivo'}</button></div>
+        <p class="note">A ata sai em <b>PDF</b>: o relatório e, em seguida, o print de todas as telas da apresentação (blocos e detalhes), capturadas no momento do fechamento, uma por página em paisagem, com os dados de referência da REDIA. ${E.congelamento ? 'As telas vêm da pauta congelada.' : 'A pauta não está congelada: as telas vêm da versão em edição.'}</p>
+        <div class="row end" style="margin-top:8px"><button class="btn sec" data-act="ver-ata">Baixar prévia em PDF</button><button class="btn pri" data-act="fechar-ata">${ata ? 'Atualizar ata (PDF)' : 'Fechar ata e gerar PDF'}</button></div>
       </section></div>
   </div><iframe id="ifr-ata" title="Ata para impressão" style="position:absolute;width:0;height:0;border:0"></iframe>`);
   bindDemandas();
@@ -1002,15 +1003,23 @@ function telaAta() {
     } catch (e) { aviso(e.message, 'erro'); }
   };
   const dadosAta = () => ({ participantes: $('#at-part').value.split('\n').map(s => s.trim()).filter(Boolean), observacoes: $('#at-obs').value.trim() });
-  on('ver-ata', () => { const ifr = $('#ifr-ata'); ifr.srcdoc = gerarAtaHtml(dadosAta()); ifr.onload = () => ifr.contentWindow.print(); });
+  /* D-55: ata em PDF = relatório + print de todas as telas da apresentação, capturadas agora */
+  const gerando = ativo => $$('[data-act="ver-ata"],[data-act="fechar-ata"]').forEach(b => b.disabled = ativo);
+  on('ver-ata', async () => {
+    gerando(true);
+    try { const r = await gerarAtaPdf(dadosAta()); baixar(`ata_REDIA_${CFG.uep}_${DIA}_previa.pdf`, r.blob, 'application/pdf'); aviso(`Prévia da ata baixada (${r.paginas} páginas). Nada foi registrado.`, 'ok'); }
+    catch (e) { $('.ata-prog')?.remove(); aviso('Não foi possível gerar o PDF: ' + e.message, 'erro'); }
+    gerando(false);
+  });
   on('fechar-ata', async () => {
+    gerando(true);
     try {
-      const d = dadosAta(), html = gerarAtaHtml(d), nome = `ata_REDIA_${CFG.uep}_${DIA}.html`;
-      const caminho = await Store.gravarArquivo(DIA, nome, html, 'text/html');
-      await registrar('ata', { ...d, caminho });
-      if (!caminho) baixar(nome, html, 'text/html');
-      atualizarEstado(); aviso(caminho ? 'Ata gravada nos arquivos da REDIA.' : 'Ata gerada e baixada.', 'ok'); rerender();
-    } catch (e) { await tratarErroGravacao(e); }
+      const d = dadosAta(), r = await gerarAtaPdf(d), nome = `ata_REDIA_${CFG.uep}_${DIA}.pdf`;
+      const caminho = await Store.gravarArquivo(DIA, nome, r.blob, 'application/pdf');
+      await registrar('ata', { ...d, caminho, formato: 'pdf', paginas: r.paginas, telas: r.telas });
+      if (!caminho) baixar(nome, r.blob, 'application/pdf');
+      atualizarEstado(); aviso(caminho ? `Ata em PDF gravada nos arquivos da REDIA (${r.paginas} páginas).` : `Ata em PDF gerada e baixada (${r.paginas} páginas).`, 'ok'); rerender();
+    } catch (e) { $('.ata-prog')?.remove(); gerando(false); await tratarErroGravacao(e); }
   });
 }
 function gerarAtaHtml(d) {

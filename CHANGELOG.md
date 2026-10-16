@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.4.0 · D-55 (2026-10-16)
+
+- **Ata em PDF**, gerada no navegador ao **Fechar ata e gerar PDF**: relatório em retrato (texto pesquisável) com participantes, situação, indicadores, destaques (inclusive PFCEO na abertura), ameaças, atividades, pauta extra, demandas, decisões, transcrição e índice das telas.
+- **Anexo com o print de todas as telas da apresentação** (5 blocos + 21 páginas de detalhe), capturadas no momento do fechamento a partir da pauta congelada, uma por página em **paisagem**, com os dados de referência: data da REDIA, D-1 e D, código de integridade da pauta, horário das capturas automáticas, quem gerou e quando.
+- Barra de progresso durante a captura; **Baixar prévia em PDF** confere o arquivo sem registrar a ata. Na base compartilhada, o PDF vai para os arquivos da REDIA (Storage).
+- Bibliotecas servidas com o app, carregadas só ao gerar a ata: jsPDF 4.2.1, jsPDF-AutoTable 5.0.7 e modern-screenshot 4.7.0 (licenças MIT em `vendor/`). A política de segurança passa a permitir `connect-src 'self'` (leitura das imagens do próprio site na captura).
+- Deck: slide novo "Ata em PDF" e slide de fechamento atualizado, com prints da função.
+
 ## 1.3.0 · D-54 (2026-10-16)
 
 - **Serviços do dia:** botão **Capturar dados** traz do APLAT as permissões de trabalho planejadas para o dia na coordenação (origem PT). As já listadas e as ocultadas pelo coordenador não se repetem.

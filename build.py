@@ -18,7 +18,8 @@ from urllib.parse import urlparse
 
 P = os.path.dirname(os.path.abspath(__file__))
 VENDOR_SUPABASE = 'supabase-2.112.4.min.js'
-FONTES_JS = ['core.js', 'nuvem.js', 'model.js', 'captura.js', 'stage.js', 'detalhe.js', 'views.js']
+FONTES_JS = ['core.js', 'nuvem.js', 'model.js', 'captura.js', 'stage.js', 'detalhe.js', 'ata_pdf.js', 'views.js']
+VENDOR_PDF = ['modern-screenshot-4.7.0.umd.js', 'jspdf-4.2.1.umd.min.js', 'jspdf-autotable-5.0.7.min.js']   # ata em PDF (D-55), carregados só ao gerar a ata
 
 
 def ler(*partes, modo='r'):
@@ -61,11 +62,11 @@ def _payload_jwt(chave):
 
 
 def csp(cfg, unico):
-    conn = "'none'"
+    conn = "'self'"   # 'self': a captura das telas da ata (D-55) lê as imagens do próprio site
     if cfg['supabaseUrl']:
         u = urlparse(cfg['supabaseUrl'])
         ws = ('wss' if u.scheme == 'https' else 'ws') + '://' + u.netloc
-        conn = f"{u.scheme}://{u.netloc} {ws}"
+        conn = f"'self' {u.scheme}://{u.netloc} {ws}"
     if unico:
         return (f"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; "
                 f"frame-src 'self' blob:; media-src blob: data:; connect-src {conn}; base-uri 'none'; form-action 'none'")
@@ -118,6 +119,7 @@ def montar(saida, unico):
 <script>
 {cfg_js}</script>
 {f"<script>{chr(10)}{supa}{chr(10)}</script>" if nuvem else ""}
+{''.join(f"<script>{chr(10)}{ler('vendor', v)}{chr(10)}</script>" for v in VENDOR_PDF)}
 <script>
 {js}
 </script>
@@ -154,9 +156,9 @@ def montar(saida, unico):
         with open(os.path.join(app, nome), 'w', encoding='utf8') as f:
             f.write(conteudo)
     shutil.copytree(os.path.join(P, 'assets'), os.path.join(app, 'assets'))
-    if nuvem:
-        os.makedirs(os.path.join(app, 'vendor'))
-        shutil.copy(os.path.join(P, 'vendor', VENDOR_SUPABASE), os.path.join(app, 'vendor', VENDOR_SUPABASE))
+    os.makedirs(os.path.join(app, 'vendor'))
+    for v in VENDOR_PDF + ([VENDOR_SUPABASE] if nuvem else []):
+        shutil.copy(os.path.join(P, 'vendor', v), os.path.join(app, 'vendor', v))
     versao = re.search(r"versao:\s*'([^']+)'", ler('src', 'core.js')).group(1)
     landing = ler('landing', 'index.html').replace('{{VERSAO}}', versao).replace('{{MODO}}', 'Base de dados na nuvem · login individual' if nuvem else 'Modo demonstração')
     raiz = {'index.html': landing, 'robots.txt': 'User-agent: *\nDisallow: /\n', '.nojekyll': ''}
