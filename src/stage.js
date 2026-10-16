@@ -127,6 +127,7 @@ function telaAbertura(E, ctx) {
     const ds = destaquesAbertura(E, c).slice(0, CFG.destaquesAberturaMax || 2), a = c === 'GEPLAT' ? null : principalAmeaca(E, c);
     if (c === 'GEPLAT' && !ds.length) return '';
     const linhas = ds.map(d => `<span class="dl">${glyph(d.semaforo, 18)}<span>${T(d.titulo)}</span></span>`);
+    if (c !== 'GEPLAT') for (const i of pfceoSelecao(E, c).abertura) linhas.push(`<span class="dl pfa">${glyph(PF.semDisp(i.disponibilidade), 18)}<span><span class="k2">PFCEO</span> ${T(i.funcao)} · ${esc(PF.curto(i.disponibilidade))}${i.nota ? ` <span class="sec">· ${T(i.nota)}</span>` : ''}</span></span>`);   // D-54: até 2 por coordenação
     if (c !== 'GEPLAT') linhas.push(a ? `<span class="dl am">${glyph(a.payload.semaforo, 18)}<span><span class="k2">Ameaça</span> ${T(a.payload.texto)}</span></span>` : `<span class="dl am">${glyph('sd', 18)}<span class="sec">Sem ameaça registrada</span></span>`);
     return `<div class="li thr2"><b>${c}</b><div class="dls">${linhas.join('')}</div></div>`;
   }).join('');
@@ -233,7 +234,7 @@ function cardPfceo(E, coord, b) {
   const s = pfceoSelecao(E, coord), v = E.listas['pfceo.' + coord];
   return `<div class="card col pfc">${hd('Equipamentos e Sistemas – PFCEO', v ? tag(v.origem === 'A' ? 'PFCEO ' + hhmm(v.em) : 'M') : '', '', lk(b, 'pfceo'))}
     ${s.itens.map(pfLinha).join('') || '<div class="row2"><span class="sec">Nenhum sistema selecionado na curadoria</span></div>'}
-    ${s.sugerida && s.itens.length ? '<span class="cap mt-auto">Seleção automática: indisponíveis e com restrição</span>' : ''}</div>`;
+    ${s.sugerida && s.itens.length ? '<span class="cap mt-auto">Aprovação automática: sistemas com desvio</span>' : ''}</div>`;
 }
 const SIT_SEM = { vencida: ['nok', 'Vencida'], vence24: ['at', 'Vence hoje'], prazo: ['ok', 'No prazo'], ok: ['ok', 'No prazo'], enc: ['sd', 'Encerrada'] };
 const ORD_SIT = { vencida: 0, vence24: 1, prazo: 2, ok: 2, enc: 3 };

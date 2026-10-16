@@ -401,9 +401,9 @@ function telaCuradoria(m) {
   const nAb = atividadesAbertura(E, coord).length;
   const nav = (id, t, n) => `<a href="#/curadoria/${coord}/${id}" class="${aba === id ? 'on' : ''}">${t}${n !== undefined ? `<span class="n">${n}</span>` : ''}</a>`;
   const outras = COORDS.filter(c => c !== coord).map(c => `<a href="#/curadoria/${c}/${aba}">${c}</a>`).join('');
-  const fontes = Object.values(E.valores).filter(v => v.origem === 'A').reduce((acc, v) => { const f = (v.fonte || '').split(' ')[0]; if (f && (!acc[f] || acc[f] < v.em)) acc[f] = v.em; return acc; }, {});
+  const fontes = [...Object.values(E.valores), ...Object.values(E.listas)].filter(v => v.origem === 'A').reduce((acc, v) => { const f = (v.fonte || '').split(' ')[0]; if (f && (!acc[f] || acc[f] < v.em)) acc[f] = v.em; return acc; }, {});
   const lado = `<nav class="side" aria-label="Seções da curadoria">
-      ${nav('dados', 'Dados automáticos')}${nav('sugestoes', 'Sugestões', pend)}${nav('destaques', 'Destaques da coordenação', ap)}${coord !== 'GEPLAT' ? nav('pfceo', 'Equipamentos e Sistemas · PFCEO', pfceoSelecao(E, coord).itens.length) : ''}${coord !== 'GEPLAT' ? nav('servicos', 'Serviços do dia', nAb + ' de ' + CFG.atividadesMax) : ''}${nav('itens', coord === 'GEPLAT' ? 'Pauta extra' : 'Ameaças e oportunidades')}${nav('demandas', 'Demandas', E.demandas.filter(d => d.payload.coord === coord && d.payload.status !== 'encerrada').length)}${coord === 'GEPLAT' ? nav('aceite', 'Aceite da pauta') : ''}
+      ${nav('dados', 'Dados automáticos')}${nav('sugestoes', 'Sugestões', pend)}${nav('destaques', 'Destaques da coordenação', ap)}${coord !== 'GEPLAT' ? nav('pfceo', 'Equipamentos e Sistemas · PFCEO', pfceoSelecao(E, coord).itens.length) : ''}${coord !== 'GEPLAT' ? nav('servicos', 'Serviços do dia', nAb + ' de ' + CFG.atividadesMax) : ''}${nav('itens', coord === 'GEPLAT' ? 'Pauta extra' : 'Ameaças e oportunidades')}${nav('demandas', 'Canal Base x Bordo', E.demandas.filter(d => d.payload.coord === coord && d.payload.status !== 'encerrada').length)}${coord === 'GEPLAT' ? nav('aceite', 'Aceite da pauta') : ''}
       <h4>Preenchimento manual</h4>${(MANUAIS[coord] || []).map(([id, rot]) => nav(id, rot)).join('')}
       <div class="concl${concluida(E, coord) ? ' ok' : ''}">${concluida(E, coord) ? `<b>Preenchimento concluído</b><span class="note">às ${hhmm(concluida(E, coord).criadoEm)} por ${esc(concluida(E, coord).autor.nome)}</span><button class="btn sm" data-act="concluir" ${bloqueado() ? 'disabled' : ''}>Reabrir preenchimento</button>` : `<b>Preenchimento em andamento</b><span class="note">Sinalize ao GEPLAT quando os dados da ${coord} estiverem prontos.</span><button class="btn pri" data-act="concluir" ${bloqueado() ? 'disabled' : ''}>Concluir preenchimento</button>`}</div>
       <h4>Outras coordenações</h4>${outras}
@@ -416,7 +416,7 @@ function telaCuradoria(m) {
   const nts = notificacoesAbertas(E, coord), cc = concluida(E, coord);
   const aviso_ = nts.length ? `<div class="banner nt"><b>Notificação do GEPLAT · ${hhmm(nts[nts.length - 1].criadoEm)}</b> ${esc(nts[nts.length - 1].payload.mensagem)} <button class="btn sm pri" data-act="concluir2">Concluir preenchimento</button></div>` : cc && !bloqueado() ? `<div class="banner ok">Preenchimento da ${coord} concluído às ${hhmm(cc.criadoEm)}. Alterações continuam possíveis até o congelamento.</div>` : '';
   // telas estreitas (tablet em pé, smartphone): seletor de coordenação + abas roláveis no topo e barra de conclusão fixa embaixo
-  const abas = [['dados', 'Dados'], ['sugestoes', 'Sugestões', pend], ['destaques', 'Destaques', ap], ...(coord !== 'GEPLAT' ? [['pfceo', 'PFCEO'], ['servicos', 'Serviços']] : []), ['itens', coord === 'GEPLAT' ? 'Pauta extra' : 'Ameaças'], ['demandas', 'Demandas'], ...(coord === 'GEPLAT' ? [['aceite', 'Aceite']] : []), ...(MANUAIS[coord] || []).map(([id, rot]) => [id, rot])];
+  const abas = [['dados', 'Dados'], ['sugestoes', 'Sugestões', pend], ['destaques', 'Destaques', ap], ...(coord !== 'GEPLAT' ? [['pfceo', 'PFCEO'], ['servicos', 'Serviços']] : []), ['itens', coord === 'GEPLAT' ? 'Pauta extra' : 'Ameaças'], ['demandas', 'Canal'], ...(coord === 'GEPLAT' ? [['aceite', 'Aceite']] : []), ...(MANUAIS[coord] || []).map(([id, rot]) => [id, rot])];
   const mtop = `<div class="mtop">
       <label class="msel"><span class="lbl">Coordenação</span><select id="m-coord" class="in">${COORDS.map(c => `<option value="${c}" ${c === coord ? 'selected' : ''}>${c} · ${COORD_NOME[c]}</option>`).join('')}</select></label>
       <nav class="mtabs" aria-label="Seções da curadoria">${abas.map(([id, t, n]) => `<a href="#/curadoria/${coord}/${id}" class="${aba === id ? 'on' : ''}">${t}${n ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
@@ -583,38 +583,49 @@ function bindSugestoes(coord, sel) {
   });
 }
 
-/* ---- Equipamentos e Sistemas · PFCEO (D-42): o coordenador escolhe o que vai para a tela da coordenação ---- */
+/* ---- Equipamentos e Sistemas · PFCEO (D-42, D-54) ----
+   Capturar dados importa o PFCEO; a lista de entrada vem do pior estado ao normal (operando ou parado).
+   Com desvio = já aprovado para a tela PFCEO da coordenação; normal = fora, salvo se o coordenador incluir.
+   Até 2 por coordenação vão para a abertura do GEPLAT. */
 function abaPfceo(coord) {
   if (coord === 'GEPLAT') return abaDados(coord);
-  const s = pfceoSelecao(E, coord), selSet = new Set(s.itens.map(PF.chave)), dis = bloqueado() ? 'disabled' : '';
-  const fora = s.todos.filter(i => !selSet.has(PF.chave(i))), v = E.listas['pfceo.' + coord], max = CFG.pfceoMax || 6;
-  const card = (i, dentro) => { const sd = PF.semDisp(i.disponibilidade), u = +i.unidades > 0 && i.disponiveis !== '' && i.disponiveis != null ? `${i.disponiveis}/${i.unidades} disponíveis` : '';
-    return `<div class="pfk s-${sd}"><div class="row" style="justify-content:space-between;gap:8px"><b>${esc(i.funcao)}</b><span class="chip ${sd}">${esc(PF.curto(i.disponibilidade))}</span></div>
-      <span class="note">${[i.tag, i.redundancia, u, i.condicao ? 'Condição ' + i.condicao : '', i.situacao].filter(Boolean).map(esc).join(' · ')}</span>
+  const s = pfceoSelecao(E, coord), dis = bloqueado() ? 'disabled' : '', v = E.listas['pfceo.' + coord], max = CFG.pfceoMax || 6;
+  const chave = coord + '|lista:pfceo.' + coord, abSet = new Set(s.abertura.map(PF.chave));
+  const nDesv = s.todos.filter(PF.desvio).length, nNorm = s.todos.length - nDesv;
+  const card = (i, pos) => { const sd = PF.semDisp(i.disponibilidade), k = PF.chave(i), desv = PF.desvio(i), tela = s.naTela(i), ab = abSet.has(k);
+    const u = +i.unidades > 0 && i.disponiveis !== '' && i.disponiveis != null ? `${i.disponiveis}/${i.unidades} disponíveis` : '';
+    return `<div class="pfk s-${sd}${tela ? ' tela' : ''}" data-pfk="${esc(k)}"><div class="row" style="justify-content:space-between;gap:8px"><span class="row" style="gap:8px"><span class="pfn">${pos}</span><b>${esc(i.funcao)}</b></span><span class="row" style="gap:6px">${i.condicao ? `<span class="chip ${PF.semCond(i.condicao)}">${esc(i.condicao)}</span>` : ''}<span class="chip ${sd}">${esc(PF.curto(i.disponibilidade))}</span></span></div>
+      <span class="note">${[i.tag, i.redundancia, u, i.condicao ? 'Condição ' + i.condicao : '', i.situacao === 'Desligado' ? 'Parado' : i.situacao === 'Ligado' ? 'Operando' : i.situacao].filter(Boolean).map(esc).join(' · ')}</span>
       ${i.nota ? `<span>${esc(i.nota)}</span>` : ''}${i.nm ? `<span class="note">NM ${esc(i.nm)}</span>` : ''}
-      <button class="btn sm ${dentro ? '' : 'pri'}" data-pf="${esc(PF.chave(i))}" data-v="${dentro ? 0 : 1}" ${dis}>${dentro ? '‹ Retirar da tela' : 'Levar para a tela ›'}</button></div>`; };
+      <div class="row pfa"><span class="tg0">${desv ? 'Com desvio' : 'Normal'}</span><span class="note">${tela ? (desv ? `Aprovado para a tela da ${coord} (automático)` : `Incluído na tela da ${coord}`) : (desv ? 'Retirado da tela pelo coordenador' : 'Fora da tela da ' + coord)}</span><span style="flex:1"></span>
+        <label class="row ab" style="gap:6px"><input type="checkbox" data-pfab="${esc(k)}" ${ab ? 'checked' : ''} ${dis}> Abertura do GEPLAT</label>
+        <button class="btn sm ${tela ? '' : 'pri'}" data-pft="${esc(k)}" data-v="${tela ? 0 : 1}" ${dis}>${tela ? 'Retirar da tela' : 'Incluir na tela'}</button></div></div>`; };
   const html = `<section class="ed" style="grid-column:2 / -1">
     ${bloqueado() ? '<div class="banner">Pauta congelada: a seleção está bloqueada.</div>' : ''}
-    <div class="pn"><h2>Equipamentos e Sistemas – PFCEO · ${coord}</h2>
-      <p class="note">Status e disponibilidade das funções críticas do PFCEO (Portal de Integridade). A lista está em ordem de disponibilidade, piores primeiro. Leve para a tela os sistemas que a ${coord} vai apresentar; eles aparecem no card “Equipamentos e Sistemas – PFCEO” do bloco e no detalhe. ${v ? `Dados: ${esc(v.fonte || '')} · ${v.origem} · ${hhmm(v.em)}.` : 'Sem dados do PFCEO.'}</p>
-      ${s.sugerida ? `<div class="banner">Seleção automática em uso (indisponíveis e com restrição). <button class="btn sm pri" data-act="pf-confirmar" ${dis}>Confirmar esta seleção</button></div>` : `<p class="note">Seleção feita por ${esc(s.reg.autor.nome)} às ${hhmm(s.reg.criadoEm)}.</p>`}
+    <div class="pn" data-lista-pf="pfceo.${coord}"><div class="pn-h"><h2>Equipamentos e Sistemas – PFCEO · ${coord}</h2><span class="note">Origem: PFCEO</span><span style="flex:1"></span><button class="btn sm pri" data-capturar="${esc(chave)}" ${dis}>Capturar dados</button></div>
+      <div class="capt" data-capt="${esc(chave)}">${resultadoCaptura(chave)}</div>
+      <p class="note">Status e disponibilidade das funções críticas importados do PFCEO. ${v ? `Dados: ${esc(v.fonte || '')} · ${v.origem} · ${hhmm(v.em)}.` : 'Sem dados do PFCEO: clique em Capturar dados.'}</p>
+      <div class="pf-resumo">${[['Sistemas importados', s.todos.length], ['Com desvio', nDesv], ['Normais', nNorm], [`Na tela da ${coord}`, s.itens.length], ['Na abertura do GEPLAT', `${s.abertura.length}/${PF_ABERTURA_MAX}`]].map(([r, n]) => `<div><b>${n}</b><span class="note">${r}</span></div>`).join('')}</div>
+      <p class="note">Os sistemas <b>com desvio</b> (indisponível, com restrição, condição crítica, atenção ou pré-atenção) já ficam aprovados para a tela PFCEO da ${coord}. Os <b>normais</b> (disponível e condição normal, operando ou parado) só entram se você incluir. Marque <b>Abertura do GEPLAT</b> nos que merecem mais destaque: até ${PF_ABERTURA_MAX} por coordenação.</p>
+      ${s.reg ? `<p class="note">Última alteração da seleção: ${esc(s.reg.autor.nome)} às ${hhmm(s.reg.criadoEm)}.</p>` : ''}
       ${s.itens.length > max ? `<div class="banner">${s.itens.length} sistemas na tela. No card cabem cerca de ${max}; os demais aparecem no detalhe.</div>` : ''}
     </div>
-    <div class="pfgrid">
-      <div class="pn"><h3>No PFCEO · piores primeiro (${fora.length})</h3>${fora.map(i => card(i, false)).join('') || '<p class="note">Todos os sistemas estão na tela.</p>'}</div>
-      <div class="pn pfsel"><h3>Na tela da ${coord} (${s.itens.length})</h3>${s.itens.map(i => card(i, true)).join('') || '<p class="note">Nenhum sistema selecionado.</p>'}</div>
-    </div>
-    <details class="pn"><summary style="cursor:pointer;font-weight:700">Editar dados do PFCEO (entrada manual enquanto não há integração, I-03)</summary>${editorLista(LISTA['pfceo.' + coord])}</details>
+    <div class="pn"><h3>Lista de entrada · do pior estado ao normal (${s.todos.length})</h3>${s.todos.map((i, n) => card(i, n + 1)).join('') || '<p class="note">Nenhum sistema importado.</p>'}</div>
+    <details class="pn"><summary style="cursor:pointer;font-weight:700">Corrigir dados do PFCEO à mão (se a importação falhar)</summary>${editorLista(LISTA['pfceo.' + coord])}</details>
   </section>`;
   return {
     html, dois: true, bind: () => {
-      const gravar = ids => salvarE('selecao', { coord, campo: 'pfceo', ids }, {}, 'Seleção do PFCEO gravada.');
-      $$('[data-pf]').forEach(b => b.onclick = () => {
-        const ids = s.itens.map(PF.chave).filter(k => k !== b.dataset.pf);
-        if (b.dataset.v === '1') ids.push(b.dataset.pf);
-        gravar(ids);
+      const gravar = (sel, msg) => salvarE('selecao', { coord, campo: 'pfceo', fora: s.fora, extra: s.extra, abertura: s.ab, ...sel }, {}, msg);
+      $$('[data-pft]').forEach(b => b.onclick = () => {
+        const k = b.dataset.pft, i = s.todos.find(x => PF.chave(x) === k), entra = b.dataset.v === '1';
+        if (PF.desvio(i)) gravar({ fora: entra ? s.fora.filter(x => x !== k) : [...s.fora, k] }, entra ? 'Sistema de volta à tela.' : 'Sistema retirado da tela.');
+        else gravar({ extra: entra ? [...s.extra, k] : s.extra.filter(x => x !== k) }, entra ? 'Sistema incluído na tela.' : 'Sistema retirado da tela.');
       });
-      const c = $('[data-act="pf-confirmar"]'); if (c) c.onclick = () => gravar(s.itens.map(PF.chave));
+      $$('[data-pfab]').forEach(c => c.onchange = () => {
+        const k = c.dataset.pfab, atuais = s.abertura.map(PF.chave);
+        if (c.checked && atuais.length >= PF_ABERTURA_MAX) { c.checked = false; return aviso(`Máximo de ${PF_ABERTURA_MAX} sistemas por coordenação na abertura do GEPLAT.`, 'erro'); }
+        gravar({ abertura: c.checked ? [...atuais, k] : atuais.filter(x => x !== k) }, c.checked ? 'Sistema destacado na abertura do GEPLAT.' : 'Sistema retirado da abertura.');
+      });
       bindDados(coord);
     },
   };
@@ -673,10 +684,11 @@ function editorLista(l, capturar = false, auto = false) {
 /* resultado da última captura do bloco: resumo, origem simulada e o que não foi encontrado */
 function resultadoCaptura(chave) {
   const r = UI.captura?.[chave]; if (!r) return '';
-  const nome = id => CAMPO[id]?.rot || LISTA[id]?.rot || id;
+  const nome = id => CAMPO[id]?.rot || LISTA[id]?.rot || (id.startsWith('servicos.') ? 'PTs planejadas para hoje (APLAT)' : id);
+  const pedido = /\|lista:servicos\./.test(chave) ? 'Inclua os serviços do dia manualmente, em “Incluir serviço ou atividade”:' : /\|lista:pfceo\./.test(chave) ? 'Corrija os dados do PFCEO à mão, no fim desta página:' : 'Digite o valor nos campos destacados; ao sair do campo, ele fica gravado e confirmado:';
   const erro = r.passos.find(p => p.st === 'erro');
-  return `${erro ? `<div class="banner erro"><b>Captura interrompida:</b> ${esc(erro.txt)} · ${esc(erro.nota || '')}</div>` : `<div class="banner ok"><b>Captura concluída às ${hhmm(r.em)}</b> · ${r.gravados} valor(es) gravado(s)${r.iguais ? `, ${r.iguais} sem alteração` : ''}${r.substituidos.length ? `, ${r.substituidos.length} correção(ões) manual(is) substituída(s)` : ''}${r.mantidos?.length ? `, ${r.mantidos.length} sem valor na origem mantido(s) com o valor manual atual (${r.mantidos.map(m => esc(nome(m.id))).join(', ')})` : ''}.${r.simulado ? ' <span class="note">Integração ainda não liberada: valores de demonstração (modo simulado).</span>' : ''}</div>`}
-    ${r.faltando.length ? `<div class="banner at falta-al" role="alert"><b>${r.faltando.length} dado(s) não encontrado(s) nas origens.</b> Digite o valor nos campos destacados; ao sair do campo, ele fica gravado e confirmado:
+  return `${erro ? `<div class="banner erro"><b>Captura interrompida:</b> ${esc(erro.txt)} · ${esc(erro.nota || '')}</div>` : `<div class="banner ok"><b>Captura concluída às ${hhmm(r.em)}</b> · ${r.gravados} valor(es) gravado(s)${r.iguais ? `, ${r.iguais} sem alteração` : ''}${r.mantidosOcultos ? `, ${r.mantidosOcultos} ocultado(s) pelo coordenador e mantido(s) fora da lista` : ''}${r.substituidos.length ? `, ${r.substituidos.length} correção(ões) manual(is) substituída(s)` : ''}${r.mantidos?.length ? `, ${r.mantidos.length} sem valor na origem mantido(s) com o valor manual atual (${r.mantidos.map(m => esc(nome(m.id))).join(', ')})` : ''}.${r.simulado ? ' <span class="note">Integração ainda não liberada: valores de demonstração (modo simulado).</span>' : ''}</div>`}
+    ${r.faltando.length ? `<div class="banner at falta-al" role="alert"><b>${r.faltando.length} dado(s) não encontrado(s) nas origens.</b> ${pedido}
       <ul>${r.faltando.map(f => `<li>${esc(nome(f.id))} <span class="note">· ${esc(f.fonte)}</span></li>`).join('')}</ul></div>` : ''}`;
 }
 function progressoCaptura(box, { pct, passos }) {
@@ -799,8 +811,9 @@ function bindDados(coord, auto = false) {
 function abaServicos(coord) {
   const sv = E.servicos.filter(s => s.payload.coord === coord), nAb = sv.filter(s => s.payload.abertura).length, dis = bloqueado() ? 'disabled' : '';
   const html = `<section class="ed" style="grid-column:2 / -1">
-    <div class="pn"><h2>Serviços planejados hoje · ${coord}</h2>
-      <p class="note">Origem PT = planejamento diário de PTs do APLAT (automático, quando a integração existir: I-24). Origem M = incluído pelo coordenador. Marque “Abertura” para levar o serviço às Principais atividades do GEPLAT: até ${CFG.atividadesMax}, recomendado ${CFG.atividadesRecomendado}.</p>
+    <div class="pn"><div class="pn-h"><h2>Serviços planejados hoje · ${coord}</h2><span class="note">Origem: APLAT</span><span style="flex:1"></span><button class="btn sm pri" data-capturar="${esc(coord + '|lista:servicos.' + coord)}" ${dis}>Capturar dados</button></div>
+      <div class="capt" data-capt="${esc(coord + '|lista:servicos.' + coord)}">${resultadoCaptura(coord + '|lista:servicos.' + coord)}</div>
+      <p class="note">Capturar dados traz do APLAT as permissões de trabalho planejadas para hoje na ${coord} (origem PT); as que já estão na lista ou que você ocultou não se repetem. Origem M = incluído pelo coordenador. Marque “Abertura” para levar o serviço às Principais atividades do GEPLAT: até ${CFG.atividadesMax}, recomendado ${CFG.atividadesRecomendado}.</p>
       ${nAb > CFG.atividadesRecomendado ? `<div class="banner">${nAb} atividades marcadas para a abertura. O recomendado é ${CFG.atividadesRecomendado}.</div>` : ''}
       <div class="tbw"><table class="tb"><thead><tr><th>Ordem</th><th>Serviço</th><th>Detalhe</th><th>Origem</th><th>Abertura</th><th></th></tr></thead><tbody>
       ${sv.map((s, i) => `<tr><td class="nw"><button class="btn sm" data-up="${s.id}" ${i === 0 || dis ? 'disabled' : ''} aria-label="Subir">↑</button><button class="btn sm" data-down="${s.id}" ${i === sv.length - 1 || dis ? 'disabled' : ''} aria-label="Descer">↓</button></td>
@@ -816,6 +829,7 @@ function abaServicos(coord) {
   </section>`;
   return {
     html, dois: true, bind: () => {
+      $$('[data-capturar]').forEach(b => b.onclick = () => capturarBloco(coord, b.dataset.capturar, b));
       $$('[data-ab]').forEach(c => c.onchange = () => {
         if (c.checked && nAb >= CFG.atividadesMax) { c.checked = false; return aviso(`Máximo de ${CFG.atividadesMax} atividades por coordenação na abertura.`, 'erro'); }
         salvarE('atualiza', { alvo: c.dataset.ab, campos: { abertura: c.checked } }, {}, c.checked ? 'Levado para a abertura.' : 'Retirado da abertura.');
@@ -890,7 +904,7 @@ function bindDemandas() {
 }
 function abaDemandas(coord) {
   const lista = E.demandas.filter(d => d.payload.coord === coord).sort((a, b) => (a.payload.status === 'encerrada') - (b.payload.status === 'encerrada'));
-  return { html: `<section class="ed" style="grid-column:2 / -1"><div class="pn"><h2>Demandas base ↔ bordo · ${coord}</h2>${tabelaDemandas(lista)}</div><div class="pn"><h2>Nova demanda</h2>${formDemanda(coord)}</div></section>`, dois: true, bind: bindDemandas };
+  return { html: `<section class="ed" style="grid-column:2 / -1"><div class="pn"><h2>Canal Base x Bordo · ${coord}</h2><p class="note">Tópicos e demandas tratados entre a base e a ${coord}. Os principais em aberto aparecem no card Canal Base x Bordo da tela da coordenação.</p>${tabelaDemandas(lista)}</div><div class="pn"><h2>Nova demanda</h2>${formDemanda(coord)}</div></section>`, dois: true, bind: bindDemandas };
 }
 function abaAceite() {
   const ult = E.aceites[E.aceites.length - 1];

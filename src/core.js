@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.2.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.3.0', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});

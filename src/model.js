@@ -181,6 +181,8 @@ const PF = {
   semDisp: d => ({ 'Indisponível': 'nok', 'Disponível com Restrição': 'at', 'Disponível': 'ok' }[d] || 'sd'),
   semCond: c => ({ 'Crítico': 'nok', 'Atenção': 'at', 'Pré-Atenção': 'at', 'Normal': 'ok' }[c] || 'sd'),
   curto: d => ({ 'Disponível com Restrição': 'Com restrição' }[d] || d || 'Sem dado'),
+  /* desvio: qualquer estado diferente de disponível com condição normal (ligado ou desligado) */
+  desvio: i => i.disponibilidade !== 'Disponível' || (i.condicao && i.condicao !== 'Normal'),
   chave: i => (String(i.funcao || '').trim() + '|' + String(i.tag || '').trim()).toLowerCase(),
   margem: i => (+i.unidades > 0 && i.disponiveis !== null && i.disponiveis !== '' && !isNaN(+i.disponiveis)) ? +i.disponiveis / +i.unidades : 1,
   /* piores primeiro: disponibilidade, depois condição, depois menor margem de redundância */
@@ -240,7 +242,7 @@ const Regras = {
    ====================================================================== */
 function construirEstado(regs, demRegs, hojeIso) {
   const E = {
-    valores: {}, listas: {}, sugestoes: [], servicos: [], itens: [], demandas: [], comentarios: {},
+    valores: {}, listas: {}, sugestoes: [], servicos: [], servicosOcultos: [], itens: [], demandas: [], comentarios: {},
     congelamento: null, reaberturas: [], atas: [], aceites: [], anexos: [], hist: {}, ultimaAlteracao: null, conclusoes: {}, notificacoes: [], selecoes: {},
   };
   const porId = new Map(), removidos = new Set(), atualizacoes = [], decisoes = [];
@@ -271,7 +273,7 @@ function construirEstado(regs, demRegs, hojeIso) {
     Object.assign(alvo.payload, u.payload.campos); alvo.atualizadoEm = u.criadoEm; alvo.atualizadoPor = u.autor;
   }
   for (const r of porId.values()) {
-    if (removidos.has(r.id)) continue;
+    if (removidos.has(r.id)) { if (r.tipo === 'servico') E.servicosOcultos.push(r); continue; }
     if (r.tipo === 'sugestao') { r.decisao = r._decisoes.length ? r._decisoes[r._decisoes.length - 1] : null; E.sugestoes.push(r); }
     else if (r.tipo === 'servico') E.servicos.push(r);
     else if (r.tipo === 'item') E.itens.push(r);
@@ -314,11 +316,17 @@ function operacoesPocos(E) {
     || (a.situacao === 'Realizada' ? String(b.data || '').localeCompare(String(a.data || '')) : String(a.data || '9').localeCompare(String(b.data || '9'))));
 }
 function pfceoDe(E, coord) { return L(E, 'pfceo.' + coord).slice().sort(PF.ordem); }
+/* D-54: lista de entrada do PFCEO, piores primeiro até o estado normal (disponível e condição normal, operando ou parado).
+   Com desvio = já aprovado para a tela PFCEO da coordenação (o coordenador pode retirar);
+   normal = fora da tela, salvo se o coordenador incluir. Até 2 por coordenação vão para a abertura do GEPLAT.
+   Seleção gravada: { fora: [chaves com desvio retiradas], extra: [chaves normais incluídas], abertura: [até 2 chaves] }. */
+const PF_ABERTURA_MAX = 2;
 function pfceoSelecao(E, coord) {
-  const todos = pfceoDe(E, coord), reg = E.selecoes['pfceo:' + coord];
-  if (!reg) return { todos, itens: todos.filter(i => ['Indisponível', 'Disponível com Restrição'].includes(i.disponibilidade)), sugerida: true, reg: null };
-  const ids = new Set(reg.payload.ids || []);
-  return { todos, itens: todos.filter(i => ids.has(PF.chave(i))), sugerida: false, reg };
+  const todos = pfceoDe(E, coord), r0 = E.selecoes['pfceo:' + coord];
+  const reg = r0 && (r0.payload.fora || r0.payload.extra || r0.payload.abertura) ? r0 : null;   // seleção antiga (lista de ids) é ignorada
+  const fora = new Set(reg?.payload.fora || []), extra = new Set(reg?.payload.extra || []), ab = new Set(reg?.payload.abertura || []);
+  const naTela = i => PF.desvio(i) ? !fora.has(PF.chave(i)) : extra.has(PF.chave(i));
+  return { todos, itens: todos.filter(naTela), naTela, abertura: todos.filter(i => ab.has(PF.chave(i))).slice(0, PF_ABERTURA_MAX), sugerida: !reg, reg, fora: [...fora], extra: [...extra], ab: [...ab] };
 }
 /* Acumulados do mês (D-43): o sistema soma, dia a dia, o gás produzido D-1 e a queima D-1 do SITOP gravados em cada REDIA do mês.
    A REDIA do dia x traz os valores de x-1; por isso a soma vai da REDIA do dia 2 até a REDIA do dia (a do dia 1 traz o mês anterior). */
@@ -369,6 +377,12 @@ function principalAmeaca(E, coord) {
    ====================================================================== */
 /* EXEMPLO-INICIO */
 const EXEMPLO_DISPONIVEL = true;
+/* APLAT simulado (D-54): PTs planejadas que só aparecem ao clicar em "Capturar dados" nos Serviços do dia */
+const APLAT_EXEMPLO_NOVAS = {
+  COPROD: [['Limpeza do filtro de água de injeção', 'Injeção de água · PT [nº] · [horário]']],
+  COEMB: [['Inspeção da estação de offloading de popa', 'Offloading · PT [nº] · [horário]']],
+  COMAN: [['Troca de filtros do TG-B', 'Geração principal · PT [nº] · [horário]']],
+};
 /* monta os registros de exemplo do dia (sem gravar); também serve de origem simulada para a captura (D-52) */
 function montarExemplo(iso) {
   const D1 = addDias(iso, -1), D2 = addDias(iso, -2);
@@ -449,7 +463,7 @@ function montarExemplo(iso) {
 
   // Equipamentos e Sistemas · PFCEO (exemplo; sem integração com o Portal de Integridade, I-03)
   const pf = (funcao, tag, redundancia, unidades, disponiveis, disponibilidade, condicao, situacao, nota, nm = '') => ({ funcao, tag, redundancia, unidades, disponiveis, disponibilidade, condicao, situacao, nota, nm });
-  const fontePf = 'Exemplo · PFCEO sem integração (I-03)';
+  const fontePf = 'PFCEO 05:30';   // exemplo; sem integração com o Portal de Integridade (I-03), a captura é simulada
   lst('pfceo.COPROD', [
     pf('FGRU · recuperação de gás de flare', 'FGRU A/B/C', '3×66%', 3, 2, 'Disponível com Restrição', 'Atenção', 'Ligado', 'FGRU A indisponível · flare LP aberto', '[NM]'),
     pf('Compressão de injeção de gás', 'Injection A/B/C', '', 3, 2, 'Disponível com Restrição', 'Atenção', 'Ligado', 'Injection A fora · injeção em 69% da meta', '[NM]'),
@@ -459,7 +473,7 @@ function montarExemplo(iso) {
     pf('Recuperação de gás · TGRU', 'TGRU A/B', '2×100%', 2, 2, 'Disponível', 'Normal', 'Ligado', 'TGRU A em operação'),
     pf('Recuperação de gás · SRGU', 'SRGU A/B', '2×100%', 2, 2, 'Disponível', 'Pré-Atenção', 'Ligado', 'SRGU A em operação'),
     pf('Bombas de injeção de água · principal', 'Principal A/B/C', '', 3, 3, 'Disponível', 'Normal', 'Ligado', 'A e B em operação'),
-  ], 'M', fontePf);
+  ], 'A', fontePf);
   lst('pfceo.COEMB', [
     pf('Lastro · lift de emergência', '', '', 1, 0, 'Indisponível', 'Crítico', 'Desligado', 'Bomba desarma por temperatura alta · desde 28/09/2025', '[NM]'),
     pf('Ancoragem · tensão das amarras', 'PN-CJ-5200502B-02 · C-02', '', '', '', 'Disponível com Restrição', 'Atenção', 'Ligado', 'Sem comunicação com o supervisório · leitura local'),
@@ -469,7 +483,7 @@ function montarExemplo(iso) {
     pf('Gás inerte · GGI A e B', 'GGI A/B', '', 2, 2, 'Disponível', 'Normal', 'Ligado', 'Operacionais no diesel'),
     pf('Carga e descarregamento', '', '', '', '', 'Disponível', 'Normal', 'Ligado', 'Sem anomalias'),
     pf('Descarte do slop', '', '', '', '', 'Disponível', 'Normal', 'Ligado', '557 m³ descartados ao mar em 24 h'),
-  ], 'M', fontePf);
+  ], 'A', fontePf);
   lst('pfceo.COMAN', [
     pf('Tratamento de efluentes', 'Z-5312502', '', 1, 0, 'Indisponível', 'Crítico', 'Desligado', 'Descarte de 57 m³/d pelo Z-5312502'),
     pf('HVAC · AC-5252003A (M22)', 'AC-5252003A', '', 1, 0, 'Indisponível', 'Atenção', 'Desligado', 'Compressor instalado; faltam contator, disjuntor e PSVs novas', '[NM]'),
@@ -479,7 +493,7 @@ function montarExemplo(iso) {
     pf('Geração · WHRU', 'WHRU TG-B/C', '', 4, 2, 'Disponível com Restrição', 'Pré-Atenção', 'Ligado', 'WHRU de TG-B e TG-C molhados e restringidos'),
     pf('Ar comprimido', 'UC-5134501A/B/C', '', 3, 3, 'Disponível', 'Pré-Atenção', 'Ligado', 'Secadora B com ponto de orvalho em −10 °C'),
     pf('Geração principal', 'TG-A/B/C/D', '4×33%', 4, 4, 'Disponível', 'Normal', 'Ligado', 'TG-B em stand-by'),
-  ], 'M', fontePf);
+  ], 'A', fontePf);
   lst('legais', [{ item: 'Pendências legais', status: 'A preencher' }, { item: 'Suprimentos críticos', status: 'A preencher' }], 'M', 'COMAN');
 
   const srv = (coord, titulo, detalhe, origem, abertura, ordem) => regs.push(mk('servico', { coord, titulo, detalhe, origem, abertura, ordem, exemplo: true }));
@@ -603,9 +617,9 @@ function montarExemplo(iso) {
 
   // D-52: na demonstração, todas as sugestões dos supervisores chegam às curadorias sem classificação (nenhuma decisão prévia)
 
-  const selPf = (coord, chaves) => { const r = mk('selecao', { coord, campo: 'pfceo', ids: chaves.map(c => c.toLowerCase()), exemplo: true }); r.autor = { nome: coord + ' (exemplo)', chave: '', papel: coord }; regs.push(r); };
-  selPf('COPROD', ['FGRU · recuperação de gás de flare|FGRU A/B/C', 'Compressão de injeção de gás|Injection A/B/C', 'Compressão principal|Main A/B/C', 'Recuperação de gás · SRGU|SRGU A/B']);
-  selPf('COEMB', ['Lastro · lift de emergência|', 'Ancoragem · tensão das amarras|PN-CJ-5200502B-02 · C-02', 'Slop · balance line|XV-53366014', 'Medição de calado|XT-55206001', 'Filling station de proa|']);
+  /* PFCEO (D-54): COPROD inclui um sistema normal na tela e destaca a FGRU na abertura; COEMB e COMAN ficam com a aprovação automática dos desvios */
+  const selPf = (coord, sel) => { const r = mk('selecao', { coord, campo: 'pfceo', fora: [], extra: [], abertura: [], ...sel, exemplo: true }); r.autor = { nome: coord + ' (exemplo)', chave: '', papel: coord }; regs.push(r); };
+  selPf('COPROD', { extra: ['compressão principal|main a/b/c'], abertura: ['fgru · recuperação de gás de flare|fgru a/b/c'] });
   const dem = (titulo, sentido, responsavel, prazo, origem, coord, dataRedia) => {
     const r = mk('demanda', { titulo, sentido, responsavel, prazo, origem, coord, dataRedia, status: 'aberta', exemplo: true }, { escopo: 'demandas' });
     r.data = dataRedia; regs.push(r);

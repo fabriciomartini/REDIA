@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.3.0 · D-54 (2026-10-16)
+
+- **Serviços do dia:** botão **Capturar dados** traz do APLAT as permissões de trabalho planejadas para o dia na coordenação (origem PT). As já listadas e as ocultadas pelo coordenador não se repetem.
+- **PFCEO:** botão **Capturar dados** importa o PFCEO; os sistemas viram cards numa **lista de entrada do pior estado ao normal** (operando ou parado), com contagem por situação. Os sistemas **com desvio** ficam aprovados automaticamente para a tela PFCEO da coordenação; os **normais** só entram se o coordenador incluir. Até **2 por coordenação** vão para a abertura do GEPLAT, em Destaques e ameaças.
+- **Revisão das telas:** menu e aba "Demandas" da curadoria passam a "Canal Base x Bordo"; a lista "Captura automática" do menu inclui as listas capturadas (PFCEO); o texto de situação do cabeçalho não passa mais por baixo da forma verde.
+- **Deck:** conteúdo atualizado até a v1.3 (captura automática, equipamentos, PFCEO, Canal Base x Bordo, análises, piloto na base compartilhada), novas capturas de tela (`tests/prints_deck.cjs`), sem a menção aos "75 minutos". Corrigida a capa: marca, imagem e vídeo voltam a aparecer (o deck agora tem os próprios arquivos em `apresentacao/assets/` e libera o vídeo na política de segurança).
+
 ## 1.2.0 · D-53 (2026-10-16)
 
 - **Página inicial** na raiz do site: escolha entre **Acessar o app** (agora em `/app/`) e **Conhecer o sistema** (deck em `/apresentacao/`). Endereços antigos do app com `#/…` seguem para `/app/`.

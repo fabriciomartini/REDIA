@@ -316,17 +316,36 @@ async function checarPalco(page, nome) {
   ok(ordemPf.every((v, i) => i === 0 || ordemPf[i - 1] <= v), `PFCEO em ordem de disponibilidade, piores primeiro (${ordemPf.join(',')})`);
   ok(await page.evaluate(() => [...document.querySelectorAll('.side a')].map(a => a.textContent.replace(/\d+$/, '').trim()).indexOf('Equipamentos e Sistemas · PFCEO') === 3), 'menu da curadoria: PFCEO depois de Destaques da coordenação');
   await page.screenshot({ path: path.join(OUT, 'curadoria_pfceo.png'), fullPage: true });
-  await page.click('.pfk:has-text("Bombas de injeção de água") [data-pf]'); await page.waitForTimeout(200);
-  ok(await page.evaluate(() => pfceoSelecao(E, 'COPROD').itens.some(i => /Bombas de injeção/.test(i.funcao))), 'levar para a tela grava a seleção');
-  await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(200);
-  ok(/Bombas de injeção de água/.test(await page.textContent('.stage .pfc')), 'card PFCEO da tela da COPROD mostra o sistema selecionado');
-  await page.goto(URL + '#/curadoria/COPROD/pfceo'); await page.waitForTimeout(200);
-  await page.click('.pfsel .pfk:has-text("Bombas de injeção de água") [data-pf]'); await page.waitForTimeout(200);
-  ok(await page.evaluate(() => !pfceoSelecao(E, 'COPROD').itens.some(i => /Bombas de injeção/.test(i.funcao))), 'retirar da tela');
+  /* D-54: captura do PFCEO, lista rankeada, desvios aprovados automaticamente, normais só se incluídos, até 2 na abertura */
+  await page.evaluate(() => { Captura.rapida = true; });
+  await page.click('[data-capturar="COPROD|lista:pfceo.COPROD"]'); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => { const r = UI.captura['COPROD|lista:pfceo.COPROD']; return r && r.passos.some(p => /PFCEO/.test(p.txt)) && r.faltando.length === 0 && !!document.querySelector('[data-capt="COPROD|lista:pfceo.COPROD"] .banner.ok'); }), 'PFCEO: botão Capturar dados importa os sistemas, com progresso e resultado');
+  ok(await page.evaluate(() => { const ks = [...document.querySelectorAll('.pfk')].map(x => x.dataset.pfk), ord = pfceoDe(E, 'COPROD').map(PF.chave); return ks.length === ord.length && ks.every((k, i) => k === ord[i]) && document.querySelectorAll('.pf-resumo > div').length === 5; }), 'PFCEO: cards numa lista única, do pior estado ao normal, com contagem por situação');
   await page.goto(URL + '#/curadoria/COMAN/pfceo'); await page.waitForTimeout(200);
-  const sug = await page.evaluate(() => pfceoSelecao(E, 'COMAN'));
-  await page.click('[data-act="pf-confirmar"]'); await page.waitForTimeout(200);
-  ok(sug.sugerida && sug.itens.length === 6 && await page.evaluate(() => !pfceoSelecao(E, 'COMAN').sugerida && pfceoSelecao(E, 'COMAN').itens.length === 6), 'seleção automática (indisponíveis e com restrição) e confirmação');
+  const pfC = await page.evaluate(() => { const s = pfceoSelecao(E, 'COMAN'); return { sug: s.sugerida, n: s.itens.length, desv: s.todos.filter(PF.desvio).length, normalFora: !s.itens.some(i => i.funcao === 'Geração principal'), ab: s.abertura.length }; });
+  ok(pfC.sug && pfC.n === pfC.desv && pfC.n === 7 && pfC.normalFora && pfC.ab === 0, `PFCEO: sistemas com desvio já aprovados para a tela; normal fica fora (${JSON.stringify(pfC)})`);
+  await page.click('.pfk:has-text("Geração principal") [data-pft]'); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => pfceoSelecao(E, 'COMAN').itens.some(i => i.funcao === 'Geração principal')), 'PFCEO: o coordenador pode incluir um sistema normal na tela');
+  await page.click('.pfk:has-text("Ar comprimido") [data-pft]'); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => !pfceoSelecao(E, 'COMAN').itens.some(i => i.funcao === 'Ar comprimido') && pfceoSelecao(E, 'COMAN').itens.length === 7), 'PFCEO: e retirar um sistema com desvio');
+  await page.check('.pfk:has-text("Tratamento de efluentes") [data-pfab]'); await page.waitForTimeout(200);
+  await page.check('.pfk:has-text("HVAC · AC-5252003A") [data-pfab]'); await page.waitForTimeout(200);
+  await page.click('.pfk:has-text("Eletrocloração") [data-pfab]'); await page.waitForTimeout(200);
+  const abC = await page.evaluate(() => pfceoSelecao(E, 'COMAN').abertura.map(i => i.funcao));
+  ok(abC.length === 2 && abC.includes('Tratamento de efluentes') && !(await page.isChecked('.pfk:has-text("Eletrocloração") [data-pfab]')), `PFCEO: no máximo 2 por coordenação na abertura do GEPLAT (${abC.join(', ')})`);
+  await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(250);
+  ok(await page.evaluate(() => { const c = [...document.querySelectorAll('.stage .card')].find(x => /Destaques e ameaças/.test(x.textContent)); return c && /PFCEO\s*Tratamento de efluentes/.test(c.textContent) && /PFCEO\s*HVAC/.test(c.textContent); }), 'abertura do GEPLAT mostra os sistemas do PFCEO destacados pela coordenação');
+  await page.goto(URL + '#/apresentacao/4'); await page.waitForTimeout(200);
+  ok(/Geração principal/.test(await page.textContent('.stage .pfc')) || /Geração principal/.test(await page.evaluate(() => pfceoSelecao(E, 'COMAN').itens.map(i => i.funcao).join())), 'tela da COMAN recebe o sistema normal incluído');
+  /* D-54: Serviços do dia · captura das PTs planejadas no APLAT */
+  await page.goto(URL + '#/curadoria/COPROD/servicos'); await page.waitForTimeout(200);
+  const nSv0 = await page.evaluate(() => E.servicos.filter(s => s.payload.coord === 'COPROD').length);
+  await page.click('[data-capturar="COPROD|lista:servicos.COPROD"]'); await page.waitForTimeout(600);
+  const sv1 = await page.evaluate(() => { const l = E.servicos.filter(s => s.payload.coord === 'COPROD'); const nova = l.find(s => s.payload.titulo === 'Limpeza do filtro de água de injeção'); return { n: l.length, nova: nova && nova.payload.origem, fonte: nova?.payload.fonte, dup: l.length !== new Set(l.map(s => s.payload.titulo)).size, banner: !!document.querySelector('[data-capt="COPROD|lista:servicos.COPROD"] .banner.ok') }; });
+  ok(sv1.n === nSv0 + 1 && sv1.nova === 'PT' && /APLAT/.test(sv1.fonte) && !sv1.dup && sv1.banner, `Serviços: Capturar dados traz as PTs planejadas do APLAT sem repetir as já listadas (${JSON.stringify(sv1)})`);
+  await page.click('tr:has-text("Limpeza do filtro de água de injeção") [data-rm]'); await page.waitForTimeout(200);
+  await page.click('[data-capturar="COPROD|lista:servicos.COPROD"]'); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => !E.servicos.some(s => s.payload.titulo === 'Limpeza do filtro de água de injeção') && UI.captura['COPROD|lista:servicos.COPROD'].mantidosOcultos === 1), 'Serviços: PT ocultada pelo coordenador não volta na próxima captura');
 
   /* ---- serviços: limite de 4 na abertura ---- */
   await page.goto(URL + '#/curadoria/COPROD/servicos'); await page.waitForTimeout(150);
@@ -466,11 +485,16 @@ async function checarPalco(page, nome) {
   ok(/\/app\/$/.test(lp.url()) && await lp.$('#lg-chave') !== null, 'landing › Entrar no app abre a tela de acesso'); await lp.close();
   const dk2 = await browser.newPage(); await dk2.goto(srv.url + '/#/curadoria/COPROD'); await dk2.waitForTimeout(500);
   ok(/\/app\/#\/curadoria\/COPROD$/.test(dk2.url()), 'endereço antigo do app (raiz + #/rota) segue para /app/'); await dk2.close();
+  const http404 = []; dk.on('response', r => { if (r.status() >= 400) http404.push(r.status() + ' ' + r.url()); });
   await dk.goto(srv.url + '/apresentacao/#6'); await dk.waitForTimeout(600);
   const dkInfo = await dk.evaluate(() => ({ n: document.querySelectorAll('.sl').length, on: document.querySelector('.sl.on')?.dataset.t, imgs: [...document.querySelectorAll('img')].filter(i => i.complete && i.naturalWidth > 0).length, total: document.querySelectorAll('img').length }));
   await dk.keyboard.press('ArrowRight'); await dk.waitForTimeout(150);
   const dkProx = await dk.evaluate(() => document.querySelector('.sl.on')?.dataset.t);
-  ok(dkInfo.n === 17 && dkInfo.on === 'Curadoria' && dkProx === 'Dados com origem' && !falhas.length, `deck publicado em /apresentacao/ (17 slides, navegação por teclado e #n) ${falhas.join(' ')}`);
+  ok(dkInfo.n === 19 && dkInfo.on === 'Curadoria' && dkProx === 'Dados com origem' && !falhas.length, `deck publicado em /apresentacao/ (19 slides, navegação por teclado e #n) ${falhas.join(' ')}`);
+  await dk.goto(srv.url + '/apresentacao/#1'); await dk.waitForTimeout(1500);
+  const capa = await dk.evaluate(async () => { const imgs = [...document.querySelectorAll('img')]; await Promise.all(imgs.map(i => i.decode().catch(() => null))); const v = document.querySelector('.capa video'); const bg = getComputedStyle(document.querySelector('.capa .bg')).backgroundImage.match(/url\("?([^")]+)/)?.[1]; return { ok: imgs.filter(i => i.complete && i.naturalWidth > 0).length, total: imgs.length, video: v ? v.readyState : -1, err: v?.error?.code || 0, bg: bg ? await new Promise(res => { const im = new Image(); im.onload = () => res(200); im.onerror = () => res(404); im.src = bg; }) : 0, texto: document.body.innerText }; });
+  ok(capa.ok === capa.total && capa.total >= 20 && capa.video >= 2 && capa.bg === 200 && !http404.length, `deck: capa com vídeo, imagem de fundo, marca e todas as capturas carregadas (${capa.ok}/${capa.total} imagens, vídeo ${capa.video}, fundo ${capa.bg}) ${http404.join(' ')}`);
+  ok(!/75 minutos/.test(capa.texto) && /versão 1\.2/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
   await dk.close();
 
   await browser.close(); await srv.fechar();

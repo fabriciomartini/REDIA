@@ -13,6 +13,8 @@ const FONTES_CAPTURA = {
   SITOP: { nome: 'SITOP', desc: 'SITOP Digital', pendencia: 'I-01' },
   METAS: { nome: 'Metas da UEP', desc: 'Metas anuais e potencial da UEP', pendencia: 'I-05' },
   EPLAB: { nome: 'eplab', desc: 'Resultados de análises laboratoriais', pendencia: 'I-51' },
+  PFCEO: { nome: 'PFCEO', desc: 'Painel de Funções Críticas · status e disponibilidade', pendencia: 'I-03' },
+  APLAT: { nome: 'APLAT', desc: 'Planejamento diário das permissões de trabalho', pendencia: 'I-24' },
   PASSAGEM: { nome: 'Passagem de serviço', desc: 'Status dos equipamentos informado pelo operador do posto', pendencia: 'I-13' },
 };
 /* campos que nunca são capturados: correções manuais dos acumulados do mês (D-43) */
@@ -22,6 +24,8 @@ const LISTAS_BDO = new Set(['queima.eventos']);
 function fonteDoCampo(id) {
   if (id.startsWith('lab.')) return 'EPLAB';
   if (id.startsWith('eq.')) return 'PASSAGEM';
+  if (id.startsWith('pfceo.')) return 'PFCEO';
+  if (id.startsWith('servicos.')) return 'APLAT';
   if (/\.meta$/.test(id)) return 'METAS';
   if (CAMPOS_BDO.has(id) || LISTAS_BDO.has(id)) return 'BDO';
   return 'SITOP';
@@ -46,6 +50,17 @@ function conectorSimulado(chave) {
   };
 }
 const CONECTORES = Object.fromEntries(Object.keys(FONTES_CAPTURA).map(k => [k, conectorSimulado(k)]));
+/* APLAT simulado: PTs planejadas para o dia na coordenação = as PTs do exemplo + as novas do APLAT de exemplo */
+CONECTORES.APLAT.buscar = async (ids, iso) => {
+  const regs = typeof montarExemplo === 'function' ? montarExemplo(iso) : [], out = {};
+  for (const id of ids) {
+    const coord = id.split('.')[1];
+    const pts = regs.filter(r => r.tipo === 'servico' && r.payload.coord === coord && r.payload.origem === 'PT').map(r => ({ titulo: r.payload.titulo, detalhe: r.payload.detalhe }));
+    for (const [titulo, detalhe] of (typeof APLAT_EXEMPLO_NOVAS !== 'undefined' ? APLAT_EXEMPLO_NOVAS[coord] || [] : [])) pts.push({ titulo, detalhe });
+    if (pts.length) out[id] = { itens: pts };
+  }
+  return out;
+};
 
 const Captura = {
   pausa: ms => new Promise(r => setTimeout(r, Captura.rapida ? 0 : ms)),
@@ -92,10 +107,21 @@ const Captura = {
         return ruins ? `${ruins} valor(es) inválido(s) descartado(s)` : null;
       });
     }
-    let gravados = 0, iguais = 0; const substituidos = [];
+    let gravados = 0, iguais = 0, mantidosOcultos = 0; const substituidos = [];
     await passo('gravar', 300, async () => {
       const regs = [];
       for (const [id, r] of Object.entries(achados)) {
+        if (id.startsWith('servicos.')) {   // PTs do APLAT: entram como serviços (origem PT); as já listadas ou ocultadas pelo coordenador não se repetem
+          const coord = id.split('.')[1], k = t => String(t || '').trim().toLowerCase();
+          const ja = new Set(E.servicos.filter(x => x.payload.coord === coord).map(x => k(x.payload.titulo))), ocultas = new Set(E.servicosOcultos.filter(x => x.payload.coord === coord).map(x => k(x.payload.titulo)));
+          let ordem = E.servicos.filter(x => x.payload.coord === coord).length;
+          for (const pt of r.itens) {
+            if (ja.has(k(pt.titulo))) { iguais++; continue; }
+            if (ocultas.has(k(pt.titulo))) { mantidosOcultos++; continue; }
+            ja.add(k(pt.titulo)); regs.push(novoRegistro('servico', { coord, titulo: pt.titulo, detalhe: pt.detalhe || '', origem: 'PT', abertura: false, ordem: ++ordem, fonte: r.fonte, captura: true }));
+          }
+          continue;
+        }
         if (r.itens) {
           const atual = E.listas[id];
           if (atual && atual.origem === 'A' && JSON.stringify(atual.itens) === JSON.stringify(r.itens)) { iguais++; continue; }
@@ -109,8 +135,8 @@ const Captura = {
         }
       }
       if (regs.length) gravados = await Store.gravarLote(regs);
-      return `${gravados} gravado(s)${iguais ? ` · ${iguais} sem alteração` : ''}`;
+      return `${gravados} gravado(s)${iguais ? ` · ${iguais} sem alteração` : ''}${mantidosOcultos ? ` · ${mantidosOcultos} ocultado(s) pelo coordenador` : ''}`;
     });
-    return { achados: Object.keys(achados), faltando, mantidos, gravados, iguais, substituidos, passos, simulado: fontes.some(f => CONECTORES[f].modo === 'simulado'), em: Date.now() };
+    return { achados: Object.keys(achados), faltando, mantidos, gravados, iguais, substituidos, mantidosOcultos, passos, simulado: fontes.some(f => CONECTORES[f].modo === 'simulado'), em: Date.now() };
   },
 };

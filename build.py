@@ -168,6 +168,7 @@ def montar(saida, unico):
             shutil.copy(os.path.join(P, 'landing', nome), os.path.join(saida, nome))
     if os.path.isdir(os.path.join(P, 'apresentacao')):   # deck de explicação do sistema, publicado em <site>/apresentacao/
         shutil.copytree(os.path.join(P, 'apresentacao'), os.path.join(saida, 'apresentacao'))
+        shutil.copytree(os.path.join(P, 'assets'), os.path.join(saida, 'apresentacao', 'assets'))   # marca, imagem e vídeo da capa: o deck não depende do caminho do app
     total = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(saida) for f in fs)
     print(f'{saida}/  {total // 1024} kB  ·  {"nuvem: " + cfg["supabaseUrl"] if nuvem else "modo demonstração"}{"  ·  sem dados de exemplo" if sem_exemplo else ""}')
 

@@ -35,8 +35,8 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | 2.2 | Corrigir um valor manualmente | Aparece como "M" com seu nome, também para os outros usuários em segundos |
 | 2.3 | Sugestões: aprovar uma, marcar outra como "Abertura", recusar uma | Fila atualiza; o item aprovado vai para o bloco; "Abertura" leva à tela do GEPLAT |
 | 2.4 | Destaques da coordenação: criar um item | Aparece no bloco da coordenação |
-| 2.5 | PFCEO: selecionar equipamentos | Card da apresentação mostra a seleção, piores primeiro |
-| 2.6 | Serviços do dia, Ameaças/oportunidades, Canal Base x Bordo (demandas) | Gravam e aparecem na apresentação |
+| 2.5 | PFCEO: **Capturar dados**, conferir a lista do pior ao normal; incluir um sistema normal, retirar um com desvio e marcar até 2 para a abertura | Desvios já aparecem no card da coordenação; os marcados aparecem em Destaques e ameaças da abertura do GEPLAT |
+| 2.6 | Serviços do dia (**Capturar dados** do APLAT), Ameaças/oportunidades, Canal Base x Bordo | Gravam e aparecem na apresentação |
 | 2.7 | Preenchimento manual (poços, operações, cilindros, navio, tanques, etc.) | Gravam e aparecem no detalhe |
 | 2.8 | Concluir preenchimento | Início mostra "Concluído hh:mm" para a coordenação |
 | 2.9 | Repetir 2.2 a 2.6 em **tablet ou celular** | Telas sem rolagem lateral; botões fáceis de tocar |
