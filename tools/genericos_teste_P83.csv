@@ -1,0 +1,10 @@
+chave;nome;posto;admin
+TGEO;Teste GEOP (conta genérica);GEOP;não
+TGPL;Teste GEPLAT (conta genérica);GEPLAT;não
+TCPR;Teste COPROD (conta genérica);COPROD;não
+TCMN;Teste COMAN (conta genérica);COMAN;não
+TCEB;Teste COEMB (conta genérica);COEMB;não
+TSPR;Teste SUPROD · supervisor de produção (conta genérica);SUPROD;não
+TSEB;Teste SUEMB · supervisor de embarcação (conta genérica);SUEMB;não
+TSEI;Teste SUEIN · supervisor de instrumentação e elétrica (conta genérica);SUEIN;não
+TSMC;Teste SUMEC · supervisor de mecânica (conta genérica);SUMEC;não

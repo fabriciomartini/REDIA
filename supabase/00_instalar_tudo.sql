@@ -32,6 +32,20 @@ create table if not exists public.perfis (
   trocar_senha boolean not null default true,
   criado_em    timestamptz not null default now()
 );
+-- D-56: conta genérica de teste, usada por várias pessoas (uma por posto). Não força nem oferece troca de senha.
+alter table public.perfis add column if not exists compartilhado boolean not null default false;
+
+-- D-56: pedidos de "Esqueci a senha". Gravados só pela função do servidor (Edge Function redia-recuperar-senha),
+-- que gera a senha temporária e a envia por e-mail ao administrador. A senha não fica guardada aqui.
+create table if not exists public.pedidos_senha (
+  id         bigint generated always as identity primary key,
+  chave      text not null,
+  uep        text,
+  pedido_em  timestamptz not null default now(),
+  situacao   text not null check (situacao in ('enviada', 'falha', 'ignorado')),
+  detalhe    text
+);
+create index if not exists pedidos_senha_chave on public.pedidos_senha (chave, pedido_em desc);
 
 -- Registros da REDIA (mesmo formato do protótipo v0.8, uma linha por registro).
 create table if not exists public.registros (
@@ -161,7 +175,7 @@ create trigger registros_antes_inserir before insert on public.registros
 create or replace function public.redia_meu_perfil() returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object('chave', p.chave, 'nome', p.nome, 'posto', p.posto, 'coord', p.coord, 'uep', p.uep,
-                            'admin', p.admin, 'trocarSenha', p.trocar_senha)
+                            'admin', p.admin, 'trocarSenha', p.trocar_senha and not p.compartilhado, 'compartilhado', p.compartilhado)
   from public.perfis p where p.user_id = auth.uid() and p.ativo
 $$;
 
@@ -211,6 +225,17 @@ begin
   delete from public.registros where uep = p_uep;
   get diagnostics n = row_count;
   return n;
+end $$;
+
+-- D-56: últimos pedidos de nova senha da UEP (só administrador), para conferência no Início.
+create or replace function public.redia_pedidos_senha(p_uep text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare p public.perfis;
+begin
+  select * into p from public.perfis where user_id = auth.uid() and ativo;
+  if not found or p.uep <> p_uep or not p.admin then return '[]'::jsonb; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('chave', x.chave, 'em', x.pedido_em, 'situacao', x.situacao) order by x.pedido_em desc)
+    from (select * from public.pedidos_senha where uep = p_uep order by pedido_em desc limit 20) x), '[]'::jsonb);
 end $$;
 
 -- Grava um lote de registros (1 a 2000). Ignora ids já existentes (importação idempotente).
@@ -293,7 +318,8 @@ drop policy if exists uep_config_ler on public.uep_config;
 create policy uep_config_ler on public.uep_config for select to authenticated using (uep = public.redia_uep_atual());
 
 -- Permissões de tabela (o Supabase concede tudo a anon/authenticated por padrão: retiramos)
-revoke all on public.perfis, public.registros, public.uep_config, public.uep_config_hist from anon, authenticated;
+revoke all on public.perfis, public.registros, public.uep_config, public.uep_config_hist, public.pedidos_senha from anon, authenticated;
+alter table public.pedidos_senha enable row level security;   -- sem políticas: só o servidor (service_role) lê e grava
 grant select on public.perfis to authenticated;
 grant select, insert on public.registros to authenticated;
 grant select on public.uep_config to authenticated;
@@ -304,12 +330,13 @@ revoke execute on function
   public.redia_registros_antes_inserir(), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
-  public.redia_vincular_perfil(text, text, text, text, text, boolean)
+  public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text)
   from public, anon, authenticated;
 grant execute on function
   public.redia_uep_atual(), public.redia_json(public.registros), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
-  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text)
+  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
+  public.redia_pedidos_senha(text)
   to authenticated;
 
 -- ---------------------------------------------------------------------

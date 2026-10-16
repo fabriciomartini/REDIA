@@ -218,6 +218,7 @@ function telaLogin() {
         <input id="lg-senha" class="in lg-in" type="password" maxlength="72" ${MODO_NUVEM ? 'autocomplete="current-password"' : 'inputmode="numeric"'} aria-describedby="lg-msg">
         <p id="lg-msg" class="lg-msg" role="alert"></p>
         <button class="btn pri lg-btn" type="submit">Entrar</button>
+        <button class="lg-esq" type="button" data-act="esqueci">Esqueci a senha</button>
         <p class="note">${MODO_NUVEM ? 'Senha pessoal cadastrada na base da REDIA. No primeiro acesso, troque a senha temporária. Não substitui o login corporativo.' : 'Demonstração: use GP01, CP01, CE01 ou CM01 e a senha 1234. Os registros ficam só neste navegador.'}</p>
       </form>
     </main>
@@ -250,12 +251,28 @@ function telaLogin() {
     $('.login').classList.add('saindo');
     setTimeout(() => { pararLoginTimers(); aviso(`Bem-vindo, ${USUARIO.nome.split(' ')[0]} · ${USUARIO.posto}.`, 'ok'); const d = UI.destino || '#/inicio'; UI.destino = null; if (location.hash === d) rotear(); else location.hash = d; }, 450);
   };
+  $('[data-act="esqueci"]').onclick = () => recuperarSenha(ch.value);
   const vid = $('.lg-vid');
   if (vid) {
     vid.play?.().catch(() => { });
     vid.addEventListener('timeupdate', () => { const fim = vid.duration && vid.currentTime > vid.duration - 0.7; $('.lg-fade')?.classList.toggle('on', !!fim); });
   }
   UI.lgClk = setInterval(() => { const c = $('[data-lgclk]'); if (c) c.textContent = hhmm(Relogio.agora()); else pararLoginTimers(); }, 1000);
+}
+/* D-56: "Esqueci a senha" · o pedido gera uma senha temporária enviada ao e-mail do administrador, que a repassa */
+async function recuperarSenha(chave0 = '') {
+  const r = await modal({
+    titulo: 'Esqueci a senha',
+    html: MODO_NUVEM ? `<p>Informe a sua chave. O sistema gera uma <b>nova senha temporária</b> e a envia ao <b>administrador da REDIA</b>, que a repassa a você. No próximo acesso, o app pede que você crie uma senha pessoal.</p>
+      <p class="note">A senha atual deixa de valer quando a nova for enviada. Um pedido por chave a cada 15 minutos.</p>
+      <label class="lbl" for="mdl-ch">Chave</label><input id="mdl-ch" class="in" data-mdl-in="chave" maxlength="4" autocapitalize="characters" spellcheck="false" value="${esc(chave0)}">`
+      : '<p>No modo demonstração não há senha pessoal: entre com GP01, CP01, CE01 ou CM01 e a senha <b>1234</b>.</p>',
+    botoes: MODO_NUVEM ? [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Pedir nova senha', cls: 'pri' }] : [{ id: 'cancelar', txt: 'Entendi', cls: 'pri' }],
+  });
+  if (r.id !== 'ok') return;
+  const chave = String(r.chave || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!/^[A-Z0-9]{4}$/.test(chave)) return aviso('Informe a chave com 4 letras ou números.', 'erro');
+  try { aviso(await Nuvem.recuperarSenha(chave), 'ok'); } catch (e) { aviso(e.message, 'erro'); }
 }
 function pararLoginTimers() { if (UI.lgClk) { clearInterval(UI.lgClk); UI.lgClk = null; } }
 
@@ -322,6 +339,7 @@ async function telaInicio() {
         ${nuvem ? `<p class="note">${Store.online ? `Última sincronização às ${Store.ultimaLeitura ? hhmmss(Store.ultimaLeitura) : '—'} · ${Store.tempoReal ? 'tempo real conectado' : 'leitura periódica'}.` : '<b>Sem conexão com a base.</b> As alterações não são gravadas até a rede voltar.'}</p>` : ''}
         ${Store.modo ? `<div class="row" style="margin-top:8px">${nuvem ? '<button class="btn sm sec" data-act="sincronizar">Sincronizar agora</button>' : ''}<button class="btn sm" data-act="exportar">Exportar registros (JSON)</button>${!nuvem || podeAdministrar() ? `<label class="btn sm" for="imp">${nuvem ? 'Importar registros (migração)' : 'Importar registros'}</label><input id="imp" type="file" accept=".json" hidden>` : ''}</div>` : ''}
         ${Store.modo && (!nuvem || USUARIO.admin) ? `<div class="row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--claro)"><button class="btn sm perigo" data-act="resetar">Resetar demonstração</button><span class="note">Apaga os dados inseridos por usuários e testadores${nuvem ? ', para todos' : ' neste navegador'}.</span></div>` : ''}
+        ${nuvem && USUARIO.admin ? '<div class="pdsenha" data-pedidos-senha style="margin-top:14px;padding-top:12px;border-top:1px solid var(--claro)"><b>Pedidos de nova senha</b><p class="note">Carregando…</p></div>' : ''}
       </section>
       <section class="pn"><h2>Sessão</h2>
         <div class="fgrid">
@@ -330,7 +348,7 @@ async function telaInicio() {
           <div><span class="lbl">Posto · coordenação</span><div class="ro">${esc(USUARIO.posto)} · ${esc(USUARIO.coord)}</div></div>
         </div>
         <p class="note">${nuvem ? `Nome, chave e posto vêm do perfil cadastrado na base (${esc(CFG.uep)})${USUARIO.admin ? ' · administrador' : ''} e vão em cada registro como autor.` : 'Usuário fictício da demonstração.'} A sessão termina ao fechar o navegador ou em “Sair”.</p>
-        <div class="row end">${nuvem ? '<button class="btn sec" data-act="senha">Alterar senha</button>' : ''}<a class="btn sec" href="#/curadoria/${USUARIO.coord}">Abrir minha curadoria</a><a class="btn" href="#/sair">Sair</a></div>
+        <div class="row end">${nuvem && !USUARIO.compartilhado ? '<button class="btn sec" data-act="senha">Alterar senha</button>' : ''}<a class="btn sec" href="#/curadoria/${USUARIO.coord}">Abrir minha curadoria</a><a class="btn" href="#/sair">Sair</a></div>
       </section>
     </div>
     ${Store.modo ? `<div class="grid2 g-dia" style="margin-top:16px">
@@ -358,6 +376,9 @@ async function telaInicio() {
   on('sincronizar', async () => { await sincronizarTela(); rerender(); });
   on('senha', () => trocarSenhaObrigatoria(true));
   on('resetar', resetarDemonstracao);
+  const ps = $('[data-pedidos-senha]');   // D-56: conferência dos pedidos de "Esqueci a senha" (só administrador)
+  if (ps) Nuvem.pedidosSenha(CFG.uep).then(l => { if (!ps.isConnected) return; const SIT = { enviada: ['ok', 'senha enviada ao seu e-mail'], falha: ['nok', 'falha no envio'], ignorado: ['ne', 'ignorado (repetido)'] };
+    ps.innerHTML = `<b>Pedidos de nova senha</b>${l.length ? `<table class="tb"><tbody>${l.slice(0, 6).map(p => `<tr><td><b>${esc(p.chave)}</b></td><td>${ddmm(String(p.em).slice(0, 10))} ${hhmm(p.em)}</td><td><span class="chip ${(SIT[p.situacao] || SIT.ignorado)[0]}">${esc((SIT[p.situacao] || SIT.ignorado)[1])}</span></td></tr>`).join('')}</tbody></table>` : '<p class="note">Nenhum pedido. A senha temporária pedida em “Esqueci a senha” chega ao e-mail do administrador.</p>'}`; });
   on('descongelar', () => descongelarPauta());
   on('simular', () => { Relogio.simular($('#sim').value); rerender(); });
   on('real', () => { Relogio.real(); rerender(); });

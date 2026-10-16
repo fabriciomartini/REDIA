@@ -76,6 +76,33 @@ python tools/provisionar_usuarios.py usuarios_P83_PRIVADO.csv
 - No fim, gera `senhas_temporarias_<data>.csv`. Entregue a senha a cada pessoa individualmente e apague o arquivo.
 - Não suba o CSV de usuários nem o de senhas para o GitHub. O `.gitignore` já bloqueia os dois.
 
+### Contas genéricas de teste (uma por posto)
+
+Para o período de testes e demonstração há uma conta genérica por posto, em `tools/genericos_teste_P83.csv`:
+
+| Chave | Posto | Coordenação |
+|---|---|---|
+| TGEO | GEOP | GEPLAT |
+| TGPL | GEPLAT | GEPLAT |
+| TCPR | COPROD | COPROD |
+| TCMN | COMAN | COMAN |
+| TCEB | COEMB | COEMB |
+| TSPR | SUPROD (supervisor) | COPROD |
+| TSEB | SUEMB (supervisor) | COEMB |
+| TSEI | SUEIN (supervisor) | COMAN |
+| TSMC | SUMEC (supervisor) | COMAN |
+
+No seu computador, na pasta do REDIA:
+
+```bash
+export SUPABASE_URL=https://xxxxxxxx.supabase.co        # no Windows: set SUPABASE_URL=...
+python tools/provisionar_usuarios.py tools/genericos_teste_P83.csv --compartilhado --senha-fixa
+```
+
+- O script pede a chave **secret** e a **senha única** (duas vezes), sem mostrá-las. A senha não fica em arquivo nem no repositório; distribua-a só a quem vai testar.
+- Contas compartilhadas não pedem troca de senha nem mostram "Alterar senha" (a senha é comum a todos do posto).
+- Se alguma chave já pertencer a um usuário pessoal, o script não mexe nela e avisa.
+
 ## 6. Primeiro teste conjunto (5 min)
 
 1. Abra o site, clique em **Entrar no app** e entre com a chave do administrador e a senha temporária. Troque a senha quando o app pedir.
@@ -84,6 +111,19 @@ python tools/provisionar_usuarios.py usuarios_P83_PRIVADO.csv
 4. Em outro computador ou celular, entre com a chave de um coordenador. Os mesmos dados devem aparecer.
 5. O coordenador aprova uma sugestão. Em segundos, ela aparece na tela do administrador.
 6. Continue pelo roteiro em `docs/ROTEIRO_TESTES.md`.
+
+## 7. Esqueci a senha (envio da senha temporária ao administrador)
+
+Na tela de acesso, **Esqueci a senha** pede a chave. A função do servidor gera uma senha temporária e a **envia ao e-mail do administrador**, que a repassa ao usuário. A senha só é trocada depois que o e-mail sai. Um pedido por chave a cada 15 minutos.
+
+1. **Conta de envio (Resend, gratuita):** crie a conta em <https://resend.com> com o **mesmo e-mail que vai receber as senhas**. Sem domínio próprio, o Resend só entrega para o e-mail da conta, o que basta aqui. Em **API Keys**, crie uma chave com permissão **Sending access**.
+2. **Segredos no Supabase:** abra **Edge Functions** › **Secrets** e crie:
+   - `RESEND_API_KEY` = a chave do Resend;
+   - `REDIA_EMAIL_ADMIN` = o e-mail que recebe as senhas temporárias.
+3. **Função:** em **Edge Functions** › **Deploy a new function** › **Via Editor**, use o nome `redia-recuperar-senha`, cole o conteúdo de `supabase/functions/redia-recuperar-senha/index.ts` e publique. Nos detalhes da função, **desligue "Verify JWT"**: a tela de acesso chama a função antes do login.
+4. **Teste:** na tela de acesso, clique em **Esqueci a senha** e informe uma chave de teste. O e-mail chega em segundos; o Início do administrador mostra o pedido em **Pedidos de nova senha**.
+
+> A chave do Resend e a secret do Supabase ficam só nos segredos do Supabase. Nunca no app, no GitHub ou em conversa.
 
 ## Se algo não funcionar
 
@@ -94,6 +134,8 @@ python tools/provisionar_usuarios.py usuarios_P83_PRIVADO.csv
 | "Sua chave não tem perfil ativo na REDIA" | Faltou o `redia_vincular_perfil` | Rodar o SQL do passo 5A |
 | "Sem conexão com a base de dados" | Rede corporativa bloqueando `*.supabase.co` | Testar fora da rede Petrobras e pedir liberação à TIC |
 | Cabeçalho sem "tempo real" | WebSocket bloqueado pelo proxy | O app segue funcionando, com atualização a cada 15 s |
+| "A recuperação de senha ainda não está configurada" | Faltam os segredos do passo 7 | Criar `RESEND_API_KEY` e `REDIA_EMAIL_ADMIN` |
+| "A recuperação de senha ainda não está instalada" | Função não publicada | Passo 7.3 |
 | Projeto pausado | Plano gratuito pausa após cerca de 7 dias sem uso | Supabase › projeto › **Resume project** |
 
 Para limpar os dados de teste:
@@ -105,6 +147,6 @@ Para limpar os dados de teste:
 delete from public.registros where uep = 'P-83' and payload->>'exemplo' = 'true';
 ```
 
-> Atualização para a v1.1: rode de novo o `supabase/00_instalar_tudo.sql` (é idempotente). Ele cria a função `redia_resetar`.
+> Atualização de versão: rode de novo o `supabase/00_instalar_tudo.sql` (é idempotente). Na v1.1 ele criou `redia_resetar`; na v1.5, a coluna `perfis.compartilhado`, a tabela `pedidos_senha` e a função `redia_pedidos_senha`.
 
 > Use só dados de exemplo até a aprovação da TIC/SI para dados operacionais reais (docs/SEGURANCA.md).

@@ -150,6 +150,31 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   ok(antesC > 0 && await c.evaluate(() => Store.cache.size) === 0 && /resetada/.test(await c.textContent('#toasts')), 'outra sessão percebe o reset e limpa a tela');
   ok((await srv.sql(`select count(*)::int n from public.perfis`)).rows[0].n === 3, 'reset mantém os perfis dos usuários');
 
+  /* ---- D-56: Esqueci a senha (Edge Function) e contas genéricas de teste ---- */
+  const { p: r1 } = await novo('recuperar');
+  await r1.goto(URL); await r1.waitForTimeout(600);
+  await r1.click('[data-act="esqueci"]'); await r1.waitForTimeout(200);
+  ok(/administrador/.test(await r1.textContent('.mdl')), 'login: "Esqueci a senha" explica que a nova senha vai ao administrador');
+  await r1.fill('[data-mdl-in="chave"]', 'cp01'); await r1.click('[data-mdl="ok"]'); await r1.waitForTimeout(800);
+  const em = srv.emails.at(-1);
+  ok(srv.emails.length === 1 && em.chave === 'CP01' && em.para === 'admin@exemplo.test' && /Pedido registrado/.test(await r1.textContent('#toasts')), 'pedido gera senha temporária enviada ao e-mail do administrador');
+  await login(r1, 'CP01', 'Senha2026');
+  ok(/incorreta/.test(await msg(r1)), 'a senha anterior deixa de valer');
+  await login(r1, 'CP01', em.senha);
+  ok(await r1.$('.mdl') !== null && /Troque a senha temporária/.test(await r1.textContent('.mdl')), 'com a senha temporária, o app pede uma senha pessoal');
+  const { p: r2 } = await novo('recuperar2'); await r2.goto(URL); await r2.waitForTimeout(500);
+  await r2.click('[data-act="esqueci"]'); await r2.fill('[data-mdl-in="chave"]', 'CP01'); await r2.click('[data-mdl="ok"]'); await r2.waitForTimeout(600);
+  await r2.click('[data-act="esqueci"]'); await r2.fill('[data-mdl-in="chave"]', 'QQ99'); await r2.click('[data-mdl="ok"]'); await r2.waitForTimeout(600);
+  ok(srv.emails.length === 1 && /Pedido registrado/.test(await r2.textContent('#toasts')), 'novo pedido em menos de 15 min e chave inexistente: nada é enviado e a resposta não revela quem existe');
+  await srv.criarUsuario('TCPR', 'Generica99', 'Teste COPROD (conta genérica)', 'COPROD', { compartilhado: true });
+  await login(r2, 'TCPR', 'Generica99');
+  ok(await r2.$('.mdl') === null && await r2.$('.login') === null, 'conta genérica entra direto, sem pedir troca de senha');
+  await r2.goto(URL + '#/inicio'); await r2.waitForTimeout(400);
+  ok(await r2.$('[data-act="senha"]') === null, 'conta genérica não oferece "Alterar senha" (senha comum a todos)');
+  await g.goto(URL + '#/config'); await g.waitForTimeout(300); await g.goto(URL + '#/inicio'); await g.waitForTimeout(900);
+  ok(/Pedidos de nova senha/.test(await g.textContent('[data-pedidos-senha]')) && /CP01/.test(await g.textContent('[data-pedidos-senha]')) && /enviada/.test(await g.textContent('[data-pedidos-senha]')), 'administrador acompanha os pedidos de nova senha no Início');
+  await r1.context().close(); await r2.context().close();
+
   /* ---- sessão expirada ---- */
   await c.goto(URL + '#/inicio'); await c.waitForTimeout(300);
   const tok = await c.evaluate(() => JSON.parse(sessionStorage.getItem('redia.sb.sessao')).access_token);

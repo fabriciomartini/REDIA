@@ -12,10 +12,11 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 export const CHAVE_SERVICO_TESTE = 'service-teste';
 const TIPOS_ARG = { p_regs: 'jsonb', p_config: 'jsonb', p_campos_mes: 'text[]', p_seq: 'bigint', p_data: 'date', p_uep: 'text' };
 
-export async function iniciarServidor({ estatico, porta = 0, supabase = false } = {}) {
+export async function iniciarServidor({ estatico, porta = 0, supabase = false, emailAdmin = 'admin@exemplo.test' } = {}) {
   let db = null;
   const tokens = new Map();      // access_token -> { uid, email, exp }
   const refresh = new Map();     // refresh_token -> uid
+  const emails = [];   // e-mails simulados da recuperação de senha
   const arquivos = new Map();    // 'redia/<caminho>' -> { tipo, dados }
   const chamadas = [];           // registro das chamadas (para os testes)
   if (supabase) {
@@ -69,6 +70,30 @@ export async function iniciarServidor({ estatico, porta = 0, supabase = false } 
       }
       if (req.method === 'GET') { const r = await serial(() => db.query('select id, email from auth.users order by email')); return json(res, 200, { users: r.rows.map(usuarioJson) }); }
       if (req.method === 'PUT' && id) { const b = JSON.parse((await corpo(req)).toString() || '{}'); await serial(() => db.query('update auth.users set senha = $1 where id = $2', [b.password, id])); return json(res, 200, usuarioJson({ id, email: '' })); }
+    }
+    if (rota === '/rest/v1/perfis' && req.method === 'GET') {
+      if (!servico) return json(res, 401, { code: '42501', message: 'permission denied for table perfis' });
+      const uid = (url.searchParams.get('user_id') || '').replace(/^eq\./, '');
+      const r = await serial(() => db.query('select chave, compartilhado, trocar_senha from public.perfis where user_id = $1', [uid]));
+      return json(res, 200, r.rows);
+    }
+    // ---------------- Edge Function "Esqueci a senha" (D-56): mesma lógica de supabase/functions/redia-recuperar-senha ----------------
+    if (rota === '/functions/v1/redia-recuperar-senha' && req.method === 'POST') {
+      let chave = ''; try { chave = String(JSON.parse((await corpo(req)).toString() || '{}').chave || '').trim().toUpperCase(); } catch { }
+      if (!/^[A-Z0-9]{4}$/.test(chave)) return json(res, 400, { ok: false, mensagem: 'Informe a chave com 4 letras ou números.' });
+      const PADRAO = { ok: true, mensagem: 'Pedido registrado. Se a chave estiver cadastrada, o administrador recebe a nova senha temporária e a repassa a você.' };
+      const reg = (sit, det, uep = null) => serial(() => db.query('insert into public.pedidos_senha (chave, uep, situacao, detalhe) values ($1, $2, $3, $4)', [chave, uep, sit, det]));
+      const p = (await serial(() => db.query('select * from public.perfis where chave = $1', [chave]))).rows[0];
+      if (!p || !p.ativo) { await reg('ignorado', 'chave sem perfil ativo'); return json(res, 200, PADRAO); }
+      const rec = (await serial(() => db.query(`select count(*)::int n from public.pedidos_senha where chave = $1 and situacao = 'enviada' and pedido_em > now() - interval '15 minutes'`, [chave]))).rows[0].n;
+      if (rec) { await reg('ignorado', 'novo pedido em menos de 15 min', p.uep); return json(res, 200, PADRAO); }
+      if (!emailAdmin) { await reg('falha', 'envio de e-mail não configurado', p.uep); return json(res, 503, { ok: false, mensagem: 'A recuperação de senha ainda não está configurada. Procure o administrador da REDIA.' }); }
+      const senha = 'Tmp' + randomUUID().replace(/-/g, '').slice(0, 7) + '9';
+      emails.push({ para: emailAdmin, chave, senha, compartilhado: p.compartilhado });
+      await serial(() => db.query('update auth.users set senha = $1 where id = $2', [senha, p.user_id]));
+      await serial(() => db.query('update public.perfis set trocar_senha = $1 where user_id = $2', [!p.compartilhado, p.user_id]));
+      await reg('enviada', 'senha temporária enviada ao administrador', p.uep);
+      return json(res, 200, PADRAO);
     }
     if (rota === '/rest/v1/perfis' && req.method === 'POST') {
       if (!servico) return json(res, 401, { code: '42501', message: 'permission denied for table perfis' });
@@ -161,20 +186,21 @@ export async function iniciarServidor({ estatico, porta = 0, supabase = false } 
   const srv = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
     try {
-      if (supabase && /^\/(auth|rest|storage|realtime)\/v1\//.test(url.pathname)) return await api(req, res, url);
+      if (supabase && /^\/(auth|rest|storage|realtime|functions)\/v1\//.test(url.pathname)) return await api(req, res, url);
       estaticoArq(req, res, url);
     } catch (e) { console.error('servidor:', e); json(res, 500, { message: e.message }); }
   });
   await new Promise(r => srv.listen(porta, '127.0.0.1', r));
   const base = `http://127.0.0.1:${srv.address().port}`;
   return {
-    url: base, db, arquivos, chamadas,
-    async criarUsuario(chave, senha, nome, posto, { uep = 'P-83', admin = false, trocarSenha = true, semPerfil = false } = {}) {
+    url: base, db, arquivos, chamadas, emails,
+    async criarUsuario(chave, senha, nome, posto, { uep = 'P-83', admin = false, trocarSenha = true, semPerfil = false, compartilhado = false } = {}) {
       const id = randomUUID(), email = chave.toLowerCase() + '@redia.local';
       await serial(() => db.query('insert into auth.users (id, email, senha) values ($1, $2, $3)', [id, email, senha]));
       if (!semPerfil) {
         await serial(() => db.query('select public.redia_vincular_perfil($1, $2, $3, $4, $5, $6)', [email, chave, nome, posto, uep, admin]));
         if (!trocarSenha) await serial(() => db.query('update public.perfis set trocar_senha = false where user_id = $1', [id]));
+        if (compartilhado) await serial(() => db.query('update public.perfis set compartilhado = true, trocar_senha = false where user_id = $1', [id]));
       }
       return id;
     },

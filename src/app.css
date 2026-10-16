@@ -648,3 +648,6 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .ata-prog{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.45);display:grid;place-items:center}
 .ata-prog-c{background:#fff;padding:22px 24px;width:min(520px,92vw);display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 50px rgba(0,0,0,.3)}
 .ata-prog-c b{font-size:18px}
+/* D-56 · Esqueci a senha */
+.lg-esq{display:block;margin:8px auto 0;background:none;border:0;padding:6px 4px;font:inherit;font-size:14px;font-weight:700;color:var(--verde);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.lg-esq:hover{color:#00663A}

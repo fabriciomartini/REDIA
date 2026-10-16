@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.5.0 · D-56 (2026-10-16)
+
+- **Contas genéricas de teste**, uma por posto: GEOP (TGEO), GEPLAT (TGPL), COPROD (TCPR), COMAN (TCMN), COEMB (TCEB) e supervisores SUPROD (TSPR), SUEMB (TSEB), SUEIN (TSEI) e SUMEC (TSMC), em `tools/genericos_teste_P83.csv`. São cadastradas pelo administrador com `provisionar_usuarios.py --compartilhado --senha-fixa`: a senha única é digitada na hora e não fica em arquivo nem no repositório. Conta compartilhada não pede troca de senha nem oferece "Alterar senha".
+- **Esqueci a senha** na tela de acesso: o usuário informa a chave; a Edge Function `redia-recuperar-senha` gera uma senha temporária, envia ao e-mail do administrador (Resend) e só então troca a senha. A resposta não revela se a chave existe; um pedido por chave a cada 15 minutos; se o e-mail falhar, a senha atual continua valendo. No próximo acesso, o app pede uma senha pessoal (exceto contas genéricas).
+- Base: coluna `perfis.compartilhado`, tabela `pedidos_senha` (só o servidor grava) e função `redia_pedidos_senha` (administrador acompanha os pedidos no Início).
+
 ## 1.4.0 · D-55 (2026-10-16)
 
 - **Ata em PDF**, gerada no navegador ao **Fechar ata e gerar PDF**: relatório em retrato (texto pesquisável) com participantes, situação, indicadores, destaques (inclusive PFCEO na abertura), ameaças, atividades, pauta extra, demandas, decisões, transcrição e índice das telas.

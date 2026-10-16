@@ -60,6 +60,9 @@ async function checarPalco(page, nome) {
   await page.fill('#lg-chave', 'cp01'); await page.fill('#lg-senha', '0000'); await page.click('.lg-btn'); await page.waitForTimeout(200);
   ok(/Senha incorreta/.test(await page.textContent('#lg-msg')) && await page.inputValue('#lg-chave') === 'CP01', 'senha errada recusada (chave em maiúsculas)');
   await page.screenshot({ path: path.join(OUT, 'login_erro.png') });
+  await page.click('[data-act="esqueci"]'); await page.waitForTimeout(150);
+  ok(/1234/.test(await page.textContent('.mdl')) && await page.$('[data-mdl-in="chave"]') === null, 'login: "Esqueci a senha" no modo demonstração lembra a senha de teste');
+  await page.click('[data-mdl="cancelar"]'); await page.waitForTimeout(100);
   await page.fill('#lg-senha', '1234'); await page.click('.lg-btn'); await page.waitForTimeout(800);
   const u = await page.evaluate(() => USUARIO);
   ok(u && u.posto === 'COPROD' && u.coord === 'COPROD' && u.chave === 'CP01' && page.url().endsWith('#/inicio'), `login com chave e senha genérica (${u && u.posto}/${u && u.coord})`);

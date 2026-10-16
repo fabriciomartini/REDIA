@@ -1,7 +1,7 @@
 // Testa tools/provisionar_usuarios.py contra o Supabase simulado (Auth admin + tabela perfis).
 import { iniciarServidor, CHAVE_SERVICO_TESTE } from './servidor.mjs';
 import { execFile } from 'node:child_process'; import { promisify } from 'node:util';
-import { writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdtempSync, existsSync } from 'node:fs';
 import path from 'node:path'; import os from 'node:os'; import { fileURLToPath } from 'node:url';
 const P = path.dirname(fileURLToPath(import.meta.url)), T = mkdtempSync(path.join(os.tmpdir(), 'redia-prov-'));
 const erros = []; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FALHA') + ' ' + m); if (!c) erros.push(m); };
@@ -23,5 +23,14 @@ ok(/CD34: atualizado/.test(out2) && !/senha temporária gerada/.test(out2), 'rod
 const out3 = await rodar('--redefinir', '--saida', 'senhas3.csv');
 const s3 = readFileSync(path.join(T, 'senhas3.csv'), 'utf8').trim().split(/\r?\n/).slice(1).map(l => l.split(';'));
 ok(s3.length === 3 && (await srv.sql(`select senha from auth.users where email = 'cd34@redia.local'`)).rows[0].senha === s3.find(s => s[0] === 'CD34')[2], '--redefinir gera senha nova para quem já existe');
+/* D-56: contas genéricas de teste · senha única e conta compartilhada; não mexe em usuário pessoal com a mesma chave */
+const csvG = path.join(T, 'genericos.csv');
+writeFileSync(csvG, 'chave;nome;posto;admin\nTCPR;Teste COPROD (conta genérica);COPROD;não\nTSPR;Teste SUPROD (conta genérica);SUPROD;não\nCD34;Colide com pessoal;COPROD;não\n');
+const rodarG = async (...a) => { try { return (await promisify(execFile)('python3', [path.join(P, '..', 'tools', 'provisionar_usuarios.py'), csvG, ...a], { cwd: T, encoding: 'utf8', env: { ...process.env, SUPABASE_URL: srv.url, SUPABASE_SERVICE_ROLE_KEY: CHAVE_SERVICO_TESTE, REDIA_SENHA_FIXA: 'Teste9876' } })).stdout; } catch (e) { return e.stdout; } };
+const outG = await rodarG('--compartilhado', '--senha-fixa');
+const pg = (await srv.sql(`select p.chave, p.compartilhado, p.trocar_senha, p.coord, u.senha from public.perfis p join auth.users u on u.id = p.user_id where p.chave in ('TCPR','TSPR','CD34') order by p.chave`)).rows;
+ok(pg.length === 3 && pg.filter(x => x.chave !== 'CD34').every(x => x.compartilhado && !x.trocar_senha && x.senha === 'Teste9876') && pg.find(x => x.chave === 'TSPR').coord === 'COPROD', 'contas genéricas: senha única, compartilhadas e sem troca obrigatória');
+ok(/CD34: IGNORADO/.test(outG) && !pg.find(x => x.chave === 'CD34').compartilhado && pg.find(x => x.chave === 'CD34').senha !== 'Teste9876', '--compartilhado não altera usuário pessoal que já existe com a mesma chave');
+ok(!existsSync(path.join(T, `senhas_temporarias_${new Date().toISOString().slice(0, 10)}.csv`)) || !readFileSync(path.join(T, `senhas_temporarias_${new Date().toISOString().slice(0, 10)}.csv`), 'utf8').includes('Teste9876'), 'senha única não é gravada em arquivo');
 await srv.fechar();
 console.log(erros.length ? `\n${erros.length} FALHA(S)` : '\nCADASTRO DE USUÁRIOS OK'); process.exit(erros.length ? 1 : 0);

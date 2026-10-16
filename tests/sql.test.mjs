@@ -120,5 +120,16 @@ ok(pos.max === 0 && pos.max < seqAntes, 'redia_novos devolve max menor que a seq
 ok((await como(U.cp, `select public.redia_meu_perfil() as p`)).rows[0].p.chave === 'CP01' && (await como(U.cp, `select public.redia_config_ler('P-83') as c`)).rows[0].c.timeboxMin === 6, 'reset mantém perfis e configuração');
 ok((await gravar(U.cp, [reg('valor', { campo: 'oleo.real', valor: 1 })])).length === 1, 'depois do reset, a REDIA volta a gravar normalmente');
 
+// contas genéricas e pedidos de nova senha (D-56)
+await db.query(`update public.perfis set compartilhado = true, trocar_senha = true where user_id = $1`, [U.cp]);
+const pfc = (await como(U.cp, `select public.redia_meu_perfil() as p`)).rows[0].p;
+ok(pfc.compartilhado === true && pfc.trocarSenha === false, 'conta compartilhada: perfil avisa o app e nunca pede troca de senha');
+await db.query(`update public.perfis set compartilhado = false, trocar_senha = false where user_id = $1`, [U.cp]);
+await db.query(`insert into public.pedidos_senha (chave, uep, situacao, detalhe) values ('CP01', 'P-83', 'enviada', 'teste'), ('XX01', 'P-99', 'falha', 'teste')`);
+ok(/permission denied/.test(await falha(U.gp, `select * from public.pedidos_senha`) || ''), 'pedidos de senha não são lidos direto da tabela por usuários');
+ok(/permission denied/.test(await falha(U.cp, `insert into public.pedidos_senha (chave, situacao) values ('CP01', 'enviada')`) || ''), 'usuário não grava pedido de senha direto (só a função do servidor)');
+const pdAdm = (await como(U.gp, `select public.redia_pedidos_senha('P-83') as r`)).rows[0].r, pdCp = (await como(U.cp, `select public.redia_pedidos_senha('P-83') as r`)).rows[0].r;
+ok(pdAdm.length === 1 && pdAdm[0].chave === 'CP01' && pdAdm[0].situacao === 'enviada' && pdCp.length === 0, 'administrador vê os pedidos da própria UEP; demais usuários não veem');
+
 console.log(`\n${erros.length ? 'FALHAS: ' + erros.length : 'Todos os testes SQL passaram.'}`);
 process.exit(erros.length ? 1 : 0);

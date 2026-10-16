@@ -11,11 +11,18 @@ Uso (no computador do administrador, nunca no navegador nem no GitHub):
   python tools/provisionar_usuarios.py usuarios_P83.csv --simular        (só mostra o que faria)
   python tools/provisionar_usuarios.py usuarios_P83.csv --redefinir      (gera senha nova para quem já existe)
 
+Contas genéricas de teste (D-56), uma por posto, usadas por várias pessoas no período de testes:
+  python tools/provisionar_usuarios.py tools/genericos_teste_P83.csv --compartilhado --senha-fixa
+  --senha-fixa pede (sem mostrar) uma senha única para todas as linhas; não grava CSV de senhas.
+  --compartilhado marca o perfil como conta compartilhada: o app não força nem oferece troca de senha.
+  Por segurança, --compartilhado nunca altera um usuário que já existe e não é conta compartilhada.
+
 Variáveis de ambiente:
   SUPABASE_URL                  https://<projeto>.supabase.co
   SUPABASE_SERVICE_ROLE_KEY     chave secreta (Settings › API Keys: "secret" sb_secret_… ou a antiga service_role). Se faltar, o script pede.
   REDIA_EMAIL_DOMINIO           domínio técnico dos e-mails (padrão redia.local, igual ao config do app)
   REDIA_UEP                     UEP dos perfis (padrão P-83)
+  REDIA_SENHA_FIXA              senha usada com --senha-fixa (se faltar, o script pede)
 
 A chave service_role dá acesso total à base: não grave em arquivo, não envie por e-mail e não coloque no repositório.
 Só usa a biblioteca padrão do Python 3.8+.
@@ -105,6 +112,8 @@ def main():
     a.add_argument('--simular', action='store_true', help='não grava nada; só mostra')
     a.add_argument('--redefinir', action='store_true', help='gera senha temporária nova também para quem já existe')
     a.add_argument('--saida', help='CSV de senhas temporárias (padrão: senhas_temporarias_<data>.csv)')
+    a.add_argument('--compartilhado', action='store_true', help='contas genéricas de teste: sem troca de senha; não altera usuários pessoais existentes')
+    a.add_argument('--senha-fixa', action='store_true', help='usa a mesma senha (digitada) para todas as linhas')
     x = a.parse_args()
 
     linhas = ler_csv(x.csv)
@@ -118,10 +127,17 @@ def main():
     url = os.environ.get('SUPABASE_URL') or input('SUPABASE_URL: ').strip()
     chave = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or getpass.getpass('Chave service_role (não aparece ao digitar): ').strip()
     sb = Supabase(url, chave)
+    fixa = None
+    if x.senha_fixa:
+        fixa = os.environ.get('REDIA_SENHA_FIXA') or getpass.getpass('Senha única para estes usuários (não aparece): ')
+        if not os.environ.get('REDIA_SENHA_FIXA') and getpass.getpass('Repita a senha: ') != fixa:
+            sys.exit('As senhas não conferem.')
+        if len(fixa) < 8 or not any(c.isdigit() for c in fixa) or not any(c.isalpha() for c in fixa):
+            sys.exit('A senha precisa ter ao menos 8 caracteres, com letras e números.')
     senhas, falhas = [], 0
     for l in linhas:
         email = f"{l['chave'].lower()}@{dominio}"
-        senha = senha_temporaria()
+        senha = fixa or senha_temporaria()
         st, o = sb.req('POST', '/auth/v1/admin/users', {'email': email, 'password': senha, 'email_confirm': True, 'user_metadata': {'chave': l['chave']}})
         novo = st in (200, 201)
         if novo:
@@ -131,6 +147,10 @@ def main():
             if not u:
                 print(f"  {l['chave']}: ERRO usuário existe mas não foi encontrado"); falhas += 1; continue
             uid = u['id']
+            if x.compartilhado:
+                st3, o3 = sb.req('GET', f'/rest/v1/perfis?user_id=eq.{uid}&select=compartilhado')
+                if st3 == 200 and o3 and not o3[0].get('compartilhado'):
+                    print(f"  {l['chave']}: IGNORADO · já existe um usuário pessoal com esta chave (escolha outra chave genérica)"); falhas += 1; continue
             if x.redefinir:
                 st2, o2 = sb.req('PUT', f'/auth/v1/admin/users/{uid}', {'password': senha})
                 if st2 not in (200, 201):
@@ -141,12 +161,15 @@ def main():
             print(f"  {l['chave']}: ERRO ao criar usuário: {st} {o}"); falhas += 1; continue
         perfil = {'user_id': uid, 'chave': l['chave'], 'nome': l['nome'], 'posto': l['posto'], 'coord': l['coord'], 'uep': uep, 'admin': l['admin'], 'ativo': True}
         if senha:
-            perfil['trocar_senha'] = True
+            perfil['trocar_senha'] = not x.compartilhado
+        if x.compartilhado:
+            perfil['compartilhado'] = True
+            perfil['trocar_senha'] = False
         st, o = sb.req('POST', '/rest/v1/perfis?on_conflict=user_id', perfil, {'Prefer': 'resolution=merge-duplicates,return=minimal'})
         if st not in (200, 201, 204):
             print(f"  {l['chave']}: ERRO ao gravar perfil: {st} {o}"); falhas += 1; continue
-        print(f"  {l['chave']}: {'criado' if novo else 'atualizado'} · {l['coord']}{' · admin' if l['admin'] else ''}{' · senha temporária gerada' if senha else ''}")
-        if senha:
+        print(f"  {l['chave']}: {'criado' if novo else 'atualizado'} · {l['coord']}{' · admin' if l['admin'] else ''}{(' · senha única definida' if fixa else ' · senha temporária gerada') if senha else ''}{' · conta compartilhada' if x.compartilhado else ''}")
+        if senha and not fixa:
             senhas.append((l['chave'], l['nome'], senha))
     if senhas:
         saida = x.saida or f'senhas_temporarias_{datetime.date.today().isoformat()}.csv'
