@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.0.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.1.0', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -183,12 +183,20 @@ const Store = {
     let n = 0;
     for (let volta = 0; volta < 10; volta++) {
       const o = await Nuvem.novos(CFG.uep, this.seq);
+      if (typeof o.max === 'number' && o.max < this.seq) { this.cache.clear(); this.seq = 0; await this.carregar(DIA); return -1; }   // base resetada por outra sessão (D-52)
       for (const r of o.registros) { const k = this.chaveDe(r); if (!this.cache.has(k)) { this.guardar(r); n++; } }
       const fim = !o.registros.length || o.seq === this.seq;
       this.seq = o.seq || this.seq;
       if (fim || o.registros.length < 2000) break;
     }
     this.ultimaLeitura = Date.now();
+    return n;
+  },
+  /* reset da demonstração (D-52): apaga todos os registros da UEP (na nuvem, para todos os usuários) */
+  async resetar() {
+    let n;
+    if (this.modo === 'nuvem') { n = await Nuvem.resetar(CFG.uep); this.cache.clear(); this.seq = 0; await this.carregar(DIA); }
+    else { n = this.cache.size; this.cache.clear(); this.salvarMemoria(); }
     return n;
   },
   validoParaImportar(r) {

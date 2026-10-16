@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.1.0 · D-52 (2026-10-15)
+
+- **Exemplo:** ao carregar os dados de demonstração, todas as sugestões dos supervisores chegam às caixas de entrada das curadorias **sem classificação**.
+- **Resetar demonstração** (Início): apaga todos os registros da UEP inseridos por usuários e testadores, após aviso e confirmação digitada (RESETAR). Na nuvem, só o administrador vê o botão; o servidor confere (`redia_resetar`). Perfis, senhas e configuração permanecem. As outras sessões percebem o reset e limpam a tela.
+- **Capturar dados** em cada bloco da aba Dados automáticos: barra de progresso e etapas por sistema de origem (BDO, SITOP, Metas, eplab); alerta para o que não foi encontrado, com pedido de preenchimento manual; valor manual existente é mantido. Os conectores rodam em **modo simulado** até a liberação das integrações (I-01, I-02, I-05, I-51).
+- **Canal Base x Bordo** substitui "Demandas da base" nas telas das coordenações: só os principais tópicos, sem placar.
+- **Resultados de análises** (eplab) na 3ª coluna das telas das coordenações: 5 parâmetros por coordenação (provisórios), com a data do resultado, destacada quando a análise passa da periodicidade. Campos e captura também na aba Dados automáticos; nova aba de detalhe "Análises".
+
 ## 1.0.0 · piloto (2026-10-14)
 
 Versão web com base de dados na nuvem. Telas, regras e indicadores iguais aos do protótipo v0.8.2.

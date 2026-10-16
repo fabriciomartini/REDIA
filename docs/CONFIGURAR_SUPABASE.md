@@ -96,10 +96,15 @@ python tools/provisionar_usuarios.py usuarios_P83_PRIVADO.csv
 | Cabeçalho sem "tempo real" | WebSocket bloqueado pelo proxy | O app segue funcionando, com atualização a cada 15 s |
 | Projeto pausado | Plano gratuito pausa após cerca de 7 dias sem uso | Supabase › projeto › **Resume project** |
 
-Para limpar os dados de teste (no SQL Editor):
+Para limpar os dados de teste:
+
+- **No app (v1.1):** o administrador clica em **Resetar demonstração** no Início e confirma digitando RESETAR. Apaga todos os registros da UEP; perfis, senhas e configuração ficam.
+- **No SQL Editor**, só o exemplo:
 
 ```sql
 delete from public.registros where uep = 'P-83' and payload->>'exemplo' = 'true';
 ```
+
+> Atualização para a v1.1: rode de novo o `supabase/00_instalar_tudo.sql` (é idempotente). Ele cria a função `redia_resetar`.
 
 > Use só dados de exemplo até a aprovação da TIC/SI para dados operacionais reais (docs/SEGURANCA.md).

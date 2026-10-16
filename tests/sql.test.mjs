@@ -107,5 +107,18 @@ ok((await como(U.outra, `select public.redia_config_ler('P-83') as c`)).rows[0].
 ok(/LOTE_INVALIDO/.test(await falha(U.cp, `select public.redia_gravar('[]'::jsonb)`) || ''), 'lote vazio recusado');
 ok(/violates check|tipo/.test(await falha(U.cp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('invasao', {})])]) || ''), 'tipo de registro desconhecido recusado');
 
+// reset da demonstração (D-52)
+ok(/SEM_PERMISSAO_RESET/.test(await falha(U.cp, `select public.redia_resetar('P-83')`) || ''), 'reset: só o administrador da UEP pode resetar');
+ok(/SEM_PERMISSAO_RESET/.test(await falha(U.gp, `select public.redia_resetar('P-99')`) || ''), 'reset: administrador não reseta outra UEP');
+const antesP99 = (await db.query(`select count(*)::int n from public.registros where uep = 'P-99'`)).rows[0].n;
+const seqAntes = (await como(U.cp, `select public.redia_carregar('P-83', '2026-10-14', '{}') as r`)).rows[0].r.seq;
+const apagados = (await como(U.gp, `select public.redia_resetar('P-83') as n`)).rows[0].n;
+const restantes = (await db.query(`select count(*)::int n from public.registros where uep = 'P-83'`)).rows[0].n;
+ok(apagados > 10 && restantes === 0 && (await db.query(`select count(*)::int n from public.registros where uep = 'P-99'`)).rows[0].n === antesP99, `reset apaga só os registros da UEP (${apagados} apagados)`);
+const pos = (await como(U.cp, `select public.redia_novos('P-83', $1) as r`, [seqAntes])).rows[0].r;
+ok(pos.max === 0 && pos.max < seqAntes, 'redia_novos devolve max menor que a sequência do app: outras sessões detectam o reset');
+ok((await como(U.cp, `select public.redia_meu_perfil() as p`)).rows[0].p.chave === 'CP01' && (await como(U.cp, `select public.redia_config_ler('P-83') as c`)).rows[0].c.timeboxMin === 6, 'reset mantém perfis e configuração');
+ok((await gravar(U.cp, [reg('valor', { campo: 'oleo.real', valor: 1 })])).length === 1, 'depois do reset, a REDIA volta a gravar normalmente');
+
 console.log(`\n${erros.length ? 'FALHAS: ' + erros.length : 'Todos os testes SQL passaram.'}`);
 process.exit(erros.length ? 1 : 0);

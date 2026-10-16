@@ -63,6 +63,46 @@ const CAMPOS = [
   { id: 'man.notas_if6', coord: 'COMAN', grupo: 'Indicadores de manutenção', rot: 'Notas IF6/6 abertas', tipo: 'num' },
   { id: 'man.sensores', coord: 'COMAN', grupo: 'Indicadores de manutenção', rot: 'Sensores em falha', tipo: 'num' },
 ];
+/* Resultados de análises laboratoriais (eplab) · 5 parâmetros por coordenação.
+   PREMISSA (D-52): lista inicial para validar com cada coordenação; periodicidade (dias) ajustável.
+   Cada análise grava dois campos: o resultado (lab.<COORD>.<k>) e a data do resultado (lab.<COORD>.<k>.data). */
+const LAB_GRUPO = 'Resultados de análises (eplab)';
+const LAB = {
+  COPROD: [
+    { k: 'bsw_oleo', rot: 'BSW do óleo tratado', un: '%', dec: 2, per: 1 },
+    { k: 'sal_oleo', rot: 'Salinidade do óleo tratado', un: 'mg/L', dec: 0, per: 1 },
+    { k: 'tog_agua', rot: 'TOG da água produzida', un: 'mg/L', dec: 0, per: 1 },
+    { k: 'h2s_gas', rot: 'H₂S no gás combustível', un: 'ppm', dec: 0, per: 7 },
+    { k: 'so4_urs', curto: 'Sulfato na água da URS', rot: 'Sulfato na água dessulfatada (URS)', un: 'mg/L', dec: 0, per: 1 },
+  ],
+  COEMB: [
+    { k: 'bsw_tq', rot: 'BSW dos tanques de carga', un: '%', dec: 2, per: 1 },
+    { k: 'tog_slop', rot: 'TOG do slop descartado', un: 'mg/L', dec: 0, per: 1 },
+    { k: 'cl_pot', curto: 'Cloro residual · água potável', rot: 'Cloro residual livre · água potável', un: 'mg/L', dec: 2, per: 1 },
+    { k: 'turb_pot', curto: 'Turbidez · água potável', rot: 'Turbidez · água potável', un: 'NTU', dec: 1, per: 7 },
+    { k: 'agua_diesel', rot: 'Água no óleo diesel', un: 'ppm', dec: 0, per: 30 },
+  ],
+  COMAN: [
+    { k: 'visc_tg', curto: 'Viscosidade 40 °C · lubrificante TGs', rot: 'Viscosidade a 40 °C · óleo lubrificante dos TGs', un: 'cSt', dec: 1, per: 30 },
+    { k: 'agua_tg', curto: 'Água no lubrificante dos TGs', rot: 'Água no óleo lubrificante dos TGs', un: 'ppm', dec: 0, per: 30 },
+    { k: 'iso_hid', curto: 'Fluido hidráulico · ISO 4406', rot: 'Limpeza do fluido hidráulico (ISO 4406)', un: '', tipo: 'texto', per: 30 },
+    { k: 'ph_resf', rot: 'pH da água de resfriamento', un: '', dec: 1, per: 7 },
+    { k: 'cond_dess', curto: 'Condutividade · água dessalinizada', rot: 'Condutividade da água dessalinizada', un: 'µS/cm', dec: 0, per: 1 },
+  ],
+};
+for (const [coord, ans] of Object.entries(LAB)) for (const a of ans) {
+  CAMPOS.push({ id: `lab.${coord}.${a.k}`, coord, grupo: LAB_GRUPO, rot: a.rot, tipo: a.tipo || 'num', un: a.un, dec: a.dec, lab: a });
+  CAMPOS.push({ id: `lab.${coord}.${a.k}.data`, coord, grupo: LAB_GRUPO, rot: a.rot + ' · data do resultado', tipo: 'data', lab: a, labData: true });
+}
+/* resultado, data e atraso de cada análise da coordenação (atrasada = intervalo desde o resultado maior que a periodicidade) */
+function labDe(E, coord, hojeIso = (typeof DIA !== 'undefined' ? DIA : isoData(new Date()))) {
+  return (LAB[coord] || []).map(a => {
+    const id = `lab.${coord}.${a.k}`, v = E.valores[id], d = E.valores[id + '.data'];
+    const valor = v ? v.valor : null, data = d && /^\d{4}-\d{2}-\d{2}$/.test(d.valor || '') ? d.valor : null;
+    const dias = data ? diffDias(hojeIso, data) : null;
+    return { ...a, id, valor: valor === '' ? null : valor, data, dias, atrasada: dias !== null && dias > a.per, origem: v?.origem || null, fonte: v?.fonte || '', em: v?.em || null };
+  });
+}
 const CAMPO = Object.fromEntries(CAMPOS.map(c => [c.id, c]));
 
 /* ---- campos de lista (substituídos inteiros a cada edição) ---- */
@@ -315,7 +355,8 @@ function principalAmeaca(E, coord) {
    ====================================================================== */
 /* EXEMPLO-INICIO */
 const EXEMPLO_DISPONIVEL = true;
-async function carregarExemplo(iso) {
+/* monta os registros de exemplo do dia (sem gravar); também serve de origem simulada para a captura (D-52) */
+function montarExemplo(iso) {
   const D1 = addDias(iso, -1), D2 = addDias(iso, -2);
   const autorSis = { nome: 'Dados de exemplo', chave: '', papel: 'sistema' };
   const base = new Date(Relogio.agora().getTime() - 3 * 3600 * 1000);
@@ -485,14 +526,14 @@ async function carregarExemplo(iso) {
     { categoria: 'Segurança', tag: 'TQ-5C · TQ-4S', status: 'Atenção', impacto: 'Segurança' });
   sug('GEPLAT', '06:00', 'info', 'Téc. segurança → GEPLAT', 'Simulado de abandono programado para hoje às 14:00',
     'Simulado de abandono programado para hoje às 14:00, com reunião prévia das brigadas às 13:30.',
-    { categoria: 'Segurança', tag: 'Abandono', status: 'Disponível', impacto: 'Segurança', somenteLeitura: true });
+    { categoria: 'Segurança', tag: 'Abandono', status: 'Disponível', impacto: 'Segurança' });
   sug('GEPLAT', '06:00', 'info', 'Enfermaria → GEPLAT', 'Um atendimento ambulatorial no turno, sem afastamento',
     'Um atendimento ambulatorial no turno noturno, sem afastamento e sem relação com o trabalho.',
-    { categoria: 'Saúde', tag: 'Enfermaria', status: 'Disponível', impacto: 'Saúde', somenteLeitura: true });
+    { categoria: 'Saúde', tag: 'Enfermaria', status: 'Disponível', impacto: 'Saúde' });
   sug('GEPLAT', '06:00', 'media', 'Radioperador → GEPLAT', 'Voo de troca de turma confirmado · POB em 181 de 190',
     'Voo de troca de turma confirmado para a janela da manhã. POB atual 181 para capacidade de 190.',
     { categoria: 'Logística', tag: 'POB', status: 'Disponível', impacto: 'Logística' });
-  sug('GEPLAT', '18:00', 'info', 'Téc. segurança → GEPLAT', 'Teste de dilúvio do módulo M-10 concluído', 'Teste de dilúvio do M-10 concluído sem anomalias.', { somenteLeitura: true });
+  sug('GEPLAT', '18:00', 'info', 'Téc. segurança → GEPLAT', 'Teste de dilúvio do módulo M-10 concluído', 'Teste de dilúvio do M-10 concluído sem anomalias.', {});
   sug('GEPLAT', '18:00', 'media', 'Radioperador → GEPLAT', 'Previsão de mar com ondas de 2,5 m a partir de amanhã',
     'Previsão meteoceanográfica indica ondas de 2,5 m a partir de amanhã; avaliar impacto na janela do offloading.',
     { categoria: 'Logística', tag: 'Meteoceanografia', status: 'Atenção', impacto: 'Logística' });
@@ -511,7 +552,7 @@ async function carregarExemplo(iso) {
     { categoria: 'Operação', tag: 'TQ-1358505P · TQ-1358507S · TQ-5336508P/S', status: 'Atenção', impacto: 'Escoamento', abertoDias: 2 });
   sug('COEMB', '06:00', 'info', 'SUEMB', 'Descarte de 557 m³ de slop ao mar em 24 h',
     'Descarte de 557 m³ de slop ao mar nas últimas 24 h, dentro dos parâmetros de TOG.',
-    { categoria: 'Meio ambiente', tag: 'Slop', status: 'Disponível', impacto: 'Meio ambiente', somenteLeitura: true });
+    { categoria: 'Meio ambiente', tag: 'Slop', status: 'Disponível', impacto: 'Meio ambiente' });
   sug('COEMB', '18:00', 'info', 'SUEMB', 'TQ-5C inspecionado · aguarda fechamento',
     'Inspeção interna do TQ-5C concluída; tanque aguarda fechamento no turno de amanhã.',
     { categoria: 'Integridade', tag: 'TQ-5C', status: 'Em manutenção', impacto: 'Integridade' });
@@ -544,12 +585,7 @@ async function carregarExemplo(iso) {
     'Fechamento do turno: 15 notas IF6 abertas e 7 sensores em falha registrados.',
     { categoria: 'Integridade', tag: 'IF6', status: 'Atenção', impacto: 'Integridade' });
 
-  const dec = (s, semaforo, pedido = '', abertura = false) => {
-    const r = mk('decisao', { alvo: s.id, acao: 'aprovar', titulo: s.payload.titulo, categoria: s.payload.categoria, tag: s.payload.tag, status: s.payload.status, impacto: s.payload.impacto, semaforo, pedido, abertura, exemplo: true });
-    r.autor = { nome: 'COPROD (exemplo)', chave: '', papel: 'COPROD' }; regs.push(r);
-  };
-  dec(s1, 'nok', '[descrever o apoio necessário]', true);
-  dec(s2, 'at');
+  // D-52: na demonstração, todas as sugestões dos supervisores chegam às curadorias sem classificação (nenhuma decisão prévia)
 
   const selPf = (coord, chaves) => { const r = mk('selecao', { coord, campo: 'pfceo', ids: chaves.map(c => c.toLowerCase()), exemplo: true }); r.autor = { nome: coord + ' (exemplo)', chave: '', papel: coord }; regs.push(r); };
   selPf('COPROD', ['FGRU · recuperação de gás de flare|FGRU A/B/C', 'Compressão de injeção de gás|Injection A/B/C', 'Compressão principal|Main A/B/C', 'Recuperação de gás · SRGU|SRGU A/B']);
@@ -562,6 +598,19 @@ async function carregarExemplo(iso) {
   dem('Plano de recuperação do lift de emergência', 'bordo → base', '4º COEMB', iso, 'C', 'COEMB', addDias(iso, -3));
   dem('Programação do próximo alívio', 'base → bordo', 'COEMB de bordo', addDias(iso, 4), 'C', 'COEMB', addDias(iso, -1));
 
+  dem('Plano de retorno da FGRU A e impacto na queima do mês', 'bordo → base', '4º COPROD', addDias(iso, 1), 'C', 'COPROD', addDias(iso, -2));
+  dem('Programação do teste de vazão do BUZ-112', 'base → bordo', 'COPROD de bordo', addDias(iso, 2), 'C', 'COPROD', addDias(iso, -1));
+  dem('Kit de vedação da UD-5122501C', 'bordo → base', '4º COMAN', addDias(iso, 3), 'C', 'COMAN', addDias(iso, -2));
+
+  // Resultados de análises (eplab) · exemplo com uma análise atrasada por coordenação e algumas sem resultado na origem
+  const lab = (coord, k, valor, diasAtras, hora = '05:10') => { val(`lab.${coord}.${k}`, valor, 'A', `eplab ${hora}`); val(`lab.${coord}.${k}.data`, addDias(iso, -diasAtras), 'A', `eplab ${hora}`); };
+  lab('COPROD', 'bsw_oleo', 0.25, 1); lab('COPROD', 'sal_oleo', 57, 1); lab('COPROD', 'tog_agua', 18, 1); lab('COPROD', 'h2s_gas', 4, 11); lab('COPROD', 'so4_urs', 38, 1);
+  lab('COEMB', 'bsw_tq', 0.40, 1); lab('COEMB', 'tog_slop', 22, 1); lab('COEMB', 'cl_pot', 0.8, 1); lab('COEMB', 'turb_pot', 0.6, 9);
+  lab('COMAN', 'visc_tg', 30.8, 12); lab('COMAN', 'agua_tg', 85, 12); lab('COMAN', 'ph_resf', 8.2, 10); lab('COMAN', 'cond_dess', 410, 1);
+  return regs;
+}
+async function carregarExemplo(iso) {
+  const regs = montarExemplo(iso);
   await Store.gravarLote(regs);   // na nuvem: em lotes, numa ida só por lote
   return regs.length;
 }

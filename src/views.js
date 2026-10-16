@@ -278,6 +278,7 @@ async function sincronizarTela() {
   UI.sincronizando = true;
   try {
     const n = await Store.sincronizar();
+    if (n === -1) aviso('A demonstração foi resetada pelo administrador: os registros foram apagados.', 'info');
     if (n) { atualizarEstado(); const ativo = document.activeElement; if (!$('.mdl') && (!ativo || !/INPUT|TEXTAREA|SELECT/.test(ativo.tagName))) rerender(); else aviso('Há registros novos de outros usuários. Eles aparecem ao salvar ou trocar de tela.'); }
     else { const c = $('.apph .armz'); if (c) c.innerHTML = textoArmaz(); }
   } catch (e) { Store.erros.push('sincronizar: ' + e.message); const c = $('.apph .armz'); if (c) c.innerHTML = '<b>Sem conexão com a base</b> · tentando de novo'; }
@@ -320,6 +321,7 @@ async function telaInicio() {
         <p>${nuvem ? `Gravando na base <b>${esc(Store.nomeRaiz)}</b>. Cada ação vira um registro só de acréscimo, com autoria e hora oficial carimbadas pelo servidor; os demais usuários recebem a atualização ${Store.tempoReal ? 'em tempo real' : 'em até 15 s'}.` : Store.modo === 'memoria' ? 'Modo demonstração: os registros ficam só neste navegador. Use para conhecer o fluxo.' : 'Nenhum armazenamento ativo.'}</p>
         ${nuvem ? `<p class="note">${Store.online ? `Última sincronização às ${Store.ultimaLeitura ? hhmmss(Store.ultimaLeitura) : '—'} · ${Store.tempoReal ? 'tempo real conectado' : 'leitura periódica'}.` : '<b>Sem conexão com a base.</b> As alterações não são gravadas até a rede voltar.'}</p>` : ''}
         ${Store.modo ? `<div class="row" style="margin-top:8px">${nuvem ? '<button class="btn sm sec" data-act="sincronizar">Sincronizar agora</button>' : ''}<button class="btn sm" data-act="exportar">Exportar registros (JSON)</button>${!nuvem || podeAdministrar() ? `<label class="btn sm" for="imp">${nuvem ? 'Importar registros (migração)' : 'Importar registros'}</label><input id="imp" type="file" accept=".json" hidden>` : ''}</div>` : ''}
+        ${Store.modo && (!nuvem || USUARIO.admin) ? `<div class="row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--claro)"><button class="btn sm perigo" data-act="resetar">Resetar demonstração</button><span class="note">Apaga os dados inseridos por usuários e testadores${nuvem ? ', para todos' : ' neste navegador'}.</span></div>` : ''}
       </section>
       <section class="pn"><h2>Sessão</h2>
         <div class="fgrid">
@@ -355,6 +357,7 @@ async function telaInicio() {
   on('congelar-ini', congelarPauta);
   on('sincronizar', async () => { await sincronizarTela(); rerender(); });
   on('senha', () => trocarSenhaObrigatoria(true));
+  on('resetar', resetarDemonstracao);
   on('descongelar', () => descongelarPauta());
   on('simular', () => { Relogio.simular($('#sim').value); rerender(); });
   on('real', () => { Relogio.real(); rerender(); });
@@ -363,6 +366,26 @@ async function telaInicio() {
   const imp = $('#imp'); if (imp) imp.onchange = async () => { try { const r = await Store.importar(await imp.files[0].text()); imp.value = ''; if (r.data && r.data !== DIA) await abrirDia(r.data); atualizarEstado(); aviso(`${r.n} registros importados${r.tipo === 'pacote' ? ' do pacote de ' + ddmm(r.data) : ''}.`, 'ok'); rerender(); } catch (e) { aviso(e.message, 'erro'); } };
 }
 
+/* Reset da demonstração (D-52): recomeça os testes do zero, com aviso e confirmação digitada */
+async function resetarDemonstracao() {
+  const nuvem = Store.remoto();
+  const r = await modal({
+    titulo: 'Resetar a demonstração?',
+    html: `<p>Este botão serve para recomeçar os testes do zero. Ele apaga <b>todos os registros da ${esc(CFG.uep)}</b> ${nuvem ? '<b>na base de dados, para todos os usuários</b>' : 'guardados neste navegador'}:</p>
+      <ul class="alerta"><li>sugestões dos supervisores, aprovações e destaques de todas as curadorias;</li><li>dados automáticos, capturas e correções manuais, de todos os dias;</li><li>serviços, PFCEO, Canal Base x Bordo e demandas;</li><li>conclusões, notificações, congelamentos, transcrições e atas registradas.</li></ul>
+      <p>Continuam como estão: ${nuvem ? 'usuários e senhas, perfis, configuração da UEP e os arquivos já enviados ao Storage' : 'a configuração da UEP e a sua sessão'}.</p>
+      <p><b>Não dá para desfazer.</b> Para guardar uma cópia, cancele e use “Exportar registros (JSON)” antes.</p>
+      <label class="lbl" for="mdl-conf">Para confirmar, digite RESETAR</label><input id="mdl-conf" class="in" data-mdl-in="conf" autocomplete="off" maxlength="10">`,
+    botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Apagar tudo e resetar', cls: 'perigo' }],
+  });
+  if (r.id !== 'ok') return;
+  if ((r.conf || '').toUpperCase() !== 'RESETAR') return aviso('Reset cancelado: digite RESETAR para confirmar.', 'erro');
+  try {
+    const n = await Store.resetar();
+    UI.captura = {}; UI.sel = {}; UI.det = {};
+    atualizarEstado(); aviso(`Demonstração resetada: ${n} registro(s) apagado(s).`, 'ok'); rerender();
+  } catch (e) { aviso('Não foi possível resetar: ' + e.message, 'erro'); }
+}
 async function abrirDia(iso) {
   DIA = iso; LS.set('dia', DIA);
   await Store.carregar(DIA); atualizarEstado(); rerender();
@@ -611,6 +634,7 @@ function abaDados(coord, manual = null) {
     if (c.tipo === 'semaforo') return `<select class="in" data-campo="${c.id}" ${dis}>${['', 'ok', 'at', 'nok'].map(s => `<option value="${s}" ${s === (val || '') ? 'selected' : ''}>${s ? SEM_NOME[s] : '(automático)'}</option>`).join('')}</select>`;
     if (c.tipo === 'opcao') return `<select class="in" data-campo="${c.id}" ${dis}><option value=""></option>${c.opcoes.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
     if (c.tipo === 'num') return `<input class="in" type="number" step="any" data-campo="${c.id}" value="${val ?? ''}" ${dis}>`;
+    if (c.tipo === 'data') return `<input class="in" type="date" data-campo="${c.id}" value="${esc(val ?? '')}" ${dis}>`;
     return `<input class="in" data-campo="${c.id}" value="${esc(val ?? '')}" ${c.max ? `maxlength="${c.max}"` : ''} ${dis}>`;
   };
   const temA = id => (E.hist[id] || []).some(r => r.payload.origem === 'A');
@@ -618,23 +642,66 @@ function abaDados(coord, manual = null) {
     ${bloqueado() ? '<div class="banner">Pauta congelada: os dados estão bloqueados para edição.</div>' : ''}
     ${manual ? `<div class="pn"><h2>${esc(manual[1])} · ${coord}</h2><p class="note">Preenchimento manual: este item não tem captura automática. Cada gravação fica registrada com autor e horário.</p><p class="note">Aparece em: <b>${esc(manual[4][1])}</b> · <a href="${manual[4][0]}">Ver na apresentação ›</a></p></div>` : `<p class="note">Valores capturados automaticamente (origem A) podem ser corrigidos à mão: a correção vira origem M, com autor e horário, e o valor automático continua no histórico. Itens sem captura automática ficam em “Preenchimento manual”, no menu.</p>
     ${coord === 'COPROD' ? notaAcumulado() : ''}`}
-    ${grupos.map(g => `<div class="pn"><h2>${esc(g)}</h2><div class="tbw"><table class="tb dd"><thead><tr><th>Campo</th><th style="width:34%">Valor</th><th>Unidade</th><th>Origem</th><th></th></tr></thead><tbody>
-      ${campos.filter(c => c.grupo === g).map(c => `<tr><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td>${origemTxt(E.valores[c.id])}</td><td>${E.valores[c.id]?.origem === 'M' && temA(c.id) && !bloqueado() ? `<button class="btn sm lnk" data-rest="${c.id}">Restaurar automático</button>` : ''}</td></tr>`).join('')}
-    </tbody></table></div><div class="row end" style="margin-top:8px"><button class="btn sec" data-grupo="${esc(g)}" ${dis}>Salvar ${esc(g.toLowerCase())}</button></div></div>`).join('')}
-    ${listas.map(l => editorLista(l)).join('')}
+    ${grupos.map(g => {
+      const cs = campos.filter(c => c.grupo === g), ids = cs.map(c => c.id).filter(capturavel), chave = coord + '|' + g;
+      const falta = new Set((UI.captura?.[chave]?.faltando || []).map(f => f.id));
+      const fontes = [...new Set(ids.map(fonteDoCampo))].map(f => FONTES_CAPTURA[f].nome);
+      const linha = c => `<tr class="${falta.has(c.id) ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td>${origemTxt(E.valores[c.id])}</td><td>${E.valores[c.id]?.origem === 'M' && temA(c.id) && !bloqueado() ? `<button class="btn sm lnk" data-rest="${c.id}">Restaurar automático</button>` : ''}</td></tr>`;
+      const linhaLab = c => { const d = CAMPO[c.id + '.data'], a = labDe(E, coord).find(x => x.id === c.id); const f = falta.has(c.id) || falta.has(d.id);
+        return `<tr class="${f ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td>${inp(d).replace('data-campo=', `id="cp-${d.id}" aria-label="Data do resultado · ${esc(c.rot)}" data-campo=`)}${a.atrasada ? `<span class="chip at">Atrasada · ${a.dias} dias</span>` : ''}</td><td>a cada ${c.lab.per} ${c.lab.per === 1 ? 'dia' : 'dias'}</td><td>${origemTxt(E.valores[c.id])}</td></tr>`; };
+      const lab = g === LAB_GRUPO;
+      return `<div class="pn" data-bloco="${esc(chave)}"><div class="pn-h"><h2>${esc(g)}</h2><span class="note">Origem: ${esc(fontes.join(', ') || 'manual')}</span><span style="flex:1"></span>${ids.length ? `<button class="btn sm pri" data-capturar="${esc(chave)}" ${dis}>Capturar dados</button>` : ''}</div>
+      <div class="capt" data-capt="${esc(chave)}">${resultadoCaptura(chave)}</div>
+      <div class="tbw"><table class="tb dd${lab ? ' lab' : ''}"><thead><tr>${lab ? '<th>Análise</th><th>Resultado</th><th>Unidade</th><th>Data do resultado</th><th>Periodicidade</th><th>Origem</th>' : '<th>Campo</th><th style="width:34%">Valor</th><th>Unidade</th><th>Origem</th><th></th>'}</tr></thead><tbody>
+      ${lab ? cs.filter(c => !c.labData).map(linhaLab).join('') : cs.map(linha).join('')}
+    </tbody></table></div><div class="row end" style="margin-top:8px"><button class="btn sec" data-grupo="${esc(g)}" ${dis}>Salvar ${esc(g.toLowerCase())}</button></div></div>`; }).join('')}
+    ${listas.map(l => editorLista(l, !manual)).join('')}
   </section>`;
   return { html, dois: true, bind: () => bindDados(coord) };
 }
-function editorLista(l) {
-  const it = L(E, l.id), dis = bloqueado() ? 'disabled' : '';
+function editorLista(l, capturar = false) {
+  const it = L(E, l.id), dis = bloqueado() ? 'disabled' : '', chave = l.coord + '|lista:' + l.id;
+  const falta = (UI.captura?.[chave]?.faltando || []).length > 0;
   const cel = (c, val) => c.tipo === 'opcao' ? `<select class="in" data-k="${c.k}" ${dis}>${c.opcoes.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(c.nomes?.[o] || o)}</option>`).join('')}</select>` : `<input class="in" data-k="${c.k}" ${c.tipo === 'num' ? 'type="number" step="any"' : c.tipo === 'data' ? 'type="date"' : ''} value="${esc(val ?? '')}" ${dis}>`;
   const linha = r => `<tr>${l.cols.map(c => `<td>${cel(c, r[c.k])}</td>`).join('')}<td><button class="btn sm lnk" data-del ${dis}>Remover</button></td></tr>`;
-  return `<div class="pn" data-lista="${l.id}"><h2>${esc(l.rot)}</h2><p class="note">${origemTxt(E.listas[l.id])}</p>
+  return `<div class="pn${falta ? ' falta' : ''}" data-lista="${l.id}"><div class="pn-h"><h2>${esc(l.rot)}</h2>${capturar ? `<span class="note">Origem: ${esc(FONTES_CAPTURA[fonteDoCampo(l.id)].nome)}</span><span style="flex:1"></span><button class="btn sm pri" data-capturar="${esc(chave)}" ${dis}>Capturar dados</button>` : ''}</div><p class="note">${origemTxt(E.listas[l.id])}</p>
+    ${capturar ? `<div class="capt" data-capt="${esc(chave)}">${resultadoCaptura(chave)}</div>` : ''}
     <div class="tbw"><table class="tb"><thead><tr>${l.cols.map(c => `<th>${esc(c.rot)}</th>`).join('')}<th></th></tr></thead><tbody>${it.map(linha).join('')}</tbody>
     <template>${linha({})}</template></table></div>
     <div class="row" style="margin-top:8px"><button class="btn sm" data-add ${dis}>Adicionar linha</button><span style="flex:1"></span><button class="btn sec" data-salvar ${dis}>Salvar lista</button></div></div>`;
 }
+/* resultado da última captura do bloco: resumo, origem simulada e o que não foi encontrado */
+function resultadoCaptura(chave) {
+  const r = UI.captura?.[chave]; if (!r) return '';
+  const nome = id => CAMPO[id]?.rot || LISTA[id]?.rot || id;
+  const erro = r.passos.find(p => p.st === 'erro');
+  return `${erro ? `<div class="banner erro"><b>Captura interrompida:</b> ${esc(erro.txt)} · ${esc(erro.nota || '')}</div>` : `<div class="banner ok"><b>Captura concluída às ${hhmm(r.em)}</b> · ${r.gravados} valor(es) gravado(s)${r.iguais ? `, ${r.iguais} sem alteração` : ''}${r.substituidos.length ? `, ${r.substituidos.length} correção(ões) manual(is) substituída(s)` : ''}${r.mantidos?.length ? `, ${r.mantidos.length} sem valor na origem mantido(s) com o valor manual atual (${r.mantidos.map(m => esc(nome(m.id))).join(', ')})` : ''}.${r.simulado ? ' <span class="note">Integração ainda não liberada: valores de demonstração (modo simulado).</span>' : ''}</div>`}
+    ${r.faltando.length ? `<div class="banner at falta-al" role="alert"><b>${r.faltando.length} dado(s) não encontrado(s) nas origens.</b> Insira manualmente nos campos destacados e salve:
+      <ul>${r.faltando.map(f => `<li>${esc(nome(f.id))} <span class="note">· ${esc(f.fonte)}</span></li>`).join('')}</ul></div>` : ''}`;
+}
+function progressoCaptura(box, { pct, passos }) {
+  const ic = { ok: SH.ok(16), erro: SH.nok(16), exec: '<i class="spin" aria-hidden="true"></i>', fila: '<i class="dot0" aria-hidden="true"></i>' };
+  box.innerHTML = `<div class="capt-on" role="status" aria-live="polite"><div class="capt-h"><b>Capturando dados nos sistemas de origem</b><span class="capt-pct">${Math.round(pct)}%</span></div>
+    <div class="capt-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="width:${pct}%"></i></div>
+    <ol class="capt-l">${passos.map(p => `<li class="${p.st}">${ic[p.st]}<span>${esc(p.txt)}</span>${p.nota ? `<span class="note">${esc(p.nota)}</span>` : ''}</li>`).join('')}</ol></div>`;
+}
+async function capturarBloco(coord, chave, botao) {
+  if (UI.capturando) return;
+  if (!(await podeEditar('valor'))) return;
+  const [, alvoTxt] = chave.split('|');
+  const alvo = alvoTxt.startsWith('lista:') ? { listas: [alvoTxt.slice(6)] } : { campos: CAMPOS.filter(c => c.coord === coord && c.grupo === alvoTxt).map(c => c.id) };
+  const box = [...document.querySelectorAll('[data-capt]')].find(b => b.dataset.capt === chave);
+  UI.capturando = true; $$('[data-capturar]').forEach(b => b.disabled = true); botao.textContent = 'Capturando…';
+  try {
+    const r = await Captura.executar(alvo, est => box && progressoCaptura(box, est));
+    (UI.captura ||= {})[chave] = r;
+    atualizarEstado();
+    aviso(r.faltando.length ? `Captura concluída: ${r.faltando.length} dado(s) não encontrado(s). Preencha manualmente.` : 'Captura concluída.', r.faltando.length ? 'erro' : 'ok');
+  } catch (e) { await tratarErroGravacao(e); }
+  finally { UI.capturando = false; rerender(); const al = [...document.querySelectorAll('[data-capt]')].find(b => b.dataset.capt === chave); al?.scrollIntoView({ block: 'nearest' }); document.querySelector('tr.falta input, tr.falta select')?.focus({ preventScroll: true }); }
+}
 function bindDados(coord) {
+  $$('[data-capturar]').forEach(b => b.onclick = () => capturarBloco(coord, b.dataset.capturar, b));
   $$('[data-grupo]').forEach(b => b.onclick = async () => {
     const g = b.dataset.grupo; let n = 0;
     try {
@@ -646,7 +713,9 @@ function bindDados(coord) {
         if (String(val ?? '') === String(atual ?? '')) continue;
         await registrar('valor', { campo: c.id, valor: val, origem: c.coord === 'GEPLAT' && /geplat\./.test(c.id) ? 'C' : 'M', fonte: 'Manual' }); n++;
       }
-      atualizarEstado(); aviso(n ? `${n} valor(es) gravado(s).` : 'Nada mudou.', n ? 'ok' : 'info'); rerender();
+      atualizarEstado(); aviso(n ? `${n} valor(es) gravado(s).` : 'Nada mudou.', n ? 'ok' : 'info');
+      if (n && UI.captura) { const r = UI.captura[coord + '|' + g]; if (r) r.faltando = r.faltando.filter(f => { const v = E.valores[f.id]?.valor; return v === null || v === undefined || v === ''; }); }
+      rerender();
     } catch (e) { aviso(e.message, 'erro'); }
   });
   $$('[data-rest]').forEach(b => b.onclick = () => {
@@ -661,6 +730,7 @@ function bindDados(coord) {
     $('[data-salvar]', box).onclick = () => {
       const itens = [...tb.rows].map(tr => Object.fromEntries(l.cols.map(c => { const el = $(`[data-k="${c.k}"]`, tr); let v = el.value.trim(); if (c.tipo === 'num') v = v === '' ? null : +v; return [c.k, v]; }))).filter(o => Object.values(o).some(v => v !== '' && v !== null));
       const erro = l.validar ? l.validar(itens) : null; if (erro) return aviso(erro, 'erro');
+      if (UI.captura && itens.length) delete UI.captura[l.coord + '|lista:' + l.id];
       salvarE('lista', { campo: l.id, itens, origem: 'M', fonte: 'Manual' }, {}, 'Lista gravada.');
     };
   });

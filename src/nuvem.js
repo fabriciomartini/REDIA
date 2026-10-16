@@ -9,6 +9,7 @@ const ERROS_NUVEM = {
   PAUTA_CONGELADA: 'A pauta deste dia foi congelada por outra sessão. A alteração não foi gravada.',
   SEM_PERFIL: 'Sua chave não tem perfil ativo na REDIA. Procure o administrador.',
   UEP_NAO_PERMITIDA: 'Registro de outra UEP: não gravado.',
+  SEM_PERMISSAO_RESET: 'Só o administrador da UEP pode resetar a demonstração.',
   SEM_PERMISSAO: 'Só o GEPLAT ou o administrador alteram a configuração da UEP.',
   LOTE_INVALIDO: 'Lote de registros inválido.',
 };
@@ -84,6 +85,7 @@ const Nuvem = {
   carregar(uep, iso, camposMes) { return this.rpc('redia_carregar', { p_uep: uep, p_data: iso, p_campos_mes: camposMes || [] }); },
   novos(uep, seq) { return this.rpc('redia_novos', { p_uep: uep, p_seq: seq || 0 }); },
   gravar(regs) { return this.rpc('redia_gravar', { p_regs: regs.map(r => { const x = { ...r }; delete x._arq; delete x.seq; return x; }) }); },
+  resetar(uep) { return this.rpc('redia_resetar', { p_uep: uep }); },
   configLer(uep) { return this.rpc('redia_config_ler', { p_uep: uep }); },
   configSalvar(uep, cfg) { return this.rpc('redia_config_salvar', { p_uep: uep, p_config: cfg }); },
 

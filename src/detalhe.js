@@ -3,11 +3,11 @@
    Cada página tem: voltar à tela da coordenação · atalhos para os outros assuntos · avançar para o próximo bloco. */
 'use strict';
 const TOPICOS = {
-  2: [['indicadores', 'Indicadores'], ['queima', 'Queima projetada'], ['pocos', 'Poços'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e demandas']],
-  3: [['indicadores', 'Indicadores'], ['utilidades', 'Utilidades'], ['tanques', 'Tanques em atenção'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e demandas']],
-  4: [['indicadores', 'Indicadores'], ['geracao', 'Geração principal'], ['legais', 'Órgãos legais e suprimentos'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e demandas']],
+  2: [['indicadores', 'Indicadores'], ['queima', 'Queima projetada'], ['pocos', 'Poços'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
+  3: [['indicadores', 'Indicadores'], ['utilidades', 'Utilidades'], ['tanques', 'Tanques em atenção'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
+  4: [['indicadores', 'Indicadores'], ['geracao', 'Geração principal'], ['legais', 'Órgãos legais e suprimentos'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
 };
-const TIT_DET = { servicos: 'Serviços e demandas para a base', pocos: 'Poços · últimas 24 h', utilidades: 'Utilidades · estoque × mínimo' };
+const TIT_DET = { servicos: 'Serviços e Canal Base x Bordo', pocos: 'Poços · últimas 24 h', utilidades: 'Utilidades · estoque × mínimo' };
 const PROX_NOME = { 2: 'COEMB', 3: 'COMAN', 4: 'Fechamento' };
 const topicoValido = (b, t) => !!(TOPICOS[b] || []).find(x => x[0] === t);
 
@@ -80,22 +80,32 @@ const DETALHES = {
     </main>`;
   },
 
-  /* ---------- Serviços planejados hoje e demandas para a base ---------- */
+  /* ---------- Serviços planejados hoje e Canal Base x Bordo (D-52) ---------- */
   servicos(E, ctx, b, coord) {
-    const sv = E.servicos.filter(s => s.payload.coord === coord);
-    const dem = E.demandas.filter(d => d.payload.coord === coord), ab = demandasAbertas(E, coord);
-    const n = s => ab.filter(d => d.situacao === s).length;
+    const sv = E.servicos.filter(s => s.payload.coord === coord), tp = topicosCanal(E, coord);
     return `<main class="m3 det" style="grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)">
       <div class="card col">${hd('Serviços planejados hoje', `<span class="cap nw">${sv.length} serviço${sv.length === 1 ? '' : 's'} · ${sv.filter(s => s.payload.abertura).length} na abertura</span>`)}
         ${sv.map((s, k) => `<div class="row2 srv"><span class="nr">${k + 1}</span><div class="col"><span class="t1">${T(s.payload.titulo)}</span><span class="t2">${T(s.payload.detalhe || '')}</span></div><span class="tg">${s.payload.abertura ? tagAb : ''}${tag(s.payload.origem)}</span></div>`).join('') || '<div class="row2"><span class="sec">Nenhum serviço registrado</span></div>'}
         <span class="cap mt-auto">${tag('PT')} planejamento diário de PTs (APLAT) · ${tag('M')} incluído pelo coordenador</span></div>
+      <div class="card col fill">${hd('Canal Base x Bordo · principais tópicos')}
+        <div class="tbl cnl"><span class="th l">Tópico</span><span class="th l">Sentido</span><span class="th l">Com</span><span class="th l">Desde</span>
+        ${tp.map(d => `<span class="td l fb">${T(d.payload.titulo)}</span><span class="td l nw">${esc(d.payload.sentido)}</span><span class="td l">${T(d.payload.responsavel)}</span><span class="td l nw">${ddmm(d.payload.dataRedia)}</span>`).join('') || '<span class="td l sec">Nenhum tópico em pauta com a base</span><span class="td"></span><span class="td"></span><span class="td"></span>'}
+        </div>
+        <span class="cap mt-auto">Tópicos registrados no Fechamento · a situação de cada demanda fica na tela Fechamento e ata</span></div>
+    </main>`;
+  },
+
+  /* ---------- Resultados de Análises (eplab) · D-52 ---------- */
+  analises(E, ctx, b, coord) {
+    const an = labDe(E, coord, ctx.dia), atr = an.filter(a => a.atrasada).length, sem = an.filter(a => a.valor === null).length;
+    return `<main class="m3 det" style="grid-template-columns:minmax(0,1fr)">
       <div class="colg">
-        <div class="dtiles">${tile('Abertas', ab.length)}${tile('Vencidas', n('vencida'), '', n('vencida') ? 'nok' : 'ok')}${tile('Vencem hoje', n('vence24'), '', n('vence24') ? 'at' : 'ok')}${tile('Novas hoje', dem.filter(d => d.payload.dataRedia === ctx.dia).length)}</div>
-        <div class="card col fill">${hd('Demandas para a base · em aberto')}
-          <div class="tbl dmd"><span class="th l">Demanda</span><span class="th l">Sentido</span><span class="th l">Responsável</span><span class="th l">Prazo</span><span class="th l">Situação</span><span class="th l">REDIA</span>
-          ${ab.map(d => `<span class="td l fb">${T(d.payload.titulo)}</span><span class="td l nw">${esc(d.payload.sentido)}</span><span class="td l">${T(d.payload.responsavel)}</span><span class="td l nw">${d.payload.prazo ? ddmm(d.payload.prazo) : '—'}</span><span class="td l">${pill(...(SIT_SEM[d.situacao] || ['sd', '—']))}</span><span class="td l nw">${ddmm(d.payload.dataRedia)}</span>`).join('') || '<span class="td l sec">Nenhuma demanda em aberto</span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span>'}
+        <div class="dtiles">${tile('Análises', an.length)}${tile('Em dia', an.filter(a => a.data && !a.atrasada).length, '', 'ok')}${tile('Atrasadas', atr, '', atr ? 'at' : 'ok')}${tile('Sem resultado', sem, '', sem ? 'at' : 'ok')}</div>
+        <div class="card col fill">${hd('Resultados de Análises · ' + COORD_NOME[coord], `<span class="cap nw">${tag('A')} eplab · captura em Dados automáticos</span>`)}
+          <div class="tbl lab"><span class="th l">Análise</span><span class="th">Resultado</span><span class="th l">Data do resultado</span><span class="th l">Periodicidade</span><span class="th l">Situação</span><span class="th l">Origem</span>
+          ${an.map(a => `<span class="td l fb">${esc(a.rot)}</span><span class="td">${a.valor === null ? '<span class="sec">Sem dado</span>' : `<b>${a.tipo === 'texto' ? esc(a.valor) : fmtN(a.valor, a.dec)}</b>${a.un ? `<span class="u">${NBSP}${esc(a.un)}</span>` : ''}`}</span><span class="td l nw">${a.data ? (a.atrasada ? `<span class="o at dt">${SH.at(15)}${ddmmaaaa(a.data)}</span>` : ddmmaaaa(a.data)) : '—'}</span><span class="td l nw">a cada ${a.per} ${a.per === 1 ? 'dia' : 'dias'}</span><span class="td l">${a.valor === null ? pill('sd', 'Sem resultado') : a.atrasada ? pill('at', `Atrasada · ${a.dias} dias`) : a.data ? pill('ok', 'Em dia') : pill('sd', 'Sem data')}</span><span class="td l cap">${esc(a.fonte || '—')}</span>`).join('')}
           </div>
-          <span class="cap mt-auto">${dem.filter(d => d.payload.status === 'encerrada').length} encerrada(s) no histórico · novas demandas são registradas no Fechamento</span></div>
+          <span class="cap mt-auto">Parâmetros e periodicidades iniciais, a ajustar com cada coordenação (D-52). Resultado atrasado: intervalo desde a última amostra maior que a periodicidade.</span></div>
       </div></main>`;
   },
 

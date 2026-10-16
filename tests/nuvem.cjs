@@ -136,6 +136,19 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   const orig = (await srv.sql(`select payload->'autorOriginal'->>'nome' n, autor->>'nome' a from public.registros where payload->>'campo' = 'man.sensores' and payload->>'valor' = '9'`)).rows[0];
   ok(imp2 === 1 && orig.n === 'Pessoa do protótipo' && orig.a === 'Usuário GEPLAT Teste', 'importação grava quem importou e guarda o autor original no registro');
 
+  /* ---- D-52: resetar a demonstração na base ---- */
+  await c.goto(URL + '#/inicio'); await c.waitForTimeout(300);
+  ok(await c.$('[data-act="resetar"]') === null, 'reset: botão não aparece para quem não é administrador');
+  ok(await c.evaluate(async () => { try { await Nuvem.resetar(CFG.uep); return 'resetou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO_RESET', 'reset: servidor recusa pedido de quem não é administrador');
+  await c.evaluate(() => sincronizarTela()); const antesC = await c.evaluate(() => Store.cache.size);
+  await g.goto(URL + '#/inicio'); await g.waitForTimeout(300);
+  await g.click('[data-act="resetar"]'); await g.waitForTimeout(200); await g.fill('[data-mdl-in="conf"]', 'RESETAR'); await g.click('[data-mdl="ok"]'); await g.waitForTimeout(1200);
+  const totalBase = await nReg();
+  ok(totalBase === 0 && await g.evaluate(() => Store.cache.size) === 0, `reset na nuvem: a base da UEP fica vazia para todos (${totalBase} registros)`);
+  await c.evaluate(() => sincronizarTela()); await c.waitForTimeout(800);
+  ok(antesC > 0 && await c.evaluate(() => Store.cache.size) === 0 && /resetada/.test(await c.textContent('#toasts')), 'outra sessão percebe o reset e limpa a tela');
+  ok((await srv.sql(`select count(*)::int n from public.perfis`)).rows[0].n === 3, 'reset mantém os perfis dos usuários');
+
   /* ---- sessão expirada ---- */
   await c.goto(URL + '#/inicio'); await c.waitForTimeout(300);
   const tok = await c.evaluate(() => JSON.parse(sessionStorage.getItem('redia.sb.sessao')).access_token);

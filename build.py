@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 P = os.path.dirname(os.path.abspath(__file__))
 VENDOR_SUPABASE = 'supabase-2.112.4.min.js'
-FONTES_JS = ['core.js', 'nuvem.js', 'model.js', 'stage.js', 'detalhe.js', 'views.js']
+FONTES_JS = ['core.js', 'nuvem.js', 'model.js', 'captura.js', 'stage.js', 'detalhe.js', 'views.js']
 
 
 def ler(*partes, modo='r'):
@@ -83,7 +83,7 @@ def montar(saida, unico):
     sem_exemplo = os.environ.get('REDIA_SEM_EXEMPLO', '') not in ('', '0', 'false')
     if sem_exemplo:   # site sem os dados de exemplo (derivados de material da P-75)
         i, j = js.index('/* EXEMPLO-INICIO */'), js.index('/* EXEMPLO-FIM */') + len('/* EXEMPLO-FIM */')
-        js = js[:i] + "const EXEMPLO_DISPONIVEL = false;\nasync function carregarExemplo() { throw new Error('Dados de exemplo não incluídos nesta montagem.'); }" + js[j:]
+        js = js[:i] + "const EXEMPLO_DISPONIVEL = false;\nfunction montarExemplo() { return []; }\nasync function carregarExemplo() { throw new Error('Dados de exemplo não incluídos nesta montagem.'); }" + js[j:]
     cfg_js = 'window.REDIA_CONFIG = ' + json.dumps(cfg, ensure_ascii=False) + ';\n'
     supa = ler('vendor', VENDOR_SUPABASE) if nuvem else ''
     head = f'''<meta charset="utf-8">

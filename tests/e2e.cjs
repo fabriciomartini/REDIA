@@ -7,7 +7,7 @@ const DIST = path.join(P, '.saida', 'demo');
 execFileSync('python3', [path.join(P, '..', 'build.py'), '--saida', DIST], { stdio: 'inherit', env: { ...process.env, SUPABASE_URL: '', SUPABASE_ANON_KEY: '' } });
 let URL = '';
 const erros = [];
-const TOPS = { 2: [['indicadores'], ['queima'], ['pocos'], ['pfceo'], ['ultimas24'], ['servicos']], 3: [['indicadores'], ['utilidades'], ['tanques'], ['pfceo'], ['ultimas24'], ['servicos']], 4: [['indicadores'], ['geracao'], ['legais'], ['pfceo'], ['ultimas24'], ['servicos']] };
+const TOPS = { 2: [['indicadores'], ['queima'], ['pocos'], ['pfceo'], ['ultimas24'], ['servicos'], ['analises']], 3: [['indicadores'], ['utilidades'], ['tanques'], ['pfceo'], ['ultimas24'], ['servicos'], ['analises']], 4: [['indicadores'], ['geracao'], ['legais'], ['pfceo'], ['ultimas24'], ['servicos'], ['analises']] };
 const ok = (cond, msg) => { console.log((cond ? 'OK   ' : 'FALHA') + ' ' + msg); if (!cond) erros.push(msg); };
 
 async function checarPalco(page, nome) {
@@ -70,6 +70,31 @@ async function checarPalco(page, nome) {
   await page.click('[data-act="exemplo"]'); await page.waitForTimeout(400);
   const nReg = await page.evaluate(() => Store.cache.size);
   ok(nReg > 80, `exemplo carregado (${nReg} registros)`);
+  /* ---- D-52: sugestões sem classificação, captura de dados, análises de laboratório, Canal Base x Bordo ---- */
+  const sc = await page.evaluate(() => ({ n: E.sugestoes.length, dec: E.sugestoes.filter(x => x.decisao).length, so: E.sugestoes.filter(x => x.payload.somenteLeitura).length, pend: COORDS.map(c => pendentes(E, c).length) }));
+  ok(sc.n === 28 && sc.dec === 0 && sc.so === 0 && sc.pend.every(n => n === 7), `exemplo: as 28 sugestões chegam sem classificação (${JSON.stringify(sc)})`);
+  await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(250);
+  ok(await page.$$eval('[data-capturar]', bs => bs.length) >= 6, 'Dados automáticos: botão "Capturar dados" em cada bloco');
+  await page.evaluate(() => { Captura.rapida = true; });
+  await page.click('[data-capturar="COPROD|IUGA e queima"]'); await page.waitForTimeout(600);
+  const cap = await page.evaluate(() => { const r = UI.captura['COPROD|IUGA e queima']; return { falta: r.faltando.map(f => f.id), mant: r.mantidos.map(f => f.id), passos: r.passos.length, ok: r.passos.every(p => p.st === 'ok'), linhas: document.querySelectorAll('tr.falta').length, alerta: !!document.querySelector('.falta-al'), bar: r.passos.length > 0 }; });
+  ok(cap.ok && cap.falta.includes('iuga.atp') && cap.falta.includes('iuga.buzios') && cap.linhas === 2 && cap.alerta, `captura: progresso concluído e alerta para dados não encontrados (${cap.falta.join(', ')})`);
+  ok(cap.mant.includes('flare.hp') && !cap.falta.includes('flare.hp'), 'captura: sem valor na origem, o valor manual atual é mantido e não vira pendência');
+  const prog = await page.evaluate(async () => { const box = document.createElement('div'); progressoCaptura(box, { pct: 40, passos: [{ txt: 'Conectando ao SITOP', st: 'ok' }, { txt: 'Consultando', st: 'exec' }] }); return { bar: box.querySelector('.capt-bar i').style.width, pct: box.querySelector('.capt-pct').textContent, spin: !!box.querySelector('.spin') }; });
+  ok(prog.bar === '40%' && prog.pct === '40%' && prog.spin, 'captura: barra de progresso, percentual e etapa em execução');
+  await page.fill('[data-campo="iuga.atp"]', '97.1'); await page.click('[data-grupo="IUGA e queima"]'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => UI.captura['COPROD|IUGA e queima'].faltando.map(f => f.id).join() === 'iuga.buzios' && VN(E, 'iuga.atp') === 97.1), 'preencher manualmente remove o item do alerta');
+  await page.goto(URL + '#/curadoria/COMAN/dados'); await page.waitForTimeout(250);
+  await page.click('[data-capturar="COMAN|Resultados de análises (eplab)"]'); await page.waitForTimeout(600);
+  const capLab = await page.evaluate(() => UI.captura['COMAN|Resultados de análises (eplab)'].faltando.map(f => f.id));
+  ok(capLab.includes('lab.COMAN.iso_hid') && capLab.includes('lab.COMAN.iso_hid.data') && capLab.length === 2, `captura eplab: análise sem resultado na origem vira pedido de preenchimento (${capLab.join(', ')})`);
+  ok(await page.$$eval('table.lab tbody tr', t => t.length) === 5 && await page.$('table.lab input[type=date]') !== null, 'Dados automáticos: tabela de análises com resultado, data e periodicidade');
+  const lab2 = await page.evaluate(() => labDe(E, 'COPROD').map(a => a.k + ':' + (a.atrasada ? 'atr' : 'ok')).join());
+  ok(lab2 === 'bsw_oleo:ok,sal_oleo:ok,tog_agua:ok,h2s_gas:atr,so4_urs:ok', `análises COPROD: H₂S atrasado pela periodicidade (${lab2})`);
+  await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(300);
+  const card = await page.evaluate(() => { const c = [...document.querySelectorAll('.stage .card')].find(x => /Resultados de Análises/.test(x.querySelector('.hd')?.textContent)); const k = [...document.querySelectorAll('.stage .card')].find(x => /Canal Base x Bordo/.test(x.querySelector('.hd')?.textContent)); return { linhas: c.querySelectorAll('.row2.an').length, atr: c.querySelectorAll('.o.at.dt').length, canal: k.textContent, nums: !!k.querySelector('.nums') }; });
+  ok(card.linhas === 5 && card.atr === 1, 'card Resultados de Análises: 5 parâmetros e a data atrasada em destaque');
+  ok(!card.nums && !/abertas|vencidas|novas hoje/.test(card.canal) && /Plano de retorno da FGRU A/.test(card.canal), 'Canal Base x Bordo: só os tópicos, sem placar');
   await page.screenshot({ path: path.join(OUT, '0_inicio.png'), fullPage: true });
 
   for (let b = 1; b <= 5; b++) {
@@ -84,9 +109,9 @@ async function checarPalco(page, nome) {
     const w = await page.evaluate(() => [...document.querySelector('.stage main.m3').children].map(c => Math.round(c.getBoundingClientRect().width)));
     const tit = await page.evaluate(() => [...document.querySelectorAll('.stage .hd a.lk')].map(a => a.textContent.replace('›', '').trim()));
     ok(w.length === 3 && Math.max(...w) - Math.min(...w) <= 2, `bloco ${b}: três colunas de mesma largura (${w.join(' / ')})`);
-    ok(tit.includes('Indicadores') && tit.includes('Equipamentos e Sistemas – PFCEO') && tit.includes('Últimas 24h') && tit.includes('Serviços planejados hoje') && tit.includes('Demandas para a base'), `bloco ${b}: campos padronizados com título clicável (${tit.join(' · ')})`);
+    ok(tit.includes('Indicadores') && tit.includes('Equipamentos e Sistemas – PFCEO') && tit.includes('Últimas 24h') && tit.includes('Serviços planejados hoje') && tit.includes('Canal Base x Bordo') && tit.includes('Resultados de Análises'), `bloco ${b}: campos padronizados com título clicável (${tit.join(' · ')})`);
     const dir = await page.evaluate(() => [...document.querySelector('.stage main.m3').children[2].querySelectorAll('.card .hd')].map(h => h.textContent.replace('›', '').trim()));
-    ok(dir.length === 2 && /^Serviços planejados hoje/.test(dir[0]) && /^Demandas para a base/.test(dir[1]), `bloco ${b}: coluna direita só com Serviços e Demandas`);
+    ok(dir.length === 3 && /^Serviços planejados hoje/.test(dir[0]) && /^Canal Base x Bordo/.test(dir[1]) && /^Resultados de Análises/.test(dir[2]), `bloco ${b}: coluna direita com Serviços, Canal Base x Bordo e Resultados de Análises (D-52)`);
     for (const [t] of TOPS[b]) {
       await page.goto(URL + `#/apresentacao/${b}/${t}`); await page.waitForTimeout(200);
       await page.evaluate(() => document.querySelector('#ctrl')?.classList.add('hide'));
@@ -179,7 +204,7 @@ async function checarPalco(page, nome) {
   await page.fill('#f-ped', 'Apoio da automação da base');
   await page.click('[data-act="aprovar"]'); await page.waitForTimeout(200);
   const st1 = await page.evaluate(() => ({ pend: pendentes(E, 'COPROD').length, ap: aprovados(E, 'COPROD').length }));
-  ok(st1.pend === pend0 - 1 && st1.ap === 3, `aprovação registrada (pendentes ${pend0}→${st1.pend}, aprovados ${st1.ap})`);
+  ok(st1.pend === pend0 - 1 && st1.ap === 1, `aprovação registrada (pendentes ${pend0}→${st1.pend}, aprovados ${st1.ap})`);
   // menu da curadoria: dados automáticos, sugestões, destaques da coordenação
   const menu = await page.$$eval('.side > a', as => as.slice(0, 3).map(a => a.textContent.replace(/\d+/g, '').trim()));
   ok(menu.join('|') === 'Dados automáticos|Sugestões|Destaques da coordenação', `ordem do menu da curadoria (${menu.join(' · ')})`);
@@ -393,6 +418,16 @@ async function checarPalco(page, nome) {
   const r2 = await q.evaluate(async () => { const orig = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === 'redia.memoria.registros') throw new DOMException('cheio', 'QuotaExceededError'); return orig.call(this, k, v); };
     const n0 = Store.cache.size; await salvarE('valor', { campo: 'oleo.real', valor: 22222, origem: 'M' }); const r = { n: Store.cache.size - n0, v: E.valores['oleo.real'].valor, erro: !!document.querySelector('.toast.erro') }; Storage.prototype.setItem = orig; return r; });
   ok(r2.n === 0 && r2.v === 11111 && r2.erro, `armazenamento cheio: erro visível e registro não fica pela metade (${JSON.stringify(r2)})`);
+  /* ---- D-52: resetar a demonstração ---- */
+  await q.goto(URL + '#/inicio'); await q.waitForTimeout(300);
+  await q.click('[data-act="resetar"]'); await q.waitForTimeout(200);
+  const txtReset = await q.textContent('.mdl');
+  await q.fill('[data-mdl-in="conf"]', 'apagar'); await q.click('[data-mdl="ok"]'); await q.waitForTimeout(300);
+  const n1 = await q.evaluate(() => Store.cache.size);
+  await q.click('[data-act="resetar"]'); await q.waitForTimeout(200); await q.fill('[data-mdl-in="conf"]', 'RESETAR'); await q.click('[data-mdl="ok"]'); await q.waitForTimeout(400);
+  const n2 = await q.evaluate(() => ({ n: Store.cache.size, sug: E.sugestoes.length, ls: JSON.parse(localStorage.getItem('redia.memoria.registros') || '[]').length }));
+  ok(/Não dá para desfazer/.test(txtReset) && /todos os registros/.test(txtReset) && n1 > 0, 'reset: aviso explica o contexto e exige digitar RESETAR');
+  ok(n2.n === 0 && n2.sug === 0 && n2.ls === 0, `reset: apaga todos os registros da demonstração (${JSON.stringify(n2)})`);
   await rc.close();
 
   /* ---- deck de explicação publicado junto com o app ---- */

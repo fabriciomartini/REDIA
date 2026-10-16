@@ -191,8 +191,24 @@ language sql stable security invoker set search_path = public as $$
   )
   select jsonb_build_object(
     'registros', coalesce((select jsonb_agg(public.redia_json(n) order by n.seq) from n), '[]'::jsonb),
-    'seq', coalesce((select max(seq) from n), p_seq))
+    'seq', coalesce((select max(seq) from n), p_seq),
+    'max', coalesce((select max(seq) from public.registros where uep = p_uep), 0))   -- max < seq do app = base resetada (D-52)
 $$;
+
+-- Reset da demonstração (D-52): apaga TODOS os registros da UEP (sugestões, decisões, dados, demandas,
+-- congelamentos, atas). Só o administrador da UEP. Usuários, perfis, configuração e arquivos do Storage ficam.
+create or replace function public.redia_resetar(p_uep text) returns integer
+language plpgsql volatile security definer set search_path = public as $$
+declare p public.perfis; n integer;
+begin
+  select * into p from public.perfis where user_id = auth.uid() and ativo;
+  if not found or p.uep <> p_uep or not p.admin then
+    raise exception 'SEM_PERMISSAO_RESET' using errcode = 'P0001', hint = 'Só o administrador da UEP reseta a demonstração.';
+  end if;
+  delete from public.registros where uep = p_uep;
+  get diagnostics n = row_count;
+  return n;
+end $$;
 
 -- Grava um lote de registros (1 a 2000). Ignora ids já existentes (importação idempotente).
 create or replace function public.redia_gravar(p_regs jsonb) returns jsonb
@@ -284,13 +300,13 @@ revoke execute on function
   public.redia_coord_do_posto(text), public.redia_uep_atual(), public.redia_json(public.registros),
   public.redia_registros_antes_inserir(), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
-  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb),
+  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
   public.redia_vincular_perfil(text, text, text, text, text, boolean)
   from public, anon, authenticated;
 grant execute on function
   public.redia_uep_atual(), public.redia_json(public.registros), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
-  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb)
+  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text)
   to authenticated;
 
 -- ---------------------------------------------------------------------

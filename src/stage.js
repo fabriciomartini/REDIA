@@ -185,12 +185,12 @@ function telaAbertura(E, ctx) {
 /* ---------------- blocos de coordenação: peças comuns (D-42) ----------------
    Padrão das três coordenações, colunas de mesma largura:
    esquerda = Indicadores (+ cards da coordenação) · centro = Equipamentos e Sistemas – PFCEO + Últimas 24h ·
-   direita = Serviços planejados hoje + Demandas para a base. O título de cada card leva à página de detalhe. */
+   direita = Serviços planejados hoje + Canal Base x Bordo + Resultados de Análises (D-52). O título de cada card leva à página de detalhe. */
 const BLOCO_COORD = { 2: 'COPROD', 3: 'COEMB', 4: 'COMAN' };
 const COORD_BLOCO = { COPROD: 2, COEMB: 3, COMAN: 4 };
 const lk = (b, t) => `#/apresentacao/${b}/${t}`;
-function cardServicos(E, coord, href = '') {
-  const sv = E.servicos.filter(s => s.payload.coord === coord).slice(0, 5);
+function cardServicos(E, coord, href = '', max = 5) {
+  const sv = E.servicos.filter(s => s.payload.coord === coord).slice(0, max);
   return `<div class="card col">${hd('Serviços planejados hoje', '', '', href)}
     ${sv.length ? sv.map(s => `<div class="row2"><div class="col"><span class="t1">${T(s.payload.titulo)}</span><span class="t2">${T(s.payload.detalhe || '')}</span></div><span class="tg">${s.payload.abertura ? tagAb : ''}${tag(s.payload.origem)}</span></div>`).join('') : '<div class="row2"><span class="sec">Nenhum serviço registrado</span></div>'}
   </div>`;
@@ -227,12 +227,20 @@ function cardPfceo(E, coord, b) {
 const SIT_SEM = { vencida: ['nok', 'Vencida'], vence24: ['at', 'Vence hoje'], prazo: ['ok', 'No prazo'], ok: ['ok', 'No prazo'], enc: ['sd', 'Encerrada'] };
 const ORD_SIT = { vencida: 0, vence24: 1, prazo: 2, ok: 2, enc: 3 };
 const demandasAbertas = (E, coord) => E.demandas.filter(d => d.payload.coord === coord && d.payload.status !== 'encerrada').sort((a, b) => ORD_SIT[a.situacao] - ORD_SIT[b.situacao] || String(a.payload.prazo).localeCompare(String(b.payload.prazo)));
-function cardDemandas(E, coord, b, ctx) {
-  const dem = E.demandas.filter(d => d.payload.coord === coord), ab = demandasAbertas(E, coord);
-  return `<div class="card col fill">${hd('Demandas para a base', '', '', lk(b, 'servicos'))}
-    <div class="nums"><span><b class="big b40">${ab.length}</b><span class="cap">abertas</span></span><span><b class="big b40 lar">${ab.filter(d => d.situacao === 'vencida').length}</b><span class="cap">vencidas</span></span><span><b class="big b40">${dem.filter(d => d.payload.dataRedia === ctx.dia).length}</b><span class="cap">novas hoje</span></span></div>
-    ${ab.length ? '' : '<div class="row2"><span class="sec">Nenhuma demanda em aberto com a base</span></div>'}${ab.slice(0, 3).map(d => `<div class="row2"><div class="col"><span class="t1">${T(d.payload.titulo)}</span><span class="t2">${esc(d.payload.sentido)} · ${T(d.payload.responsavel)}${d.payload.prazo ? ' · prazo ' + ddmm(d.payload.prazo) : ''}</span></div><span class="tg">${pill(...(SIT_SEM[d.situacao] || ['sd', '—']))}</span></div>`).join('')}
-    <span class="cap mt-auto">Revisadas no fechamento e devolvidas à passagem do supervisor</span></div>`;
+/* Canal Base x Bordo (D-52): só os principais tópicos tratados entre a base e a coordenação, sem placar de tarefas */
+const topicosCanal = (E, coord) => E.demandas.filter(d => d.payload.coord === coord && d.payload.status !== 'encerrada')
+  .sort((a, b) => String(b.payload.dataRedia).localeCompare(String(a.payload.dataRedia)) || ordem(b, a));
+function cardCanal(E, coord, b) {
+  const tp = topicosCanal(E, coord);
+  return `<div class="card col">${hd('Canal Base x Bordo', '', '', lk(b, 'servicos'))}
+    ${tp.length ? tp.slice(0, 2).map(d => `<div class="row2"><div class="col"><span class="t1">${T(d.payload.titulo)}</span><span class="t2">${esc(d.payload.sentido)} · desde ${ddmm(d.payload.dataRedia)}</span></div></div>`).join('') : '<div class="row2"><span class="sec">Nenhum tópico em pauta com a base</span></div>'}</div>`;
+}
+/* Resultados de Análises (D-52): últimos resultados do eplab; a data fica em destaque quando passa da periodicidade */
+function cardAnalises(E, coord, b, ctx) {
+  const an = labDe(E, coord, ctx.dia), v = an.find(a => a.origem);
+  return `<div class="card col fill">${hd('Resultados de Análises', v ? tag(v.origem === 'A' ? 'eplab' : 'M') : '', '', lk(b, 'analises'))}
+    ${an.map(a => `<div class="row2 an"><div class="col"><span class="t1">${esc(a.curto || a.rot)}</span></div><span class="tg"><b class="anv">${a.valor === null ? '<span class="sec">Sem dado</span>' : (a.tipo === 'texto' ? esc(a.valor) : fmtN(a.valor, a.dec)) + (a.un && a.valor !== null ? `<span class="u">${NBSP}${esc(a.un)}</span>` : '')}</b>${a.data ? (a.atrasada ? `<span class="o at dt">${SH.at(15)}${ddmm(a.data)}</span>` : `<span class="dt0">${ddmm(a.data)}</span>`) : ''}</span></div>`).join('')}
+    </div>`;
 }
 function linhaSistema(titulo, nota, status) {
   const s = semDeStatus(status);
@@ -242,7 +250,7 @@ const telaCoord = (ctx, b, cab, faixaHtml, esq, E, coord) => `<div class="scr">$
   <main class="m3 eq">
     <div class="colg">${esq}</div>
     <div class="colg">${cardPfceo(E, coord, b)}${cardUltimas24(E, coord, b)}</div>
-    <div class="colg">${cardServicos(E, coord, lk(b, 'servicos'))}${cardDemandas(E, coord, b, ctx)}</div>
+    <div class="colg">${cardServicos(E, coord, lk(b, 'servicos'), 3)}${cardCanal(E, coord, b)}${cardAnalises(E, coord, b, ctx)}</div>
   </main>${rodapeSelo()}</div>`;
 
 /* ---------------- Bloco 2 · COPROD (operação) ---------------- */
