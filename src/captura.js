@@ -16,6 +16,8 @@ const FONTES_CAPTURA = {
   PFCEO: { nome: 'PFCEO', desc: 'Painel de Funções Críticas · status e disponibilidade', pendencia: 'I-03' },
   APLAT: { nome: 'APLAT', desc: 'Planejamento diário das permissões de trabalho', pendencia: 'I-24' },
   PASSAGEM: { nome: 'Passagem de serviço', desc: 'Status dos equipamentos informado pelo operador do posto', pendencia: 'I-13' },
+  SAP: { nome: 'SAP PM/MM', desc: 'Ordens de manutenção, preventivas e materiais', pendencia: 'I-06' },             // D-62
+  INTEGRIDADE: { nome: 'Plano de inspeção', desc: 'Plano de inspeção de integridade da embarcação', pendencia: 'I-56' },   // D-62
 };
 /* campos que nunca são capturados: correções manuais dos acumulados do mês (D-43) */
 const NAO_CAPTURAR = new Set(['iuga.gas_prod_mes', 'queima.acum_mes', 'iuga.margem']);   // correções manuais e a margem da reserva tática (D-57)
@@ -23,7 +25,9 @@ const CAMPOS_BDO = new Set(['oleo.real', 'iuga.real', 'gas.real', 'gas.ref', 'ag
 const LISTAS_BDO = new Set(['queima.eventos']);
 function fonteDoCampo(id) {
   if (id.startsWith('lab.')) return 'EPLAB';
-  if (id.startsWith('eq.')) return 'PASSAGEM';
+  if (id.startsWith('eq.') || id.startsWith('sms.')) return 'PASSAGEM';   // D-62: eventos de segurança de processo e inibições vêm da passagem de serviço (técnico de segurança)
+  if (id === 'man.criticas' || id === 'man.pecas') return 'SAP';
+  if (id.startsWith('insp.')) return 'INTEGRIDADE';
   if (id.startsWith('pfceo.')) return 'PFCEO';
   if (id.startsWith('servicos.')) return 'APLAT';
   if (/\.meta$/.test(id)) return 'METAS';

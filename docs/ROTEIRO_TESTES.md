@@ -87,6 +87,16 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | 7.1 | COPROD/COEMB/COMAN abrem Configuração | Somente leitura |
 | 7.2 | GEPLAT altera o tempo por bloco e salva | Vale para todos após recarregar |
 | 7.3 | GEPLAT altera a meta de um indicador de manutenção e um limite de análise | COMAN: semáforo do indicador muda; análise com resultado fora do limite fica Não OK |
+| 7.4 | GEPLAT altera a periodicidade do teste de vazão (ex.: 30 dias) | Abertura e card de poços passam a marcar os poços com teste vencido |
+
+## 8. Segurança de processo e vencimentos (v1.8)
+
+| # | Passo | Esperado |
+|---|---|---|
+| 8.1 | GEPLAT › Dados automáticos › Capturar dados em "Segurança de processo" e "Inibições e bypass" | Abertura: coluna "Segurança de processo · 24 h" com eventos, inibições e críticos vencidos |
+| 8.2 | Incluir uma inibição com data de 4 dias atrás | Coluna fica Não OK; ata lista a inibição com os dias |
+| 8.3 | COMAN › Dados automáticos › "Itens de segurança crítica" com um vencimento passado | Card Indicadores mostra 1 vencido; detalhe Críticos e peças com "Vencida há N d" |
+| 8.4 | COEMB › Dados automáticos › "Inspeções de integridade" | Card Tanques em atenção mostra o resumo; detalhe Integridade lista por vencimento |
 
 ## Registro do resultado
 

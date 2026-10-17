@@ -3,9 +3,9 @@
    Cada página tem: voltar à tela da coordenação · atalhos para os outros assuntos · avançar para o próximo bloco. */
 'use strict';
 const TOPICOS = {
-  2: [['indicadores', 'Indicadores'], ['queima', 'Queima projetada'], ['pocos', 'Poços'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
-  3: [['indicadores', 'Indicadores'], ['utilidades', 'Utilidades'], ['tanques', 'Tanques em atenção'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
-  4: [['indicadores', 'Indicadores'], ['geracao', 'Geração principal'], ['legais', 'Órgãos legais e suprimentos'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
+  2: [['indicadores', 'Indicadores'], ['queima', 'Queima projetada'], ['pocos', 'Poços'], ['pfceo', 'PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
+  3: [['indicadores', 'Indicadores'], ['utilidades', 'Utilidades'], ['tanques', 'Tanques em atenção'], ['integridade', 'Integridade'], ['pfceo', 'PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
+  4: [['indicadores', 'Indicadores'], ['geracao', 'Geração principal'], ['criticos', 'Críticos e peças'], ['legais', 'Órgãos legais e suprimentos'], ['pfceo', 'PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
 };
 /* D-57 · detalhe da queima: reserva tática (na meta) ou plano de recuperação do IUGA (abaixo da meta) */
 function cardTatico(E, iso) {
@@ -21,7 +21,7 @@ function cardTatico(E, iso) {
     <span class="cap">${t.alcancavel ? `Nos ${t.restantes} dias restantes. Hoje: ${m3d(t.queimaDia)} (${esc(t.fonteQueima)}) → reduzir ${m3d(t.reducao)}.` : `Mesmo sem queima até o fim do mês, o IUGA fecha em ${fmtN(t.iugaMaxPossivel, 2)}%. Reduzir a queima ainda melhora o resultado do ${esc(CFG.ativo)} e de ${esc(CFG.campo)}.`}</span>
     <span class="gh mt6">Origens evitáveis a trabalhar · maiores primeiro</span>${rows || '<div class="li n0"><span class="sec">Nenhuma causa evitável registrada na queima projetada</span></div>'}${base}</div>`;
 }
-const TIT_DET = { servicos: 'Serviços e Canal Base x Bordo', pocos: 'Poços · últimas 24 h', utilidades: 'Utilidades · estoque × mínimo' };
+const TIT_DET = { pfceo: 'Equipamentos e Sistemas – PFCEO', servicos: 'Serviços e Canal Base x Bordo', pocos: 'Poços · últimas 24 h', utilidades: 'Utilidades · estoque × mínimo', integridade: 'Inspeções de integridade', criticos: 'Críticos de segurança e peças em falta' };
 const PROX_NOME = { 2: 'COEMB', 3: 'COMAN', 4: 'Fechamento' };
 const topicoValido = (b, t) => !!(TOPICOS[b] || []).find(x => x[0] === t);
 
@@ -262,6 +262,37 @@ const DETALHES = {
       <div class="card col">${hd('Geração principal · 4 × 33%', pill(V(E, 'ger.reserva') === 'Sem reserva' ? 'nok' : 'ok', V(E, 'ger.reserva') || 'Sem dado'), 'raio')}
         <div class="tgs g4">${tgs.map(t => `<div class="tgc"><div class="row-sb"><b class="f32">${T(t.tg)}</b>${pill(semDeStatus(t.status) === 'sd' ? 'sd' : semDeStatus(t.status), t.status)}</div><span class="t2 k f20">${T(t.linha1)}</span><span class="t2 f20${t.alerta === 'sim' ? ' k fb' : ''}">${T(t.linha2)}</span></div>`).join('')}</div></div>
       <div class="card col">${hd('Emergência e auxiliares')}${L(E, 'ger.aux').map(a => `<div class="li"><span>${T(a.nome)}</span><span class="s row-c">${glyph(semDeStatus(a.status), 14)}${esc(String(a.status).toLowerCase())}</span></div>`).join('')}</div>
+    </main>`;
+  },
+  /* ---------- D-62 (propostas 17): inspeções de integridade · COEMB ---------- */
+  'integridade:COEMB'(E, ctx) {
+    const ins = inspecoesDe(E, ctx.dia), v = E.listas['insp.integridade'], venc = ins.filter(i => i.v.k === 'nok'), prox = ins.filter(i => i.v.k === 'at');
+    return `<main class="m3 det" style="grid-template-columns:minmax(0,1fr)">
+      <div class="colg">
+        <div class="dtiles">${tile('Inspeções no plano', ins.length)}${tile('Vencidas', venc.length, '', venc.length ? 'nok' : 'ok')}${tile(`Vencem em ${CFG.limiares.inspecaoJanelaDias} dias`, prox.length, '', prox.length ? 'at' : 'ok')}${tile('Próxima', ins.find(i => i.v.dias != null && i.v.dias >= 0) ? ddmm(ins.filter(i => i.v.dias != null && i.v.dias >= 0).sort((a, b) => a.v.dias - b.v.dias)[0].proxima) : '—', '', '', ins.find(i => i.v.dias != null && i.v.dias >= 0) ? T(ins.filter(i => i.v.dias != null && i.v.dias >= 0).sort((a, b) => a.v.dias - b.v.dias)[0].item) : '')}</div>
+        <div class="card col fill">${hd('Inspeções de integridade · tanques, casco, amarração e turret', v ? `<span class="cap nw">${tag(v.origem)} ${esc(v.fonte || '')} · ${hhmm(v.em)}</span>` : '')}
+          <div class="tbl insp"><span class="th l">Item</span><span class="th l">Inspeção</span><span class="th l">Última</span><span class="th l">Próxima / vencimento</span><span class="th l">Situação</span>
+          ${ins.map(i => `<span class="td l fb">${T(i.item)}</span><span class="td l">${T(i.tipo || '')}</span><span class="td l nw">${i.ultima ? ddmmaaaa(i.ultima) : '—'}</span><span class="td l nw">${i.proxima ? ddmmaaaa(i.proxima) : '—'}</span><span class="td l">${pill(i.v.k, i.v.rot)}</span>`).join('') || '<span class="td l sec">Nenhuma inspeção registrada</span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span>'}
+          </div>
+          <span class="cap mt-auto">Vencida = próxima antes de hoje e não executada; Atenção = vence em até ${CFG.limiares.inspecaoJanelaDias} dias (Configuração). Plano de inspeção: fonte a confirmar (I-56).</span></div>
+      </div></main>`;
+  },
+  /* ---------- D-62 (propostas 3, 21 e 23): críticos de segurança e peças em falta · COMAN ---------- */
+  'criticos:COMAN'(E, ctx) {
+    const crit = criticasDe(E, ctx.dia), venc = crit.filter(c => c.v.k === 'nok'), v7 = crit.filter(c => c.v.k === 'at'), pecas = pecasDe(E), falta = pecas.filter(x => x.situacao === 'Em falta');
+    const vc = E.listas['man.criticas'], vp = E.listas['man.pecas'];
+    return `<main class="m3 det" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">
+      <div class="colg">
+        <div class="dtiles">${tile('Itens críticos', crit.length)}${tile('Vencidos', venc.length, '', venc.length ? 'nok' : 'ok')}${tile('Vencem em 7 dias', v7.length, '', v7.length ? 'at' : 'ok')}${tile('Executados', crit.filter(c => c.situacao === 'Executada').length, '', 'ok')}</div>
+        <div class="card col fill">${hd('Itens de segurança crítica · preventivas e testes (SIS, F&G, dilúvio, ESD)', vc ? `<span class="cap nw">${tag(vc.origem)} ${esc(vc.fonte || '')} · ${hhmm(vc.em)}</span>` : '')}
+          <div class="tbl crit"><span class="th l">Item · TAG</span><span class="th l">Tipo</span><span class="th l">Vencimento</span><span class="th l">Situação</span>
+          ${crit.map(c => `<span class="td l"><b>${T(c.item)}</b><span class="un">${T(c.tag || '')}</span></span><span class="td l">${esc(c.tipo || '—')}</span><span class="td l nw">${c.vencimento ? ddmmaaaa(c.vencimento) : '—'}</span><span class="td l">${pill(c.v.k, c.v.rot)}</span>`).join('') || '<span class="td l sec">Nenhum item registrado</span><span class="td"></span><span class="td"></span><span class="td"></span>'}
+          </div>
+          <span class="cap mt-auto">Vencido = vencimento antes de hoje e não executado. Fonte: SAP PM (I-06); até a integração, lista da COMAN.</span></div>
+      </div>
+      <div class="card col">${hd('Peças críticas em falta', vp ? `<span class="cap nw">${falta.length} em falta · ${pecas.filter(x => x.situacao === 'Em trânsito').length} em trânsito</span>` : '')}
+        ${pecas.map(x => `<div class="row2"><div class="col"><span class="t1">${T(x.peca)}</span><span class="t2">${[x.equipamento, x.om ? 'OM ' + x.om : '', x.impacto].filter(Boolean).map(T).join(' · ')}</span></div><span class="tg">${x.previsao ? `<span class="cap nw">prev. ${ddmm(x.previsao)}</span>` : ''}${pill(x.situacao === 'Em falta' ? 'at' : x.situacao === 'Recebida' ? 'ok' : 'sd', x.situacao || 'Sem dado')}</span></div>`).join('') || '<div class="row2"><span class="sec">Nenhuma peça em falta</span></div>'}
+        <span class="cap mt-auto">Materiais que travam ordem de manutenção, com previsão de chegada. Fonte: SAP MM (I-06); até a integração, lista da COMAN.</span></div>
     </main>`;
   },
   'legais:COMAN'(E) {

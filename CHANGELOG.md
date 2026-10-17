@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 1.8.0 · D-62 (2026-10-17) · onda 2 das propostas de boas práticas
+
+Listas novas com **captura simulada** (passagem de serviço, SAP PM/MM e plano de inspeção) até as integrações; campos e regras são PREMISSA a validar com cada coordenação.
+
+- **Segurança de processo · 24 h (1, 2, 3, 21)** na abertura, ao lado dos "dias sem" e antes da produção: eventos das 24 h classificados pela API RP 754 (Tier 1/2, Tier 3 = demanda a sistema de segurança, Tier 4 = barreira degradada), **inibições e bypass ativos** (com a mais antiga e alerta por tempo: Atenção a partir de 1 dia, Não OK a partir de 3) e **itens críticos de segurança vencidos** (preventivas e testes de SIS, F&G, dilúvio e ESD). Listas na curadoria do GEPLAT (eventos e inibições) e da COMAN (críticos); seção própria na ata.
+- **COMAN:** linha "Críticos de segurança vencidos · vencem em 7 d" nos Indicadores, "Peças críticas em falta (23)" em Órgãos legais e suprimentos e nova página de detalhe **Críticos e peças** (vencidos primeiro; peças com previsão de chegada).
+- **COEMB · Inspeções de integridade (17):** tanques, casco, amarração e turret com última, próxima e situação (vencida / vence em 30 dias / programada / executada); resumo no card Tanques em atenção e nova página de detalhe **Integridade**.
+- **Teste de vazão por poço (14):** poço produtor com teste vencido (dias desde o último > periodicidade da UEP, padrão 90 dias) ganha o símbolo de atenção na abertura e no card de poços, que lista os vencidos; periodicidade na Configuração.
+- **Limites legais da água potável e do descarte (18):** cobertos pela mecânica de limites de especificação da v1.7 (cloro, turbidez e TOG do slop já com semáforo).
+- Configuração: periodicidade do teste de vazão, dias de inibição para Atenção/Não OK e janela das inspeções.
+- Ata em PDF: 28 telas (duas páginas de detalhe novas). Abas de detalhe: "PFCEO" no lugar do nome longo (título completo na página).
+
 ## 1.7.0 · D-61 (2026-10-17) · onda 1 das propostas de boas práticas
 
 Primeira das três ondas de implementação das 30 propostas aprovadas na análise das telas (documento "Propostas de melhoria com base em boas práticas"). Nenhuma integração nova: tudo usa registros que já existem na base.

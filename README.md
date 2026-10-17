@@ -75,7 +75,7 @@ O comando roda cinco conjuntos de testes:
 |---|---|
 | SQL/RLS (47) | schema em PostgreSQL local (PGlite) |
 | Cadastro (9) | script de cadastro de usuários |
-| Ponta a ponta, demonstração (206) | fluxo completo no modo demonstração e o deck publicado |
+| Ponta a ponta, demonstração (217) | fluxo completo no modo demonstração e o deck publicado |
 | Ponta a ponta, nuvem (58) | fluxo completo contra um Supabase simulado que roda o mesmo schema |
 | Telas móveis (60) | smartphone, tablet e notebook |
 

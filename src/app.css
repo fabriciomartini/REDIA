@@ -474,7 +474,8 @@ table.tb tr.sel td{background:#FFF7DA}
 .stage .dbtn{display:inline-flex;align-items:center;height:52px;padding:0 20px;background:#fff;color:#000;font-weight:700;font-size:20px;text-decoration:none;box-shadow:inset 0 0 0 2px #000;white-space:nowrap;flex:none}
 .stage .dbtn.pri{background:var(--verde);color:#fff;box-shadow:none}
 .stage .dtabs{flex:1;display:flex;gap:6px;min-width:0;overflow:hidden}
-.stage .dtabs a{display:inline-flex;align-items:center;height:52px;padding:0 14px;background:#fff;color:#000;text-decoration:none;font-size:17px;font-weight:700;white-space:nowrap}
+.stage .dtabs a{display:inline-flex;align-items:center;height:52px;padding:0 12px;background:#fff;color:#000;text-decoration:none;font-size:17px;font-weight:700;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.stage .dtabs a.on{flex:0 0 auto}
 .stage .dtabs a.on{box-shadow:inset 0 -4px 0 var(--verde);color:var(--verde)}
 .stage .dtiles{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:16px}
 .stage .dtile{background:#fff;padding:14px 20px;display:flex;flex-direction:column;gap:4px;min-width:0;box-shadow:inset 6px 0 0 var(--claro)}
@@ -562,7 +563,7 @@ table.tb tr.sel td{background:#FFF7DA}
 .stage .gl .ic{display:block}
 .stage .dtiles.dt-in .dtile.s-ok{box-shadow:inset 6px 0 0 var(--verde)}.stage .dtiles.dt-in .dtile.s-at{box-shadow:inset 6px 0 0 var(--amarelo)}.stage .dtiles.dt-in .dtile.s-nok{box-shadow:inset 6px 0 0 var(--vermelho)}
 /* D-47 · offloading na abertura e card Queima projetada */
-.stage .r1{grid-template-columns:minmax(0,1.4fr) minmax(0,2.2fr) minmax(0,.55fr) minmax(0,1.1fr)}
+.stage .r1{grid-template-columns:minmax(0,1.5fr) minmax(0,3.0fr) minmax(0,.45fr) minmax(0,1.05fr)}   /* D-62: coluna de segurança de processo no card dos contadores */
 .stage .offa{gap:6px}
 .stage .tq2{height:14px;border-radius:7px;background:rgba(117,120,123,.18);overflow:hidden}
 .stage .tq2>div{height:100%;background:var(--verde);border-radius:7px 0 0 7px}
@@ -702,3 +703,16 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .chip.esc{background:#000;color:#fff;text-transform:uppercase;font-size:11px;letter-spacing:.4px}
 .chk-ab.esc{margin-top:8px}
 .lst{margin:0 0 8px;padding-left:18px}.lst li{margin:4px 0}
+/* ---- D-62 · onda 2 ---- */
+.stage .g3.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.stage .segc .cap{font-size:16px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
+.stage .segc.s-nok .big{color:var(--vermelho)}
+.stage .segc .row-c{gap:8px}
+.stage .w.tv{box-shadow:inset 0 0 0 2px var(--amarelo)}
+.stage .w.lg-tv{background:transparent;font-weight:400}
+.stage .li.tvl .v{text-align:right;white-space:normal}
+.stage a.lk2{text-decoration:none;color:inherit}
+.stage a.lk2 .chev{margin-left:6px;color:var(--verde)}
+.stage .tbl.insp{grid-template-columns:minmax(0,1.2fr) minmax(0,1.3fr) auto auto auto;column-gap:22px}
+.stage .tbl.crit{grid-template-columns:minmax(0,1.6fr) minmax(0,.9fr) auto auto;column-gap:22px}
+.stage .o.insp{font-size:16px;padding:4px 8px}.stage .o.insp.nok{background:rgba(218,41,28,.12)}.stage .o.insp.at{background:rgba(253,200,47,.35)}

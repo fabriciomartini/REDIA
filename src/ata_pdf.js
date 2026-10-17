@@ -98,6 +98,13 @@ async function gerarAtaPdf(d) {
   const linhaV = (rot, campo, dec, un) => [rot, fmtU(VN(S, campo), dec, un), `${S.valores[campo]?.origem || ''} ${S.valores[campo]?.fonte || ''}`.trim() || '—'];
   tabela(['Indicador', 'Valor', 'Origem'], [linhaV('Produção de óleo (D-1)', 'oleo.real', 0, 'm³/d'), linhaV('Potencial', 'oleo.potencial', 0, 'm³/d'), linhaV('IUGA (D-1)', 'iuga.real', 2, '%'), linhaV('Injeção de gás', 'gas.real', 0, 'Mm³/d'), linhaV('Injeção de água', 'agua.real', 0, 'm³/d'), linhaV('Estoque', 'off.estoque', 0, 'm³'), linhaV('POB', 'pob.atual', 0, '')], { 0: { cellWidth: 60 }, 1: { cellWidth: 40 } });
 
+  /* D-62: segurança de processo (eventos das 24 h, inibições/bypass ativos, críticos de segurança vencidos) */
+  const sp = segurancaProcesso(S, DIA);
+  tit('Segurança de processo · 24 h');
+  par(`${sp.t12.length} evento(s) Tier 1/2 · ${sp.t3.length} demanda(s) a sistemas de segurança · ${sp.t4.length} barreira(s) degradada(s) · ${sp.inib.length} inibição(ões)/bypass ativo(s) · ${sp.venc.length} item(ns) crítico(s) de segurança vencido(s), ${sp.v7.length} vence(m) em 7 dias.`);
+  if (sp.eventos.length) lista(sp.eventos.map(e => `${e.hora ? e.hora + ' · ' : ''}${e.evento}${e.sistema ? ' · ' + e.sistema : ''} · ${e.tier || 'sem classificação'} · ${e.situacao || ''}`));
+  if (sp.inib.length) { par('Inibições e bypass ativos', { neg: true, tam: 9.5, esp: 0.3 }); lista(sp.inib.map(i => `${i.tipo || ''} · ${i.funcao}${i.tag ? ' (' + i.tag + ')' : ''} · desde ${i.desde ? ddmmaaaa(i.desde) : '—'}${i.dias != null ? ' (' + i.dias + ' d)' : ''} · ${i.responsavel || ''}${i.motivo ? ' · ' + i.motivo : ''}${i.previsao ? ' · retirada prevista ' + ddmmaaaa(i.previsao) : ''}`)); }
+  if (sp.venc.length || sp.v7.length) { par('Críticos de segurança vencidos ou a vencer em 7 dias', { neg: true, tam: 9.5, esp: 0.3 }); lista([...sp.venc, ...sp.v7].map(c => `${c.item}${c.tag ? ' (' + c.tag + ')' : ''} · ${c.tipo || ''} · ${c.v.rot}`)); }
   tit('Blocos');
   for (const c of ['COPROD', 'COEMB', 'COMAN']) {
     par(`${c} · ${COORD_NOME[c]}`, { tam: 11, neg: true, esp: 0.8 });

@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.7.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.8.0', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -62,7 +62,10 @@ const CFG_PADRAO = {
     utilidades: { ok: 120, at: 100, diasAtencao: 7 },
     manutencaoFaixaAtencao: 3,
     recorrente: { at: 3, nok: 7 },
+    inibicaoDias: { at: 1, nok: 3 },      // D-62: inibição/bypass de função de segurança ativa há ≥ 1 dia = Atenção; ≥ 3 dias = Não OK (PREMISSA)
+    inspecaoJanelaDias: 30,               // D-62: inspeção de integridade que vence em até 30 dias fica em Atenção (PREMISSA)
   },
+  testeVazaoDias: 90,                     // D-62 (proposta 14): periodicidade do teste de vazão por poço (PREMISSA; regulação de medição a confirmar)
   pautaExtra: { 1: '[tema de segunda]', 2: '[tema de terça]', 3: '[tema de quarta]', 4: '[tema de quinta]', 5: '[tema de sexta]', 6: '[tema de sábado]', 0: '[tema de domingo]' },
   temasPlataforma: ['Segurança', 'Saúde', 'Habitabilidade', 'Integridade', 'Conformidade', 'Auditorias', 'GDB', 'SL&R'],
   /* D-61 (proposta 24): metas dos indicadores de manutenção por UEP (linha de base), não fixas no código. Valores iniciais = exemplo (I-05). */

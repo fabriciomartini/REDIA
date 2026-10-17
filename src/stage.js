@@ -36,7 +36,9 @@ const DOT_EQ = {
 const eqBullet = (i) => { const k = ST_EQ_CLS[i.status] || 'eq-sd'; return `<span class="eb ${k}" role="img" aria-label="${esc(i.nome)}: ${esc(i.status || 'sem dado')}" title="${esc(i.nome)}: ${esc(i.status || 'sem dado')}">${DOT_EQ[k]}${esc(i.un)}</span>`; };
 const chipsEq = (E, conj) => equipDe(E, conj).map(g => `<span class="w eqg"><span class="q">${esc(g.grupo)}</span>${g.itens.map(eqBullet).join('')}</span>`).join('');
 const legendaEq = () => `<span class="lge">${ST_EQ.map(s => `<span class="eb ${ST_EQ_CLS[s]}">${DOT_EQ[ST_EQ_CLS[s]]}${esc(s)}</span>`).join('')}</span>`;
-const legendaPocos = (aberto = 'aberto 24 h') => `<span class="lgp">${chip(aberto, 'aberto')}${chip('reaberto', 'reaberto')}${chip('fechado agora', 'fechado')}</span>`;
+const legendaPocos = (aberto = 'aberto 24 h') => `<span class="lgp">${chip(aberto, 'aberto')}${chip('reaberto', 'reaberto')}${chip('fechado agora', 'fechado')}<span class="w tv lg-tv">${SH.at(13)}teste de vazão vencido</span></span>`;
+/* D-62 (proposta 14): poço produtor com teste de vazão vencido (dias desde o último > periodicidade da UEP) leva o símbolo de atenção */
+const chipPoco = (p, hoje = DIA) => { const t = testeVencido(p, hoje), venc = t && t.vencido; return `<span class="w${p.status === 'reaberto' ? ' ra' : p.status === 'fechado' ? ' fe' : ''}${venc ? ' tv' : ''}"${venc ? ` title="Teste de vazão vencido: ${t.dias} dias (periodicidade ${t.per})"` : ''}>${DOTS[p.status] || ''}${esc(p.poco)}${venc ? SH.at(13) : ''}</span>`; };
 const tag = t => `<span class="o">${esc(t)}</span>`;
 const tagAb = '<span class="o ab">Abertura</span>';
 /* situação das operações em poços: play.circle.fill / calendar / checkmark */
@@ -98,7 +100,7 @@ const SELO = '<span class="selo"><span class="seal" aria-hidden="true">I</span>I
 const rodapeSelo = () => `<div class="rod">${SELO}</div>`;
 const ordemPoco = { reaberto: 0, fechado: 1, aberto: 2 };
 const pocos = (E, tipo) => L(E, 'pocos').filter(p => p.tipo === tipo).sort((a, b) => ordemPoco[a.status] - ordemPoco[b.status]);
-const chipsPoco = (E, tipo) => pocos(E, tipo).map(p => chip(p.poco, p.status)).join('');
+const chipsPoco = (E, tipo) => pocos(E, tipo).map(p => chipPoco(p)).join('');
 function piorSem(...s) { return ['nok', 'at', 'ok'].find(x => s.includes(x)) || 'sd'; }
 
 /* D-61 (proposta 4) · tendência de 7 dias: linha com os realizados das 7 REDIAs anteriores (D-7 a D-1), referência tracejada (meta/potencial)
@@ -125,6 +127,15 @@ function linhasTaticas(E, iso) {
   const mil = (v, u = 'mil m³') => fmtN(v / 1000, Math.abs(v) < 100000 ? 1 : 0) + NBSP + u;   // leitura à distância na TV
   if (t.modo === 'reserva') return `<div class="li tat"><span>Reserva tática</span><span class="v">${t.tatica > 0 ? mil(t.tatica) : 'Esgotada'}</span></div>${li('Por dia', t.taticaDia > 0 ? mil(t.taticaDia, 'mil m³/d') : '—', 1).replace('class="li"', 'class="li tat2"')}`;
   return `<div class="li tat rec"><span>Máx./dia</span><span class="v">${t.alcancavel ? mil(t.maxDia, 'mil m³/d') : 'Meta perdida'}</span></div>${li('IUGA diário mín.', t.alcancavel ? fmtN(t.iugaDiaNec, 2) + '%' : `até ${fmtN(t.iugaMaxPossivel, 2)}%`, 1).replace('class="li"', 'class="li tat2"')}`;
+}
+/* D-62 (propostas 1, 2, 3 e 21) · Segurança de processo nas 24 h, ao lado dos "dias sem" e antes da produção: eventos (Tier 1/2, demandas a
+   sistemas de segurança, barreiras degradadas), inibições/bypass ativos (com a mais antiga) e itens críticos de segurança vencidos */
+function colunaSegurancaProcesso(E, hoje) {
+  const sp = segurancaProcesso(E, hoje), m = sp.maisAntiga, nEv = sp.t12.length + sp.t3.length + sp.t4.length;
+  const det = `${sp.t12.length} Tier 1/2 · ${sp.t3.length} demanda(s) a sistema de segurança · ${sp.t4.length} barreira(s) degradada(s)${m ? ` · inibição mais antiga: ${m.tipo || ''} ${m.funcao} ${m.tag || ''} há ${m.dias ?? '—'} d` : ''} · críticos vencidos ${sp.venc.length}, vencem em 7 d ${sp.v7.length}`;
+  return `<div class="ctr segc s-${sp.sem}" style="padding-left:18px;border-left:1px solid #E8E8E8" title="${esc(det)}" data-seg="${sp.sem}"><span class="gh">Segurança de processo · 24 h</span>
+    <span class="row-c nw">${glyph(sp.sem, 22)}<span class="big b52">${sp.sem === 'sd' ? '—' : nEv}</span><span class="unit">evento${nEv === 1 ? '' : 's'}</span></span>
+    <span class="cap nw"><b class="k">${sp.inib.length}</b> inibiç${sp.inib.length === 1 ? 'ão' : 'ões'} · <b class="k">${sp.venc.length}</b> vencido${sp.venc.length === 1 ? '' : 's'}</span></div>`;
 }
 /* Offloading na abertura (D-47): previsão de TOP, navio designado para o próximo offloading e tancagem ocupada × livre */
 function cardOffloadingAbertura(E, top, navioOk) {
@@ -169,10 +180,11 @@ function telaAbertura(E, ctx) {
   <main class="m1">
     <section class="g r1">
       <div class="card col">${hd('Situação da unidade', pill(sit, semNome(sit)))}<p class="sit">${T(V(E, 'geplat.situacao') || 'Frase-resumo ainda não preenchida pelo GEPLAT.')}</p></div>
-      <div class="card g3">
+      <div class="card g3 g4">
         ${counter('Sem parada não programada', VN(E, 'sms.dias_parada'), `Recorde ${VN(E, 'sms.recorde_parada') ?? '—'}`, 'padding-right:18px')}
         ${counter('Sem ocorrência registrável', VN(E, 'sms.dias_ocorrencia'), `Desde ${esc(V(E, 'sms.desde_ocorrencia') || '—')}`, 'padding:0 18px;border-left:1px solid #E8E8E8')}
-        ${counter('Sem princípio de incêndio', VN(E, 'sms.dias_incendio'), `Recorde ${VN(E, 'sms.recorde_incendio') ?? '—'}`, 'padding-left:18px;border-left:1px solid #E8E8E8')}
+        ${counter('Sem princípio de incêndio', VN(E, 'sms.dias_incendio'), `Recorde ${VN(E, 'sms.recorde_incendio') ?? '—'}`, 'padding:0 18px;border-left:1px solid #E8E8E8')}
+        ${colunaSegurancaProcesso(E, ctx.dia)}
       </div>
       <div class="card col4"><span class="gh">POB</span><span><span class="big b52">${VN(E, 'pob.atual') ?? '—'}</span><span class="unit">/${VN(E, 'pob.max') ?? '—'}</span></span><span class="cap">${VN(E, 'pob.max') != null && VN(E, 'pob.atual') != null ? (VN(E, 'pob.max') - VN(E, 'pob.atual')) + ' vagas' : ''}</span></div>
       ${cardOffloadingAbertura(E, top, navioOk)}
@@ -362,12 +374,13 @@ function cardQueima(E, b, ctx) {
     </div></div>`;
 }
 function cardPocos(E, b) {
-  const prod = pocos(E, 'produtor'), semTrem = prod.filter(p => !p.trem);
+  const prod = pocos(E, 'produtor'), semTrem = prod.filter(p => !p.trem), venc = prod.filter(p => testeVencido(p, DIA)?.vencido);   // D-62 (proposta 14)
   const linhaTrem = ([k, nome, max]) => { const ps = prod.filter(p => p.trem === k); return `<span>${nome === 'Trem de teste' ? 'Teste' : nome} <span class="sec n">${ps.length}/${max}</span></span><div class="cps">${ps.map(p => chip(p.poco, p.status)).join('') || '<span class="cap">—</span>'}</div>`; };
   const prox = V(E, 'teste.proximo');
   return `<div class="card col fill">${hd('Poços · últimas 24 h', '', '', lk(b, 'pocos'))}
     <div class="pg">${TRENS.map(linhaTrem).join('')}${semTrem.length ? `<span>Sem trem</span><div class="cps">${semTrem.map(p => chip(p.poco, p.status)).join('')}</div>` : ''}<span>Inj. água</span><div class="cps">${chipsPoco(E, 'inj_agua')}</div><span>Inj. gás</span><div class="cps">${chipsPoco(E, 'inj_gas')}</div></div>
     <div class="li prx"><span>Próximo teste de vazão</span><span class="v">${prox ? T(prox) : '—'}${V(E, 'teste.previsao') ? ` <span class="sec n">· ${esc(V(E, 'teste.previsao'))}</span>` : ''}</span></div>
+    ${venc.length ? `<div class="li prx tvl"><span>${glyph('at', 16)} Teste de vazão vencido · ${venc.length}</span><span class="v f19">${venc.map(p => `${esc(p.poco)} ${testeVencido(p, DIA).dias} d`).join(' · ')} <span class="sec n">· periodicidade ${CFG.testeVazaoDias} d</span></span></div>` : ''}
     <span class="mt-auto">${legendaPocos()}</span></div>`;
 }
 function telaCoprod(E, ctx) {
@@ -377,6 +390,13 @@ function telaCoprod(E, ctx) {
 }
 
 /* ---------------- Bloco 3 · COEMB ---------------- */
+/* D-62 (proposta 17): inspeções de integridade vencidas ou a vencer, com link para o detalhe */
+function linhaInspecoes(E, hoje, b) {
+  const ins = inspecoesDe(E, hoje); if (!ins.length) return '';
+  const venc = ins.filter(i => i.v.k === 'nok'), prox = ins.filter(i => i.v.k === 'at');
+  const sem = venc.length ? 'nok' : prox.length ? 'at' : 'ok';
+  return `<a class="o insp lk2 ${sem}" href="${lk(b, 'integridade')}" title="${esc(['Inspeções de integridade', ...[...venc, ...prox].map(i => `${i.item}: ${i.v.rot}`)].join(' · '))}">${glyph(sem, 15)} ${venc.length ? `${venc.length} inspeç${venc.length === 1 ? 'ão' : 'ões'} vencida${venc.length === 1 ? '' : 's'}` : prox.length ? `${prox.length} inspeç${prox.length === 1 ? 'ão' : 'ões'} em ${CFG.limiares.inspecaoJanelaDias} d` : 'Inspeções em dia'}<span class="chev" aria-hidden="true">›</span></a>`;
+}
 function cardUtilidades(E, b) {
   const util = L(E, 'util'), u0 = util[0], r0 = Regras.utilidade(u0);
   return `<div class="card col">${hd('Utilidades · estoque × mínimo', '', '', lk(b, 'utilidades'))}
@@ -396,7 +416,7 @@ function telaCoemb(E, ctx) {
           <div class="col"><span class="nw"><b class="big b34">${esc(top[0] || '—')}</b><span class="unit u18">${esc(top[1] || '')}</span></span><span class="cap">previsão de TOP</span></div></div>
         <div>${li('Navio', T(V(E, 'off.navio') || 'Sem dado'))}${li('Qualidade do estoque', T(V(E, 'off.qualidade') || 'Sem dado'))}${li('Estações de offloading', T(V(E, 'off.estacoes') || 'Sem dado'))}</div></div>
       ${cardUtilidades(E, b)}
-      <div class="card col fill">${hd('Tanques em atenção', '', '', lk(b, 'tanques'))}
+      <div class="card col fill">${hd('Tanques em atenção', linhaInspecoes(E, ctx.dia, b), '', lk(b, 'tanques'))}
         ${L(E, 'tq.atencao').slice(0, 4).map(t => linhaSistema(t.tanque, t.nota, t.status)).join('') || '<div class="row2"><span class="sec">Nenhum tanque em atenção</span></div>'}</div>`;
   return telaCoord(ctx, b, cabecalho({ ...ctx, subData: 'Boletim SITOP' }, b, { eye: 'COEMB', t: 'Embarcação' }, 'Estocagem, transferência e estabilidade'), faixa(E), esq, E, 'COEMB');
 }
@@ -404,15 +424,18 @@ function telaCoemb(E, ctx) {
 /* ---------------- Bloco 4 · COMAN ---------------- */
 function telaComan(E, ctx) {
   const b = 4, tgs = L(E, 'ger.tgs').slice(0, 4), ind = L(E, 'man.ind').slice(0, 3);
+  const crit = criticasDe(E, ctx.dia), cVenc = crit.filter(c => c.v.k === 'nok'), c7 = crit.filter(c => c.v.k === 'at'), pecas = pecasDe(E), falta = pecas.filter(x => x.situacao === 'Em falta');   // D-62
   const esq = `<div class="card col">${hd('Indicadores', V(E, 'man.ref') ? tag(V(E, 'man.ref')) : '', '', lk(b, 'indicadores'))}
         <span class="gh">Manutenção</span>
         <div class="g3c">${ind.map(i => { const mt = metaManutencao(i), s = Regras.manutencao(+i.valor, mt); return `<div class="col"><span class="row-c f20 fb">${T(i.ind)} ${glyph(s, 16)}</span><span class="big b44">${fmtN(i.valor, i.valor % 1 ? 1 : 0)}%</span><span class="cap">meta ${mt != null ? fmtN(mt, mt % 1 ? 1 : 0) + '%' : 'não definida'}</span></div>`; }).join('')}</div>
-        <div class="mt6">${li('Notas IF6/6 abertas', fmtN(VN(E, 'man.notas_if6')))}${li('Sensores em falha', fmtN(VN(E, 'man.sensores')))}</div></div>
+        <div class="mt6">${li('Notas IF6/6 abertas', fmtN(VN(E, 'man.notas_if6')))}${li('Sensores em falha', fmtN(VN(E, 'man.sensores')))}
+        ${crit.length ? `<a class="li lk2" href="${lk(b, 'criticos')}"><span>${glyph(cVenc.length ? 'nok' : c7.length ? 'at' : 'ok', 16)} Críticos de segurança vencidos</span><span class="v">${cVenc.length}<span class="sec n"> · ${c7.length} vence${c7.length === 1 ? '' : 'm'} em 7 d</span><span class="chev" aria-hidden="true">›</span></span></a>` : ''}</div></div>
       <div class="card col">${hd('Geração principal', pill(V(E, 'ger.reserva') === 'Sem reserva' ? 'nok' : 'ok', V(E, 'ger.reserva') || 'Sem dado'), 'raio', lk(b, 'geracao'))}
         <span class="gh">4 × 33%</span>
         <div class="tgs cp">${tgs.map(t => `<div class="tgc"><div class="row-sb"><b class="f24">${T(t.tg)}</b>${pill(semDeStatus(t.status) === 'sd' ? 'sd' : semDeStatus(t.status), t.status)}</div><span class="t2 k">${T(t.linha1)}</span><span class="t2${t.alerta === 'sim' ? ' k fb' : ''}">${T(t.linha2)}</span></div>`).join('')}</div>
         <div class="cps cp mt6">${L(E, 'ger.aux').map(a => `<span class="w">${glyph(semDeStatus(a.status), 13)}${T(a.nome)}</span>`).join('')}</div></div>
-      <div class="card col fill">${hd('Órgãos legais e suprimentos', '', '', lk(b, 'legais'))}${L(E, 'legais').map(l => `<div class="li"><span>${T(l.item)}</span>${pill(semDeStatus(l.status), l.status)}</div>`).join('')}</div>`;
+      <div class="card col fill">${hd('Órgãos legais e suprimentos', '', '', lk(b, 'legais'))}${L(E, 'legais').map(l => `<div class="li"><span>${T(l.item)}</span>${pill(semDeStatus(l.status), l.status)}</div>`).join('')}
+        ${pecas.length ? `<a class="li lk2" href="${lk(b, 'criticos')}"><span>${glyph(falta.length ? 'at' : 'ok', 16)} Peças críticas em falta</span><span class="v">${falta.length}<span class="sec n"> · ${pecas.filter(x => x.situacao === 'Em trânsito').length} em trânsito</span><span class="chev" aria-hidden="true">›</span></span></a>` : ''}</div>`;
   return telaCoord(ctx, b, cabecalho({ ...ctx, subData: 'Boletim SITOP' }, b, { eye: 'COMAN', t: 'Manutenção' }, 'Elétrica, instrumentação, automação e mecânica'), faixa(E), esq, E, 'COMAN');
 }
 

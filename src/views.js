@@ -1161,7 +1161,8 @@ function telaConfig() {
         <div><label class="lbl" for="c-ativo">Ativo</label><input id="c-ativo" class="in" value="${esc(C.ativo)}"></div>
         <div><label class="lbl" for="c-modo">Modo</label><select id="c-modo" class="in"><option value="operacao" selected>Operação</option><option value="preoperacao" disabled>Pré-operação (próxima versão)</option></select></div></div>
         <h3>Horários</h3><div class="fgrid">${Object.entries({ preenchimento: 'Fim do preenchimento', congelamento: 'Congelamento', inicio: 'Início da REDIA', fim: 'Fim da REDIA' }).map(([k, r]) => `<div><label class="lbl" for="h-${k}">${r}</label><input id="h-${k}" type="time" class="in" value="${C.horarios[k]}"></div>`).join('')}</div>
-        <h3>Pauta</h3><div class="fgrid">${num('c-tb', 'Tempo por bloco (min)', C.timeboxMin, 1)}${num('c-dq', 'Destaques por bloco', C.destaquesPorBloco, 1)}${num('c-am', 'Atividades na abertura (máx.)', C.atividadesMax, 1)}${num('c-ar', 'Atividades recomendadas', C.atividadesRecomendado, 1)}</div></section>
+        <h3>Pauta</h3><div class="fgrid">${num('c-tb', 'Tempo por bloco (min)', C.timeboxMin, 1)}${num('c-dq', 'Destaques por bloco', C.destaquesPorBloco, 1)}${num('c-am', 'Atividades na abertura (máx.)', C.atividadesMax, 1)}${num('c-ar', 'Atividades recomendadas', C.atividadesRecomendado, 1)}</div>
+        <h3>Vencimentos (D-62)</h3><div class="fgrid">${num('c-tv', 'Teste de vazão · periodicidade por poço (dias)', C.testeVazaoDias, 1)}${num('l-ib-at', 'Inibição/bypass · Atenção a partir de (dias)', L.inibicaoDias?.at ?? 1, 1)}${num('l-ib-nok', 'Inibição/bypass · Não OK a partir de (dias)', L.inibicaoDias?.nok ?? 3, 1)}${num('l-ins', 'Inspeção de integridade · atenção se vence em (dias)', L.inspecaoJanelaDias ?? 30, 1)}</div></section>
       <section class="pn"><h2>Semáforos v0</h2><div class="fgrid">
         ${num('l-ef-ok', 'EFOP · OK a partir de (%)', L.efop.ok)}${num('l-ef-at', 'EFOP · Atenção a partir de (%)', L.efop.at)}
         ${num('l-in-ok', 'Injeção · OK a partir de (% da meta)', L.injecao.ok)}${num('l-in-at', 'Injeção · Atenção a partir de (%)', L.injecao.at)}
@@ -1188,6 +1189,7 @@ function telaConfig() {
     CFG.horarios.preRedia = CFG.horarios.preenchimento;
     CFG.timeboxMin = n('c-tb'); CFG.destaquesPorBloco = n('c-dq'); CFG.atividadesMax = n('c-am'); CFG.atividadesRecomendado = n('c-ar');
     Object.assign(CFG.limiares.efop, { ok: n('l-ef-ok'), at: n('l-ef-at') }); Object.assign(CFG.limiares.injecao, { ok: n('l-in-ok'), at: n('l-in-at') });
+    CFG.testeVazaoDias = n('c-tv'); CFG.limiares.inibicaoDias = { at: n('l-ib-at'), nok: n('l-ib-nok') }; CFG.limiares.inspecaoJanelaDias = n('l-ins');
     CFG.limiares.iugaFaixaAtencao = n('l-iu'); CFG.limiares.manutencaoFaixaAtencao = n('l-ma'); CFG.limiares.utilidades.ok = n('l-ut-ok'); CFG.limiares.utilidades.diasAtencao = n('l-ut-d');
     for (const d of [0, 1, 2, 3, 4, 5, 6]) CFG.pautaExtra[d] = $('#pe-' + d).value.trim();
     const mm = {}; $$('#mm-tab tbody tr').forEach(tr => { const k = $('[data-mm-k]', tr).value.trim(), v = $('[data-mm-v]', tr).value; if (k && v !== '' && !isNaN(+v)) mm[k] = +v; }); CFG.metasManutencao = mm;

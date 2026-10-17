@@ -109,7 +109,7 @@ function labDe(E, coord, hojeIso = (typeof DIA !== 'undefined' ? DIA : isoData(n
    não no código; sem limite informado, não há semáforo (só a data). Atenção = dentro do limite, mas a menos de 10% da faixa dele. */
 function labSem(valor, lim = {}, tipo = 'num', dec = 0) {
   const min = lim.min === '' || lim.min == null ? null : +lim.min, max = lim.max === '' || lim.max == null ? null : +lim.max;
-  const f = v => fmtN(v, Math.max(dec || 0, v % 1 ? 1 : 0));
+  const f = v => { const t = String(v), d = t.includes('.') ? Math.min(t.split('.')[1].length, 2) : 0; return fmtN(v, d); };
   const txt = min != null && max != null ? `${f(min)} a ${f(max)}` : max != null ? `≤ ${f(max)}` : min != null ? `≥ ${f(min)}` : '';
   if (tipo === 'texto' || (min == null && max == null)) return { sem: null, txt };
   if (valor == null || isNaN(+valor)) return { sem: 'sd', txt };
@@ -138,6 +138,9 @@ function equipDe(E, conj) {
 const CAMPO = Object.fromEntries(CAMPOS.map(c => [c.id, c]));
 
 /* ---- campos de lista (substituídos inteiros a cada edição) ---- */
+/* D-62 (proposta 1): classificação dos eventos de segurança de processo (API RP 754). Tier 1/2 = perda de contenção com consequência;
+   Tier 3 = demanda a sistema de segurança (PSV, ESD, F&G) ou excursão de limite seguro; Tier 4 = barreira degradada / falha de teste. */
+const TIERS = ['Tier 1', 'Tier 2', 'Tier 3 · demanda a sistema de segurança', 'Tier 4 · barreira degradada'];
 /* D-61 (proposta 10): classe da queima. Rotina = purga, gás de assistência, piloto; Extraordinária = emergência, parada de compressor, teste acima do previsto. */
 const QUEIMA_CLASSES = ['Rotina', 'Extraordinária'];
 const classeQueima = c => c.classe || (c.evitavel === 'sim' ? 'Extraordinária' : 'Rotina');   // sem classe informada: evitável = extraordinária
@@ -154,6 +157,12 @@ const LISTAS = [
   { id: 'ger.aux', coord: 'COMAN', rot: 'Emergência e auxiliares', cols: [{ k: 'nome', rot: 'Equipamento', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ['Operacional', 'Operacionais', 'Indisponível', 'Em manutenção'] }] },
   { id: 'man.ind', coord: 'COMAN', rot: 'Indicadores de manutenção', cols: [{ k: 'ind', rot: 'Indicador', tipo: 'texto' }, { k: 'valor', rot: 'Valor (%)', tipo: 'num', dec: 1 }, { k: 'meta', rot: 'Meta (%) · vazio = meta da UEP (Configuração)', tipo: 'num', dec: 1 }] },
   { id: 'legais', coord: 'COMAN', rot: 'Órgãos legais e suprimentos', cols: [{ k: 'item', rot: 'Item', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ST_SIS }] },
+  /* D-62 · onda 2 das propostas (listas com captura simulada até as integrações; PREMISSA: campos a validar com cada coordenação) */
+  { id: 'sms.eventos', coord: 'GEPLAT', rot: 'Segurança de processo · eventos das 24 h', cols: [{ k: 'evento', rot: 'Evento', tipo: 'texto' }, { k: 'tier', rot: 'Classificação (API RP 754)', tipo: 'opcao', opcoes: TIERS }, { k: 'sistema', rot: 'Sistema / TAG', tipo: 'texto' }, { k: 'hora', rot: 'Hora', tipo: 'texto' }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Em tratamento', 'Investigação aberta', 'Encerrado'] }] },
+  { id: 'sms.inibicoes', coord: 'GEPLAT', rot: 'Inibições e bypass de funções de segurança ativos', cols: [{ k: 'funcao', rot: 'Função de segurança', tipo: 'texto' }, { k: 'tag', rot: 'TAG', tipo: 'texto' }, { k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['Inibição', 'Bypass'] }, { k: 'desde', rot: 'Desde', tipo: 'data' }, { k: 'responsavel', rot: 'Responsável', tipo: 'texto' }, { k: 'motivo', rot: 'Motivo / medida compensatória', tipo: 'texto' }, { k: 'previsao', rot: 'Previsão de retirada', tipo: 'data' }] },
+  { id: 'man.criticas', coord: 'COMAN', rot: 'Itens de segurança crítica · preventivas e testes (SIS, F&G, dilúvio, ESD)', cols: [{ k: 'item', rot: 'Item', tipo: 'texto' }, { k: 'tag', rot: 'TAG', tipo: 'texto' }, { k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['Preventiva', 'Teste de SIS', 'Teste de F&G', 'Teste de dilúvio', 'Teste de ESD', 'Inspeção'] }, { k: 'vencimento', rot: 'Vencimento', tipo: 'data' }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Programada', 'Executada', 'Adiada'] }] },
+  { id: 'man.pecas', coord: 'COMAN', rot: 'Peças críticas em falta (travam ordem de manutenção)', cols: [{ k: 'peca', rot: 'Peça / material', tipo: 'texto' }, { k: 'equipamento', rot: 'Equipamento', tipo: 'texto' }, { k: 'om', rot: 'OM', tipo: 'texto' }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Em falta', 'Em trânsito', 'Recebida'] }, { k: 'previsao', rot: 'Previsão de chegada', tipo: 'data' }, { k: 'impacto', rot: 'Impacto', tipo: 'texto' }] },
+  { id: 'insp.integridade', coord: 'COEMB', rot: 'Inspeções de integridade (tanques, casco, amarração, turret)', cols: [{ k: 'item', rot: 'Item', tipo: 'texto' }, { k: 'tipo', rot: 'Inspeção', tipo: 'texto' }, { k: 'ultima', rot: 'Última', tipo: 'data' }, { k: 'proxima', rot: 'Próxima / vencimento', tipo: 'data' }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Programada', 'Executada', 'Adiada'] }] },
 ];
 /* Equipamentos e Sistemas · PFCEO (Painel de Funções Críticas para Eficiência Operacional, 02_Glossario).
    Dimensões de status do Portal: Disponibilidade, Condição e Situação. Editado na aba PFCEO da curadoria. */
@@ -459,6 +468,34 @@ function temposBlocos(E) {
   const medidos = linhas.filter(l => l.segundos != null);
   return { linhas, medidos: medidos.length, total: medidos.reduce((a, l) => a + l.segundos, 0), estouro: medidos.reduce((a, l) => a + l.estouro, 0), previsto: linhas.reduce((a, l) => a + l.timebox, 0) };
 }
+/* D-62 · onda 2 · segurança de processo, barreiras e vencimentos (PREMISSAS de regra, ver 40_Pendencias D-62a) */
+const diasAte = (iso, hoje) => iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? diffDias(iso, hoje) : null;   // >0 futuro · <0 passado
+function inibicoesDe(E, hoje) {
+  const L1 = CFG.limiares.inibicaoDias || { at: 1, nok: 3 };
+  return L(E, 'sms.inibicoes').map(i => { const d = diasAte(i.desde, hoje), dias = d == null ? null : -d; return { ...i, dias, sem: dias == null ? 'sd' : dias >= L1.nok ? 'nok' : dias >= L1.at ? 'at' : 'ok' }; }).sort((a, b) => (b.dias ?? -1) - (a.dias ?? -1));
+}
+/* vencimento de itens com data: vencida (< hoje e não executada), vence em 7 dias, programada */
+function situacaoVenc(dataIso, situacao, hoje, janela = 7) {
+  if (situacao === 'Executada') return { k: 'ok', rot: 'Executada', dias: null };
+  const d = diasAte(dataIso, hoje); if (d == null) return { k: 'sd', rot: 'Sem data', dias: null };
+  if (d < 0) return { k: 'nok', rot: `Vencida há ${-d} d`, dias: d };
+  if (d <= janela) return { k: 'at', rot: d === 0 ? 'Vence hoje' : `Vence em ${d} d`, dias: d };
+  return { k: 'ok', rot: `Em ${d} d`, dias: d };
+}
+const ORD_VENC = { nok: 0, at: 1, sd: 2, ok: 3 };
+function criticasDe(E, hoje) { return L(E, 'man.criticas').map(i => ({ ...i, v: situacaoVenc(i.vencimento, i.situacao, hoje) })).sort((a, b) => ORD_VENC[a.v.k] - ORD_VENC[b.v.k] || (a.v.dias ?? 999) - (b.v.dias ?? 999)); }
+function inspecoesDe(E, hoje) { return L(E, 'insp.integridade').map(i => ({ ...i, v: situacaoVenc(i.proxima, i.situacao, hoje, CFG.limiares.inspecaoJanelaDias || 30) })).sort((a, b) => ORD_VENC[a.v.k] - ORD_VENC[b.v.k] || (a.v.dias ?? 999) - (b.v.dias ?? 999)); }
+function pecasDe(E) { const o = { 'Em falta': 0, 'Em trânsito': 1, 'Recebida': 2 }; return L(E, 'man.pecas').slice().sort((a, b) => (o[a.situacao] ?? 3) - (o[b.situacao] ?? 3) || String(a.previsao || '9').localeCompare(String(b.previsao || '9'))); }
+/* D-62 (proposta 14): teste de vazão vencido = dias desde o último teste acima da periodicidade da UEP (CFG.testeVazaoDias) */
+function testeVencido(p, hoje) { const per = CFG.testeVazaoDias || 90; if (p.tipo !== 'produtor') return null; const d = diasAte(p.ultimo_teste, hoje); const dias = d == null ? null : -d; return { dias, per, vencido: dias != null && dias > per, semTeste: dias == null }; }
+/* resumo para a abertura (proposta 1): eventos Tier 1/2 e demandas a sistemas de segurança nas 24 h, inibições ativas, críticos vencidos */
+function segurancaProcesso(E, hoje) {
+  const ev = L(E, 'sms.eventos'), t12 = ev.filter(e => /^Tier [12]/.test(e.tier || '')), t3 = ev.filter(e => /^Tier 3/.test(e.tier || '')), t4 = ev.filter(e => /^Tier 4/.test(e.tier || ''));
+  const inib = inibicoesDe(E, hoje), crit = criticasDe(E, hoje), venc = crit.filter(c => c.v.k === 'nok'), v7 = crit.filter(c => c.v.k === 'at');
+  const piorInib = inib.length ? ['nok', 'at', 'ok', 'sd'].find(x => inib.some(i => i.sem === x)) : 'ok';
+  const sem = t12.length || venc.length || piorInib === 'nok' ? 'nok' : t3.length || t4.length || inib.length || v7.length ? 'at' : (E.listas['sms.eventos'] || E.listas['sms.inibicoes'] || E.listas['man.criticas']) ? 'ok' : 'sd';
+  return { eventos: ev, t12, t3, t4, inib, maisAntiga: inib[0] || null, piorInib, crit, venc, v7, sem };
+}
 /* D-61 (proposta 26): taxa de demandas do Canal Base x Bordo fechadas no prazo, no mês da REDIA, por coordenação e sentido.
    Conta as demandas registradas no mês já decididas (encerradas ou vencidas); no prazo = encerrada até a data do prazo. */
 function taxaPrazo(E, iso) {
@@ -516,7 +553,7 @@ function montarExemplo(iso) {
   lst('pocos', [
     { poco: 'BUZ-095', tipo: 'produtor', status: 'reaberto', trem: 'A', ultimo_teste: dt(41) }, { poco: 'BUZ-130', tipo: 'produtor', status: 'fechado', trem: 'Teste', ultimo_teste: dt(64) },
     { poco: 'BUZ-061', tipo: 'produtor', status: 'aberto', trem: 'A', ultimo_teste: dt(20) }, { poco: 'BUZ-074', tipo: 'produtor', status: 'aberto', trem: 'A', ultimo_teste: dt(35) },
-    { poco: 'BUZ-088', tipo: 'produtor', status: 'aberto', trem: 'B', ultimo_teste: dt(12) }, { poco: 'BUZ-112', tipo: 'produtor', status: 'aberto', trem: 'B', ultimo_teste: dt(58) },
+    { poco: 'BUZ-088', tipo: 'produtor', status: 'aberto', trem: 'B', ultimo_teste: dt(12) }, { poco: 'BUZ-112', tipo: 'produtor', status: 'aberto', trem: 'B', ultimo_teste: dt(95) },
     { poco: 'BUZ-047', tipo: 'inj_agua', status: 'aberto' }, { poco: 'BUZ-053', tipo: 'inj_agua', status: 'aberto' }, { poco: 'BUZ-119', tipo: 'inj_agua', status: 'aberto' },
     { poco: 'BUZ-068', tipo: 'inj_gas', status: 'aberto' }, { poco: 'BUZ-102', tipo: 'inj_gas', status: 'aberto' },
   ], 'M', 'Fonte a definir (I-25)');
@@ -617,6 +654,32 @@ function montarExemplo(iso) {
     pf('Geração principal', 'TG-A/B/C/D', '4×33%', 4, 4, 'Disponível', 'Normal', 'Ligado', 'TG-B em stand-by'),
   ], 'A', fontePf);
   lst('legais', [{ item: 'Pendências legais', status: 'A preencher' }, { item: 'Suprimentos críticos', status: 'A preencher' }], 'M', 'COMAN');
+  /* D-62 · onda 2: segurança de processo, inibições, críticos de segurança, peças em falta e inspeções de integridade (exemplo; captura simulada) */
+  lst('sms.eventos', [
+    { evento: 'Abertura de PSV do vaso de teste por sobrepressão', tier: 'Tier 3 · demanda a sistema de segurança', sistema: 'PSV-1223001', hora: '22:40', situacao: 'Em tratamento' },
+    { evento: 'Atuação do F&G por detector em falha (alarme falso)', tier: 'Tier 4 · barreira degradada', sistema: 'F&G M-10', hora: '03:15', situacao: 'Encerrado' },
+  ], 'A', 'Passagem 06:00 · Téc. segurança');
+  lst('sms.inibicoes', [
+    { funcao: 'Detector de gás', tag: 'GD-5243012', tipo: 'Inibição', desde: addDias(iso, -4), responsavel: 'SUEIN', motivo: 'Detector em falha · NM aberta · ronda a cada 2 h', previsao: addDias(iso, 2) },
+    { funcao: 'Intertravamento de nível alto do vaso de teste', tag: 'LSHH-1223007', tipo: 'Bypass', desde: addDias(iso, -1), responsavel: 'SUPROD', motivo: 'Teste de vazão com nível elevado · operador no painel', previsao: iso },
+  ], 'A', 'Passagem 06:00 · Téc. segurança');
+  lst('man.criticas', [
+    { item: 'Teste de dilúvio do M-12', tag: 'DV-M12', tipo: 'Teste de dilúvio', vencimento: addDias(iso, -3), situacao: 'Programada' },
+    { item: 'Preventiva da bomba de incêndio B', tag: 'P-5411002B', tipo: 'Preventiva', vencimento: addDias(iso, 5), situacao: 'Programada' },
+    { item: 'Teste de ESD nível 2', tag: 'ESD-2', tipo: 'Teste de ESD', vencimento: addDias(iso, 20), situacao: 'Programada' },
+    { item: 'Teste dos detectores de gás do M-10', tag: 'GD-M10', tipo: 'Teste de F&G', vencimento: addDias(iso, -1), situacao: 'Executada' },
+  ], 'A', 'SAP PM');
+  lst('man.pecas', [
+    { peca: 'Contator e disjuntor do AC-5252003A', equipamento: 'AC-5252003A', om: '[OM]', situacao: 'Em trânsito', previsao: addDias(iso, 3), impacto: 'Habitabilidade do M22' },
+    { peca: 'Kit de vedação da UD-5122501C', equipamento: 'UD-5122501C', om: '[OM]', situacao: 'Em falta', previsao: '', impacto: 'Dessalinização sem reserva' },
+    { peca: 'Mangotes da filling station de proa', equipamento: 'Filling station de proa', om: '[OM]', situacao: 'Em falta', previsao: addDias(iso, 9), impacto: 'Abastecimento de água e diesel só pela popa' },
+  ], 'A', 'SAP MM');
+  lst('insp.integridade', [
+    { item: 'Amarração · linha C-02', tipo: 'Inspeção de tensão com ROV', ultima: addDias(iso, -200), proxima: addDias(iso, -5), situacao: 'Programada' },
+    { item: 'TQ-5C', tipo: 'Inspeção interna', ultima: addDias(iso, -1), proxima: addDias(iso, 1825), situacao: 'Executada' },
+    { item: 'Casco · tanque de lastro 3S', tipo: 'Inspeção visual interna', ultima: addDias(iso, -60), proxima: addDias(iso, 20), situacao: 'Programada' },
+    { item: 'Turret · swivel', tipo: 'Inspeção de classe', ultima: addDias(iso, -100), proxima: addDias(iso, 80), situacao: 'Programada' },
+  ], 'A', 'Plano de inspeção · COEMB');
 
   const srv = (coord, titulo, detalhe, origem, abertura, ordem) => regs.push(mk('servico', { coord, titulo, detalhe, origem, abertura, ordem, exemplo: true }));
   srv('COPROD', 'Partida da Injection A', 'Compressão de injeção · PT [nº] · [horário]', 'PT', true, 1);
