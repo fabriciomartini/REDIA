@@ -12,15 +12,19 @@ function cardTatico(E, iso) {
   const t = iugaTatico(E, iso), m3 = v => v != null ? fmtU(v, 0, 'm³') : 'Sem dado', m3d = v => v != null ? fmtU(v, 0, 'm³/d') : 'Sem dado';
   if (!t.modo) return `<div class="card col">${hd('Reserva tática')}<span class="sec">Faltam meta, acumulados ou projeção de produção para o cálculo.</span></div>`;
   const base = `<span class="cap">Produção do mês projetada ${m3(t.PtotT)} (${esc(t.fonteProj)}: ${m3d(t.prodDia)}) · IUGA do mês ${fmtN(t.iugaMes, 2)}% · meta ${fmtN(t.meta, 2)}% + margem ${fmtN(t.margem, 2)} p.p.</span>`;
+  const mn = manobrasDe(E, iso);   // D-63 (proposta 11)
+  const manobras = mn.itens.length ? `<div class="row-sb mt6"><span class="gh">Manobras previstas × reserva tática</span>${pill(mn.cabe === null ? 'sd' : mn.cabe ? 'ok' : 'nok', mn.cabe === null ? 'Sem reserva calculada' : mn.cabe ? `Cabem · saldo ${fmtN(mn.saldo / 1000)} mil m³` : mn.modo === 'recuperar' ? 'Sem reserva · meta abaixo' : `Não cabem · faltam ${fmtN(-mn.saldo / 1000)} mil m³`)}</div>
+    <span class="cap">${mn.itens.slice(0, 3).map(m => `${T(m.manobra)}${m.data ? ' (' + ddmm(m.data) + ')' : ''} <b class="k">${fmtN(+m.queima)}</b>`).join(' · ')}${mn.itens.length > 3 ? ` · +${mn.itens.length - 3}` : ''} <span class="n">mil m³ · soma <b class="k">${fmtN(mn.total / 1000)} mil m³</b></span></span>` : '';
   if (t.modo === 'reserva') return `<div class="card col tatc">${hd('Reserva tática · IUGA do mês ≥ ' + fmtN(t.metaT, 2) + '%', pill(t.tatica > 0 ? 'ok' : 'at', t.tatica > 0 ? 'Com reserva' : 'Esgotada'))}
     <div class="row-sb"><span class="nw"><b class="big b44">${t.tatica > 0 ? fmtN(t.tatica) : '0'}</b><span class="unit">m³ até o fim do mês</span></span><span class="nw"><b class="big b28">${t.taticaDia > 0 ? fmtN(t.taticaDia) : '0'}</b><span class="unit u16">m³/d</span></span></div>
-    <span class="cap">Volume que ainda pode ser queimado <b class="k">além do ritmo atual</b> (manobras com queima inevitável) fechando o mês com IUGA ≥ ${fmtN(t.metaT, 2)}%. = (IUGA do mês − meta − margem) × produção projetada.</span>${base}</div>`;
+    <span class="cap">Volume que ainda pode ser queimado <b class="k">além do ritmo atual</b> (manobras com queima inevitável) fechando o mês com IUGA ≥ ${fmtN(t.metaT, 2)}%. = (IUGA do mês − meta − margem) × produção projetada.</span>${manobras}${base}</div>`;
   const rows = t.origens.slice(0, 4).map(o => `<div class="li"><span>${glyph('at', 14)} ${T(o.causa)}</span><span class="v">${fmtN(o.m3d)}${NBSP}m³/d${o.cobre != null ? ` <span class="sec n">· ${fmtN(o.cobre, 0)}% da redução</span>` : ''}</span></div>`).join('');
   return `<div class="card col tatc rec">${hd('Recuperação do IUGA · meta ' + fmtN(t.meta, 2) + '%', pill(t.alcancavel ? 'at' : 'nok', t.alcancavel ? 'Recuperável' : 'Meta inalcançável no mês'))}
     <div class="row-sb"><span class="nw"><span class="cap">Queima máxima por dia</span> <b class="big b44">${t.alcancavel ? fmtN(t.maxDia) : '0'}</b><span class="unit">m³/d</span></span><span class="nw"><span class="cap">IUGA diário ≥</span> <b class="big b28">${t.alcancavel ? fmtN(t.iugaDiaNec, 2) : '—'}</b><span class="unit u16">%</span></span></div>
     <span class="cap">${t.alcancavel ? `Nos ${t.restantes} dias restantes. Hoje: ${m3d(t.queimaDia)} (${esc(t.fonteQueima)}) → reduzir ${m3d(t.reducao)}.` : `Mesmo sem queima até o fim do mês, o IUGA fecha em ${fmtN(t.iugaMaxPossivel, 2)}%. Reduzir a queima ainda melhora o resultado do ${esc(CFG.ativo)} e de ${esc(CFG.campo)}.`}</span>
-    <span class="gh mt6">Origens evitáveis a trabalhar · maiores primeiro</span>${rows || '<div class="li n0"><span class="sec">Nenhuma causa evitável registrada na queima projetada</span></div>'}${base}</div>`;
+    <span class="gh mt6">Origens evitáveis a trabalhar · maiores primeiro</span>${rows || '<div class="li n0"><span class="sec">Nenhuma causa evitável registrada na queima projetada</span></div>'}${manobras}${base}</div>`;
 }
+const COR_SIS = { 'Planta de processo': '#ED8B00', 'Poços e subsea': '#008542', 'Escoamento / offloading': '#00B2A9', 'Restrição externa / mercado': '#75787B', 'Manutenção programada': '#FDC82F', 'Utilidades': '#9a9c9e', 'Outros': '#c4c6c8' };   // D-63 (proposta 8)
 const TIT_DET = { pfceo: 'Equipamentos e Sistemas – PFCEO', servicos: 'Serviços e Canal Base x Bordo', pocos: 'Poços · últimas 24 h', utilidades: 'Utilidades · estoque × mínimo', integridade: 'Inspeções de integridade', criticos: 'Críticos de segurança e peças em falta' };
 const PROX_NOME = { 2: 'COEMB', 3: 'COMAN', 4: 'Fechamento' };
 const topicoValido = (b, t) => !!(TOPICOS[b] || []).find(x => x[0] === t);
@@ -125,28 +129,33 @@ const DETALHES = {
 
   /* ---------- COPROD ---------- */
   'indicadores:COPROD'(E, ctx) {
-    const r = reservaQueima(E, ctx.dia);
+    const r = reservaQueima(E, ctx.dia), def = deferimentoDe(E), defTot = def.reduce((a, d) => a + d.volume, 0), vd = E.listas['oleo.deferimento'], cota = VN(E, 'queima.campo_cota'), cAcum = VN(E, 'queima.campo_acum');   // D-63 (propostas 8 e 6)
     const urs = VN(E, 'agua.urs') || 0, pr = VN(E, 'agua.prod_reinj') || 0, tot = urs + pr, pct = x => tot ? fmtN(x / tot * 100, 1) + '%' : '—';
     const flare = (n, v) => v === 'Aberto' ? chip('Aberto', 'reaberto', n) : chip(v || 'Sem dado', null, n);
     return `<main class="m3 det" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
       <div class="colg">
         <div class="card">${hd('Indicadores · meta × realizado × projetado')}<div class="tbl big2">${linhasIndicadoresCoprod(E)}</div></div>
-        <div class="card col fill">${hd('IUGA · contexto do campo')}
-          ${li('P-83 · D-1', VN(E, 'iuga.real') != null ? fmtN(VN(E, 'iuga.real'), 2) + '%' : 'Sem dado')}${li('P-83 · parcial do mês', r.iugaMes != null ? fmtN(r.iugaMes, 2) + '%' : 'Sem dado')}
-          ${li(esc(CFG.ativo), VN(E, 'iuga.atp') != null ? fmtN(VN(E, 'iuga.atp'), 2) + '%' : 'Sem dado', 1)}${li(esc(CFG.campo), VN(E, 'iuga.buzios') != null ? fmtN(VN(E, 'iuga.buzios'), 2) + '%' : 'Sem dado', 1)}
-          ${li('Meta de IUGA da P-83', VN(E, 'iuga.meta') != null ? fmtN(VN(E, 'iuga.meta'), 2) + '%' : 'Sem dado')}
-          <span class="cap mt-auto">A cota de queima é do campo inteiro: a P-83 é lida junto com o ${esc(CFG.ativo)} e ${esc(CFG.campo)}.</span></div>
+        <div class="card col">${hd('Deferimento de produção D-1 · por causa e sistema', `<span class="cap nw">${vd ? tag(vd.origem) + ' ' + esc(vd.fonte || '') : ''} · total <b class="k">${fmtN(defTot)}</b> m³/d</span>`)}
+          <div class="bars">${def.slice(0, 4).map(d => `<span>${T(d.causa)} <span class="sec n">· ${esc(d.sistema || '—')}</span></span><div class="track"><div style="width:${defTot ? d.volume / defTot * 100 : 0}%;background:${COR_SIS[d.sistema] || '#75787B'}"></div></div><b>${fmtN(d.volume)}</b>`).join('') || '<span class="sec">Nenhum deferimento registrado para D-1</span>'}</div>
+          ${E.def?.dias ? `<div class="row-sb mt6"><span class="gh">Pareto do mês por sistema · ${E.def.dias} dia${E.def.dias === 1 ? '' : 's'}</span><span class="cap"><b class="k">${fmtN(E.def.total)}</b> m³ no mês</span></div>
+          <div class="bar b16">${E.def.porSistema.map(x => `<div style="width:${E.def.total ? x.v / E.def.total * 100 : 0}%;background:${COR_SIS[x.k] || '#75787B'}" title="${esc(x.k)}: ${fmtN(x.v)} m³"></div>`).join('')}</div>
+          <span class="cap lg2">${E.def.porSistema.slice(0, 4).map(x => `<span><i style="background:${COR_SIS[x.k] || '#75787B'}"></i>${esc(x.k)} ${fmtN(E.def.total ? x.v / E.def.total * 100 : 0, 0)}%</span>`).join('')}</span>` : '<span class="cap">Sem deferimento registrado nas REDIAs anteriores do mês</span>'}</div>
       </div>
       <div class="colg">
         <div class="card col">${hd('Equipamentos · status')}
           ${EQUIP.map(e => `<span class="gh">${esc(e.rot)}</span><div class="cps">${chipsEq(E, e.id)}</div>`).join('')}
           <span class="gh">Modo do flare</span><div class="cps">${flare('HP', V(E, 'flare.hp'))}${flare('LP', V(E, 'flare.lp'))}</div>
           <span class="mt4">${legendaEq()}</span></div>
-        <div class="card col fill">${hd('Composição da água injetada', V(E, 'agua.ref') ? tag(V(E, 'agua.ref')) : '')}
+        <div class="card col">${hd('Composição da água injetada', V(E, 'agua.ref') ? tag(V(E, 'agua.ref')) : '')}
           <div class="bar b16"><div style="width:${tot ? urs / tot * 100 : 0}%;background:#00B2A9"></div><div style="width:${tot ? pr / tot * 100 : 0}%;min-width:${pr ? 4 : 0}px;background:#75787B"></div></div>
           <div class="comp"><span class="lg"><i style="background:#00B2A9"></i>Dessulfatada (URS)</span><b>${fmtU(urs, 0, 'm³')}</b><span class="sec">${pct(urs)}</span>
             <span class="lg"><i style="background:#75787B"></i>Produzida reinjetada</span><b>${fmtU(pr, 0, 'm³')}</b><span class="sec">${pct(pr)}</span></div>
           ${li('Produzida descartada no mar', fmtU(VN(E, 'agua.prod_desc'), 0, 'm³'))}</div>
+        <div class="card col fill">${hd('IUGA e queima · contexto do ativo e do campo')}
+          ${li(`P-83 · parcial do mês <span class="sec n">· meta ${VN(E, 'iuga.meta') != null ? fmtN(VN(E, 'iuga.meta'), 2) + '%' : '—'}</span>`, r.iugaMes != null ? fmtN(r.iugaMes, 2) + '%' : 'Sem dado')}
+          ${li(esc(CFG.ativo) + ' · IUGA', VN(E, 'iuga.atp') != null ? fmtN(VN(E, 'iuga.atp'), 2) + '%' : 'Sem dado', 1)}${li(esc(CFG.campo) + ' · IUGA', VN(E, 'iuga.buzios') != null ? fmtN(VN(E, 'iuga.buzios'), 2) + '%' : 'Sem dado', 1)}
+          ${cota != null ? `<div class="li"><span>Cota de queima de ${esc(CFG.campo)} no mês</span><span class="v">${fmtN(cAcum)} <span class="sec n">de ${fmtN(cota)} m³ · ${cAcum != null ? fmtN(cAcum / cota * 100, 0) + '%' : '—'}</span></span></div><div class="bar b16"><div style="width:${cAcum != null ? Math.min(100, cAcum / cota * 100) : 0}%;background:${cAcum != null && cAcum / cota > 0.9 ? '#DA291C' : '#75787B'}"></div></div>${li('Reserva do campo', cAcum != null ? fmtU(cota - cAcum, 0, 'm³') : 'Sem dado')}` : li(`Cota de queima de ${esc(CFG.campo)}`, 'Sem dado', 1)}
+          <span class="cap mt-auto">A cota de queima é do campo inteiro: a P-83 é lida junto com o ${esc(CFG.ativo)} e ${esc(CFG.campo)}. Dados do ativo (I-04).</span></div>
       </div></main>`;
   },
   'queima:COPROD'(E, ctx) {
@@ -161,6 +170,7 @@ const DETALHES = {
         <div class="card col">${hd('Queima projetada D · por causa e classe', `<span class="cap nw">hoje: rotina ${fmtN(hojeCl('Rotina'))} · extraordinária ${fmtN(hojeCl('Extraordinária'))} Mm³/d</span>`)}
           <div class="bars">${causas.map(c => `<span>${T(c.causa)} <span class="sec n">· ${esc(classeQueima(c))}${c.evitavel === 'sim' ? ' · evitável' : ''}</span></span><div class="track"><div style="width:${(+c.valor || 0) / totQ * 100}%;background:${classeQueima(c) === 'Extraordinária' ? '#ED8B00' : '#75787B'}"></div></div><b>${fmtN(c.valor)}</b>`).join('') || '<span class="sec">Sem causas registradas</span>'}</div>
           <span class="cap lg2"><span><i style="background:#ED8B00"></i>Extraordinária · emergência, parada de compressor, teste acima do previsto</span><span><i style="background:#75787B"></i>Rotina · purga, piloto, gás de assistência</span><span>Mm³/d</span></span>
+          ${E.custo?.itens.length ? `<div class="row-sb mt6"><span class="gh">Gás queimado por equipamento indisponível · mês</span><span class="cap"><b class="k">${fmtN(E.custo.total)}</b> m³</span></div><div class="cps">${E.custo.itens.slice(0, 4).map(x => `<span class="w" title="${esc(x.eq)}: ${fmtN(x.m3)} m³ em ${x.dias} dia${x.dias === 1 ? '' : 's'}"><span class="q">${T(x.eq)}</span>${fmtN(x.m3 / 1000)} mil m³ · ${x.dias} d</span>`).join('')}</div>` : ''}
           ${cl.dias ? `<div class="qcl"><div class="row-sb"><span class="gh">No mês · ${cl.dias} dia${cl.dias === 1 ? '' : 's'} (inclui a projeção de hoje)</span><span class="cap"><b class="k">Rotina ${fmtN(cl.Rotina)}</b> m³ (${totCl ? fmtN(cl.Rotina / totCl * 100, 0) : '—'}%) · <b class="k">Extraordinária ${fmtN(cl['Extraordinária'])}</b> m³ (${totCl ? fmtN(cl['Extraordinária'] / totCl * 100, 0) : '—'}%)</span></div><div class="bar b16"><div style="width:${totCl ? cl.Rotina / totCl * 100 : 0}%;background:#75787B"></div><div style="width:${totCl ? cl['Extraordinária'] / totCl * 100 : 0}%;background:#ED8B00"></div></div></div>` : '<span class="cap">Sem classe registrada nas REDIAs anteriores do mês</span>'}</div>
       </div>
       <div class="colg">
@@ -184,7 +194,7 @@ const DETALHES = {
   },
   'pocos:COPROD'(E, ctx) {
     const prod = pocos(E, 'produtor'), prox = V(E, 'teste.proximo'), pProx = prod.find(p => p.poco === prox);
-    const linhaPoco = p => `<div class="li pw">${chip(p.poco, p.status)}<span class="s">${p.ultimo_teste ? `último teste ${ddmm(p.ultimo_teste)} · ${diasDesde(p.ultimo_teste, ctx.dia)} d` : 'sem teste registrado'}</span></div>`;
+    const linhaPoco = p => { const d = pocoDesvio(p), tv = testeVencido(p, ctx.dia); return `<div class="li pw">${chipPoco(p, ctx.dia)}<span class="s">${d ? `<b class="${d.abaixo ? 'k' : ''}">${fmtN(d.vz)}</b>/${fmtN(d.pot)} m³/d` : 'sem potencial'} · ${p.ultimo_teste ? `teste ${ddmm(p.ultimo_teste)} · ${diasDesde(p.ultimo_teste, ctx.dia)} d${tv?.vencido ? ' ⚠' : ''}` : 'sem teste'}</span></div>`; };
     const trem = ([k, nome, max]) => { const ps = prod.filter(p => p.trem === k); return `<div class="trem"><div class="row-sb"><b class="f24">${nome}</b><span class="cap">${ps.length}/${max}</span></div>${ps.map(linhaPoco).join('')}${Array.from({ length: Math.max(0, max - ps.length) }, () => '<div class="li pw vz"><span class="sec">livre</span></div>').join('')}</div>`; };
     const cil = L(E, 'cilindros'), tipoNome = { gas: 'Amostra de gás pressurizado', pvt: 'PVT · petróleo pressurizado' };
     const blocoCil = t => {
@@ -197,7 +207,7 @@ const DETALHES = {
     };
     return `<main class="m3 det" style="grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)">
       <div class="colg">
-        <div class="card col">${hd('Produtores por trem', '<span class="cap">Trem A até 5 · Trem B até 5 · teste 1</span>')}
+        <div class="card col">${hd('Produtores por trem', `<span class="cap nw">vazão D-1 / potencial · abaixo do potencial: <b class="k">${prod.filter(p => pocoDesvio(p)?.abaixo && p.status !== 'fechado').length}</b> · perda ${fmtN(prod.filter(p => p.status !== 'fechado').reduce((a, p) => a + (pocoDesvio(p)?.perda || 0), 0))} m³/d</span>`)}
           <div class="trens">${TRENS.map(trem).join('')}</div>
           ${prod.some(p => !p.trem) ? `<div class="li"><span>Sem trem</span><span class="cps">${prod.filter(p => !p.trem).map(p => chip(p.poco, p.status)).join('')}</span></div>` : ''}
           ${legendaPocos()}</div>
@@ -217,18 +227,27 @@ const DETALHES = {
 
   /* ---------- COEMB ---------- */
   'indicadores:COEMB'(E) {
+    const jm = janelaMeteo(E), es = estabilidade(E);   // D-63 (propostas 16 e 19)
     const est = VN(E, 'off.estoque'), cap = VN(E, 'off.capacidade'), p = est && cap ? est / cap * 100 : 0;
     const ate = VN(E, 'off.ate_top'), prod = VN(E, 'off.prod24'), dias = ate != null && prod ? ate / prod : null;
     const top = String(V(E, 'off.top') || '').split(' ');
-    return `<main class="m3 det" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)">
+    return `<main class="m3 det" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">
       <div class="card col">${hd('Tancagem e offloading', V(E, 'off.navio_ok') === 'Sim' ? pill('ok', 'Navio confirmado') : pill('at', 'Navio não confirmado'), 'navio')}
         <div class="nw"><span class="big b64">${fmtN(est)}</span><span class="unit">m³ em estoque</span></div>
         <div class="track t20"><div style="width:${p}%;background:#008542"></div></div>
         <span class="cap">${p ? fmtN(p, 0) + '% da capacidade de ' + fmtN(cap) + NBSP + 'm³' : 'Capacidade sem dado'}</span>
         <div class="dtiles dt-in">${tile('Até o TOP', fmtN(ate), 'm³')}${tile('Produção 24 h', fmtN(prod), 'm³')}${tile('Previsão de TOP', esc(top[0] || '—'), esc(top[1] || ''), '', dias != null ? `≈ ${fmtN(dias, 1)} dias no ritmo atual` : '')}</div></div>
+      <div class="colg">
       <div class="card col">${hd('Navio e qualidade')}
         ${li('Navio aliviador', T(V(E, 'off.navio') || 'Sem dado'))}${li('Navio confirmado', esc(V(E, 'off.navio_ok') || 'Sem dado'))}${li('Qualidade do estoque', T(V(E, 'off.qualidade') || 'Sem dado'))}${li('Estações de offloading', T(V(E, 'off.estacoes') || 'Sem dado'))}
-        <span class="cap mt-auto">Fonte: SITOP (offloading) e curadoria da COEMB.</span></div>
+        <span class="cap">Fonte: SITOP (offloading) e curadoria da COEMB.</span></div>
+      <div class="card col">${hd('Janela meteo-oceanográfica do offloading', pill(jm.sem, jm.rot))}
+        <div class="dtiles dt-in">${tile('Hs', jm.hs.v != null ? fmtN(jm.hs.v, 1) : '—', 'm', jm.hs.sem || '', jm.hs.lim != null ? `limite ${fmtN(jm.hs.lim, 1)} m` : '')}${tile('Vento', jm.vento.v != null ? fmtN(jm.vento.v, 0) : '—', 'nós', jm.vento.sem || '', jm.vento.lim != null ? `limite ${fmtN(jm.vento.lim, 0)} nós` : '')}${tile('Corrente', jm.corrente.v != null ? fmtN(jm.corrente.v, 1) : '—', 'nós', jm.corrente.sem || '', jm.corrente.lim != null ? `limite ${fmtN(jm.corrente.lim, 1)} nós` : '')}</div>
+        ${jm.tendencia ? li('Tendência 24–48 h', T(jm.tendencia)) : ''}<span class="cap">Limites de conexão do offloading na Configuração da UEP (PREMISSA). Previsão: fonte a confirmar (I-58).</span></div>
+      <div class="card col fill">${hd('Lastro e estabilidade', pill(es.sem, es.sem === 'nok' ? 'Fora do limite' : es.sem === 'at' ? 'Perto do limite' : es.sem === 'ok' ? 'Dentro dos limites' : 'Sem dado'))}
+        <div class="dtiles dt-in">${tile('Calado vante / ré', es.cv != null || es.cr != null ? `${fmtN(es.cv, 1)} / ${fmtN(es.cr, 1)}` : '—', 'm', es.s.calado || '', es.lim.caladoMax != null ? `máx. ${fmtN(es.lim.caladoMax, 1)} m` : '')}${tile('Trim', es.trim != null ? (es.trim > 0 ? '+' : '') + fmtN(es.trim, 2) : '—', 'm', es.s.trim || '', es.lim.trim != null ? `limite ±${fmtN(es.lim.trim, 1)} m` : '')}${tile('Banda', es.banda != null ? (es.banda > 0 ? '+' : '') + fmtN(es.banda, 1) : '—', '°', es.s.banda || '', es.lim.banda != null ? `limite ±${fmtN(es.lim.banda, 1)}°` : '')}</div>
+        <span class="cap mt-auto">Trim positivo = pela popa; banda positiva = boreste. Limites na Configuração (PREMISSA); sistema de lastro a confirmar.</span></div>
+      </div>
     </main>`;
   },
   'utilidades:COEMB'(E) {
@@ -252,8 +271,13 @@ const DETALHES = {
       <div class="card col">${hd('Indicadores de manutenção', V(E, 'man.ref') ? tag(V(E, 'man.ref')) : '')}
         <div class="dtiles dt-in">${ind.map(i => { const mt = metaManutencao(i), s = Regras.manutencao(+i.valor, mt), d = mt != null ? +i.valor - mt : null; return tile(T(i.ind), fmtN(i.valor, i.valor % 1 ? 1 : 0), '%', s, mt != null ? `meta ${fmtN(mt, mt % 1 ? 1 : 0)}%${i.meta === '' || i.meta == null ? ' (UEP)' : ''} · ${d >= 0 ? '+' : '−'}${fmtN(Math.abs(d), 1)} p.p.` : 'meta não definida na Configuração'); }).join('')}</div>
         <span class="cap mt-auto">Atenção até ${CFG.limiares.manutencaoFaixaAtencao} p.p. abaixo da meta. Metas da linha de base da ${esc(CFG.uep)} na Configuração da UEP (D-61); fonte dos indicadores a definir (I-06).</span></div>
-      <div class="card col">${hd('Segurança operacional')}
+      <div class="colg">
+      <div class="card col">${hd('Plano de manutenção · semana e backlog', E.valores['man.aderencia'] ? tag(E.valores['man.aderencia'].origem === 'A' ? E.valores['man.aderencia'].fonte || 'SAP PM' : 'M') : '')}
+        <div class="dtiles dt-in">${tile('Aderência ao plano', VN(E, 'man.aderencia') != null ? fmtN(VN(E, 'man.aderencia'), 0) : '—', '%', VN(E, 'man.aderencia') == null ? '' : VN(E, 'man.aderencia') >= 90 ? 'ok' : VN(E, 'man.aderencia') >= 80 ? 'at' : 'nok', 'ordens programadas executadas')}${tile('Backlog', VN(E, 'man.backlog') != null ? fmtN(VN(E, 'man.backlog'), 1) : '—', 'sem.-equipe', '', 'total')}${tile('Backlog crítico', VN(E, 'man.backlog_critico') != null ? fmtN(VN(E, 'man.backlog_critico'), 1) : '—', 'sem.-equipe', VN(E, 'man.backlog_critico') == null ? '' : VN(E, 'man.backlog_critico') > 2 ? 'nok' : VN(E, 'man.backlog_critico') > 1 ? 'at' : 'ok', 'itens críticos')}</div>
+        <span class="cap">Aderência ≥ 90% OK, ≥ 80% Atenção; backlog crítico ≤ 1 semana-equipe OK, ≤ 2 Atenção (PREMISSA, D-63a). Fonte: SAP PM (I-06).</span></div>
+      <div class="card col fill">${hd('Segurança operacional')}
         <div class="nums"><span><b class="big b52">${fmtN(VN(E, 'man.notas_if6'))}</b><span class="cap">notas IF6/6 abertas</span></span><span><b class="big b52">${fmtN(VN(E, 'man.sensores'))}</b><span class="cap">sensores em falha</span></span></div></div>
+      </div>
     </main>`;
   },
   'geracao:COMAN'(E) {

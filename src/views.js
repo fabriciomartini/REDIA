@@ -7,6 +7,7 @@ function atualizarEstado() {
   E = construirEstado(Store.registros(DIA), Store.demandas(), DIA);
   const regs = x => Store.registros(x);
   E.mes = acumuladoMes(DIA, regs); E.tend = tendencias(DIA, regs); E.classes = acumuladoClasses(DIA, regs);   // D-43, D-61
+  E.tend30 = tendencias(DIA, regs, 30); E.rec = recorrencias(DIA, regs); E.def = acumuladoDeferimento(DIA, regs); E.custo = custoIndisponibilidade(DIA, regs);   // D-63
   return E;
 }
 function congelada() { return !!E?.congelamento; }
@@ -18,7 +19,7 @@ function fase() {
   return { id: 'congelar', nome: 'Hora de congelar', desc: `desde ${h.congelamento}` };
 }
 function snapshotDe(E) {
-  const s = JSON.parse(JSON.stringify({ valores: E.valores, listas: E.listas, sugestoes: E.sugestoes, servicos: E.servicos, itens: E.itens, demandas: E.demandas, selecoes: E.selecoes, mes: E.mes, tend: E.tend, classes: E.classes }));
+  const s = JSON.parse(JSON.stringify({ valores: E.valores, listas: E.listas, sugestoes: E.sugestoes, servicos: E.servicos, itens: E.itens, demandas: E.demandas, selecoes: E.selecoes, mes: E.mes, tend: E.tend, classes: E.classes, tend30: E.tend30, rec: E.rec, def: E.def, custo: E.custo }));
   return s;
 }
 function estadoApresentacao(bloco) {
@@ -35,7 +36,7 @@ function cabecalhoApp(rota) {
   return `<header class="apph">
     <div><span class="kick">REDIA ${esc(CFG.uep)} · ${esc(APP.versao)}</span><div class="tit">${esc(rota.titulo)}</div><span class="dash"></span></div>
     ${E && USUARIO && notificacoesAbertas(E, USUARIO.coord).length ? `<a class="ntf" href="#/curadoria/${USUARIO.coord}" title="Notificação do GEPLAT">Concluir ${esc(USUARIO.coord)}</a>` : ''}
-    <nav aria-label="Seções">${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/config', 'Configuração', rota.id === 'config')}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
+    <nav aria-label="Seções">${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/historico', 'Histórico', rota.id === 'historico')}${item('#/config', 'Configuração', rota.id === 'config')}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
     <span class="armz">${textoArmaz()}</span>
     <div class="egp-sp"></div>
     <svg class="egp" width="420" height="80" viewBox="0 0 420 80" preserveAspectRatio="none" aria-hidden="true"><path d="M90 -20 L460 -20 L460 120 L64 120 L48 76 Q44 64 48 54 Z" fill="#008542"/><path d="M40 -20 L22 50 Q19 62 24 72 L40 120" fill="none" stroke="#FDC82F" stroke-width="3"/></svg>
@@ -54,6 +55,8 @@ const ROTAS = [
   { re: /^#\/inicio$/, id: 'inicio', titulo: 'Início', fn: telaInicio },
   { re: /^#\/curadoria\/(GEPLAT|COPROD|COEMB|COMAN)(?:\/([\w-]+))?$/, id: 'curadoria', titulo: 'Curadoria', fn: telaCuradoria },
   { re: /^#\/apresentacao\/([1-5])$/, id: 'apresentacao', titulo: 'Apresentação', fn: telaApresentacao },
+  { re: /^#\/apresentacao\/(semana)$/, id: 'apresentacao', titulo: 'Apresentação · visão semanal', fn: telaApresentacao },   // D-63 (proposta 28)
+  { re: /^#\/historico$/, id: 'historico', titulo: 'Histórico', fn: telaHistorico },   // D-63 (proposta 30)
   { re: /^#\/apresentacao\/([2-4])\/(\w+)$/, id: 'apresentacao', titulo: 'Apresentação · detalhe', fn: telaApresentacao },
   { re: /^#\/ata$/, id: 'ata', titulo: 'Fechamento e ata', fn: telaAta },
   { re: /^#\/config$/, id: 'config', titulo: 'Configuração', fn: telaConfig },
@@ -467,7 +470,7 @@ function abaSugestoes(coord) {
   const filaHtml = grupos.map(([h, t, sub]) => {
     const it = lista.filter(s => s.payload.passagem === h);
     return `<div class="lh">${t}<span>${sub}</span></div>` + (it.map(s => `<button type="button" class="it${sel && s.id === sel.id ? ' on' : ''}" data-sel="${s.id}">
-      <span class="m">${prio(s.payload.prioridade)}<span>${esc(s.payload.origem || '')}</span>${s.payload.abertoDias ? `<span class="chip ne">Aberto há ${s.payload.abertoDias} dias</span>` : ''}${estado(s)}</span>
+      <span class="m">${prio(s.payload.prioridade)}<span>${esc(s.payload.origem || '')}</span>${s.payload.abertoDias ? `<span class="chip ne">Aberto há ${s.payload.abertoDias} dias</span>` : ''}${recorrenteDe(E, s.payload.tag) ? `<span class="chip rec" title="${esc(recorrenteDe(E, s.payload.tag).rot)} em ${recorrenteDe(E, s.payload.tag).n} REDIAs nos últimos ${(CFG.recorrencia || {}).dias || 30} dias">Recorrente ×${recorrenteDe(E, s.payload.tag).n}</span>` : ''}${estado(s)}</span>
       <span class="t">${esc(s.decisao?.payload.titulo || s.payload.titulo)}</span><span class="m">${esc(s.payload.tag || '')}${(E.comentarios[s.id] || []).length ? ` · ${E.comentarios[s.id].length} comentário(s) da base` : ''}</span></button>`).join('') || '<div class="it" style="cursor:default"><span class="note">Nenhum item nesta passagem.</span></div>');
   }).join('');
   const fila = `<section class="fila" aria-label="Fila de sugestões"><div class="row" style="padding:14px 16px 10px;justify-content:space-between"><b style="font-size:17px">Fila</b><span class="note">duas passagens · por urgência</span></div>${filaHtml}
@@ -972,15 +975,17 @@ function registrarTempoBloco() {
   registrar('reuniao', payload).then(() => { atualizarEstado(); }).catch(e => aviso('Tempo do bloco não registrado: ' + e.message, 'erro'));
 }
 function telaApresentacao(m) {
-  const P = UI.pres, b = +m[1];
-  if (P.bloco !== b || P.restante === null) { if (P.bloco !== b) registrarTempoBloco(); P.bloco = b; P.restante = CFG.timeboxMin * 60; P.rodando = P.rodando && P.restante > 0; if (P.rodando) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } }
+  const P = UI.pres, semana = m[1] === 'semana', b = semana ? P.bloco || 1 : +m[1];
+  if (!semana && (P.bloco !== b || P.restante === null)) { if (P.bloco !== b) registrarTempoBloco(); P.bloco = b; P.restante = CFG.timeboxMin * 60; P.rodando = P.rodando && P.restante > 0; if (P.rodando) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } }
+  if (P.restante === null) P.restante = CFG.timeboxMin * 60;
   const ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(P.restante) };
-  const top = m[2] && topicoValido(b, m[2]) ? m[2] : null;
-  const tela = top ? telaDetalhe(estadoApresentacao(b), ctx, b, top) : TELAS[b - 1](estadoApresentacao(b), ctx);
+  const top = !semana && m[2] && topicoValido(b, m[2]) ? m[2] : null;
+  const diaSem = parseData(DIA).getDay() === (CFG.diaVisaoSemanal ?? 5);
+  const tela = semana ? telaSemana(E, ctx) : top ? telaDetalhe(estadoApresentacao(b), ctx, b, top) : TELAS[b - 1](estadoApresentacao(b), ctx);
   render(`<div class="pres" role="region" aria-label="Apresentação da REDIA"><div class="stw"><div class="stage">${tela}</div></div></div>
     <div class="ctrl" id="ctrl"><a class="btn sm" href="#/apresentacao/${Math.max(1, b - 1)}" aria-label="Bloco anterior">◀</a>
     ${[1, 2, 3, 4, 5].map(i => `<a class="btn sm${i === b ? ' on' : ''}" href="#/apresentacao/${i}">${i}</a>`).join('')}
-    <a class="btn sm" href="#/apresentacao/${Math.min(5, b + 1)}" aria-label="Próximo bloco">▶</a>
+    <a class="btn sm" href="#/apresentacao/${Math.min(5, b + 1)}" aria-label="Próximo bloco">▶</a><a class="btn sm${semana ? ' on' : ''}${diaSem && !semana ? ' hoje' : ''}" href="#/apresentacao/semana" title="Visão semanal: tendências de 7 e 30 dias, ações vencidas e recorrências${diaSem ? ' · hoje é o dia da visão semanal' : ''}">Semana${diaSem ? ' ●' : ''}</a>
     <button class="btn sm" data-act="tmr">${P.rodando ? 'Pausar' : 'Iniciar'} cronômetro</button><button class="btn sm" data-act="zera">Zerar</button>
     <button class="btn sm" data-act="tela">Tela cheia</button><a class="btn sm" href="#/inicio">Sair</a>
     <span class="cl">← → blocos · espaço cronômetro · F tela cheia</span></div>`);
@@ -1148,6 +1153,37 @@ function telaImprimir() {
   setTimeout(() => { window.print(); }, 300);
 }
 
+/* ======================= Histórico pesquisável (D-63, proposta 30) ======================= */
+const TIPO_NOME = { sugestao: 'Sugestão (passagem)', item: 'Item da coordenação', demanda: 'Demanda · Canal Base x Bordo', servico: 'Serviço do dia', reuniao: 'Reunião', decisao: 'Decisão da curadoria', valor: 'Dado', lista: 'Lista' };
+function textoRegistro(r) {
+  const p = r.payload || {};
+  if (r.tipo === 'valor') return `${CAMPO[p.campo]?.rot || p.campo}: ${p.valor}`;
+  if (r.tipo === 'lista') return `${LISTA[p.campo]?.rot || p.campo} · ${(p.itens || []).length} linha(s)`;
+  if (r.tipo === 'reuniao') return `${{ decisao: 'Decisão', aprendizado: 'Aprendizado', tempo: 'Tempo do bloco' }[p.tipo] || p.tipo}: ${p.texto || (p.bloco ? 'bloco ' + p.bloco : '')}`;
+  if (r.tipo === 'decisao') return `${{ aprovar: 'Aprovada', recusar: 'Recusada', adiar: 'Adiada', mesclar: 'Mesclada', reabrir: 'Reaberta' }[p.acao] || p.acao}: ${p.titulo || p.motivo || ''}`;
+  return p.titulo || p.texto || '';
+}
+function telaHistorico() {
+  const q = UI.histQ || '', res = UI.histRes || null;
+  render(cabecalhoApp({ id: 'historico', titulo: 'Histórico pesquisável' }) + `<div class="wrap">
+    <section class="pn"><h2>Buscar nas REDIAs anteriores</h2>
+      <p class="note">Procura por TAG, poço, equipamento ou tema em todas as REDIAs da ${esc(CFG.uep)} ${Store.remoto() ? 'gravadas na base' : 'guardadas neste navegador (demonstração)'}: sugestões, destaques, demandas, serviços, decisões e dados. Mais recentes primeiro; até 200 resultados.</p>
+      <div class="row"><input id="hs-q" class="in" style="flex:1;max-width:520px" placeholder="ex.: FGRU A, BUZ-112, eletrocloradora" value="${esc(q)}" autocomplete="off"><button class="btn pri" data-act="buscar">Buscar</button></div>
+      ${res ? `<p class="note" style="margin-top:10px">${res.length} resultado${res.length === 1 ? '' : 's'} para “${esc(q)}”${res.length >= 200 ? ' (limite; refine a busca)' : ''}.</p>
+      <div class="tbw"><table class="tb"><thead><tr><th>REDIA</th><th>Tipo</th><th>Coordenação</th><th>Conteúdo</th><th>Por</th><th></th></tr></thead><tbody>
+      ${res.map(r => `<tr><td class="nw">${ddmmaaaa(r.data)}</td><td class="nw">${esc(TIPO_NOME[r.tipo] || r.tipo)}</td><td>${esc(r.payload.coord || CAMPO[r.payload.campo]?.coord || LISTA[r.payload.campo]?.coord || '—')}</td><td><b>${esc(textoRegistro(r))}</b>${r.payload.tag ? `<br><span class="note">${esc(r.payload.tag)}</span>` : ''}${r.payload.textoOriginal ? `<br><span class="note">${esc(String(r.payload.textoOriginal).slice(0, 160))}</span>` : ''}</td><td class="note nw">${esc(r.autor?.nome || '')}</td><td class="nw">${r.data !== DIA ? `<button class="btn sm sec" data-dia="${r.data}">Abrir REDIA</button>` : '<span class="note">hoje</span>'}</td></tr>`).join('') || '<tr><td colspan="6" class="note">Nada encontrado.</td></tr>'}
+      </tbody></table></div>` : ''}
+    </section></div>`);
+  const buscar = async () => {
+    const t = $('#hs-q').value.trim(); if (t.length < 2) return aviso('Digite ao menos 2 caracteres.', 'erro');
+    UI.histQ = t; const b = $('[data-act="buscar"]'); b.disabled = true;
+    try { UI.histRes = await Store.buscar(t, 200); } catch (e) { aviso('Não foi possível buscar: ' + e.message, 'erro'); UI.histRes = []; }
+    rerender();
+  };
+  $('[data-act="buscar"]').onclick = buscar; $('#hs-q').onkeydown = e => { if (e.key === 'Enter') buscar(); };
+  $$('[data-dia]').forEach(b => b.onclick = async () => { await abrirDia(b.dataset.dia); location.hash = '#/inicio'; });
+}
+
 /* ======================= Configuração ======================= */
 function telaConfig() {
   const C = CFG, L = C.limiares;
@@ -1162,6 +1198,8 @@ function telaConfig() {
         <div><label class="lbl" for="c-modo">Modo</label><select id="c-modo" class="in"><option value="operacao" selected>Operação</option><option value="preoperacao" disabled>Pré-operação (próxima versão)</option></select></div></div>
         <h3>Horários</h3><div class="fgrid">${Object.entries({ preenchimento: 'Fim do preenchimento', congelamento: 'Congelamento', inicio: 'Início da REDIA', fim: 'Fim da REDIA' }).map(([k, r]) => `<div><label class="lbl" for="h-${k}">${r}</label><input id="h-${k}" type="time" class="in" value="${C.horarios[k]}"></div>`).join('')}</div>
         <h3>Pauta</h3><div class="fgrid">${num('c-tb', 'Tempo por bloco (min)', C.timeboxMin, 1)}${num('c-dq', 'Destaques por bloco', C.destaquesPorBloco, 1)}${num('c-am', 'Atividades na abertura (máx.)', C.atividadesMax, 1)}${num('c-ar', 'Atividades recomendadas', C.atividadesRecomendado, 1)}</div>
+        <h3>Limites do offloading e estabilidade (D-63)</h3><div class="fgrid">${num('c-hs', 'Offloading · Hs máxima (m)', C.limitesOffloading?.hs ?? '')}${num('c-vt', 'Offloading · vento máximo (nós)', C.limitesOffloading?.vento ?? '')}${num('c-cr', 'Offloading · corrente máxima (nós)', C.limitesOffloading?.corrente ?? '')}${num('c-tr', 'Estabilidade · trim máximo (± m)', C.limitesEstabilidade?.trim ?? '')}${num('c-bd', 'Estabilidade · banda máxima (± °)', C.limitesEstabilidade?.banda ?? '')}${num('c-cm', 'Estabilidade · calado máximo (m)', C.limitesEstabilidade?.caladoMax ?? '')}</div>
+        <h3>Poços, recorrência e visão semanal (D-63)</h3><div class="fgrid">${num('c-pd', 'Poço abaixo do potencial a partir de (% abaixo)', C.pocoDesvioPct, 1)}${num('c-rv', 'Recorrente a partir de (REDIAs)', C.recorrencia?.vezes ?? 3, 1)}${num('c-rd', 'Recorrência · janela (dias)', C.recorrencia?.dias ?? 30, 1)}<div><label class="lbl" for="c-ds">Dia da visão semanal</label><select id="c-ds" class="in">${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${d === (C.diaVisaoSemanal ?? 5) ? 'selected' : ''}>${DIAS[d]}</option>`).join('')}</select></div></div>
         <h3>Vencimentos (D-62)</h3><div class="fgrid">${num('c-tv', 'Teste de vazão · periodicidade por poço (dias)', C.testeVazaoDias, 1)}${num('l-ib-at', 'Inibição/bypass · Atenção a partir de (dias)', L.inibicaoDias?.at ?? 1, 1)}${num('l-ib-nok', 'Inibição/bypass · Não OK a partir de (dias)', L.inibicaoDias?.nok ?? 3, 1)}${num('l-ins', 'Inspeção de integridade · atenção se vence em (dias)', L.inspecaoJanelaDias ?? 30, 1)}</div></section>
       <section class="pn"><h2>Semáforos v0</h2><div class="fgrid">
         ${num('l-ef-ok', 'EFOP · OK a partir de (%)', L.efop.ok)}${num('l-ef-at', 'EFOP · Atenção a partir de (%)', L.efop.at)}
@@ -1189,6 +1227,9 @@ function telaConfig() {
     CFG.horarios.preRedia = CFG.horarios.preenchimento;
     CFG.timeboxMin = n('c-tb'); CFG.destaquesPorBloco = n('c-dq'); CFG.atividadesMax = n('c-am'); CFG.atividadesRecomendado = n('c-ar');
     Object.assign(CFG.limiares.efop, { ok: n('l-ef-ok'), at: n('l-ef-at') }); Object.assign(CFG.limiares.injecao, { ok: n('l-in-ok'), at: n('l-in-at') });
+    const nn = id => { const v = $('#' + id).value; return v === '' ? null : +v; };
+    CFG.limitesOffloading = { hs: nn('c-hs'), vento: nn('c-vt'), corrente: nn('c-cr') }; CFG.limitesEstabilidade = { trim: nn('c-tr'), banda: nn('c-bd'), caladoMax: nn('c-cm') };
+    CFG.pocoDesvioPct = n('c-pd'); CFG.recorrencia = { vezes: n('c-rv'), dias: n('c-rd') }; CFG.diaVisaoSemanal = +$('#c-ds').value;
     CFG.testeVazaoDias = n('c-tv'); CFG.limiares.inibicaoDias = { at: n('l-ib-at'), nok: n('l-ib-nok') }; CFG.limiares.inspecaoJanelaDias = n('l-ins');
     CFG.limiares.iugaFaixaAtencao = n('l-iu'); CFG.limiares.manutencaoFaixaAtencao = n('l-ma'); CFG.limiares.utilidades.ok = n('l-ut-ok'); CFG.limiares.utilidades.diasAtencao = n('l-ut-d');
     for (const d of [0, 1, 2, 3, 4, 5, 6]) CFG.pautaExtra[d] = $('#pe-' + d).value.trim();

@@ -194,8 +194,9 @@ language sql volatile security definer set search_path = public as $$
   update public.perfis set trocar_senha = false where user_id = auth.uid()
 $$;
 
--- Registros do dia + demandas + valores e listas dos dias anteriores usados nos acumulados do mês (D-43)
--- e nas tendências de 7 dias (D-61): só os campos pedidos em p_campos_mes, do início do mês ou de D-7 (o que vier antes).
+-- Registros do dia + demandas + valores e listas dos dias anteriores usados nos acumulados do mês (D-43), nas tendências
+-- de 7 e 30 dias (D-61, D-63): só os campos pedidos em p_campos_mes, do início do mês ou de D-30 (o que vier antes);
+-- e as sugestões e itens dos 30 dias anteriores, para a marca de recorrência (D-63).
 create or replace function public.redia_carregar(p_uep text, p_data date, p_campos_mes text[] default '{}') returns jsonb
 language sql stable security invoker set search_path = public as $$
   select jsonb_build_object(
@@ -205,9 +206,27 @@ language sql stable security invoker set search_path = public as $$
       where r.uep = p_uep and (
             (r.escopo = 'dia' and r.data = p_data)
          or  r.escopo = 'demandas'
-         or (r.escopo = 'dia' and r.tipo in ('valor', 'lista') and r.data >= least(date_trunc('month', p_data)::date, p_data - 7) and r.data < p_data
-             and r.payload ->> 'campo' = any (p_campos_mes)))), '[]'::jsonb),
+         or (r.escopo = 'dia' and r.tipo in ('valor', 'lista') and r.data >= least(date_trunc('month', p_data)::date, p_data - 30) and r.data < p_data
+             and r.payload ->> 'campo' = any (p_campos_mes))
+         or (r.escopo = 'dia' and r.tipo in ('sugestao', 'item') and r.data >= p_data - 30 and r.data < p_data))), '[]'::jsonb),
     'seq', coalesce((select max(seq) from public.registros where uep = p_uep), 0))
+$$;
+
+-- D-63 (proposta 30): histórico pesquisável · busca por TAG, poço ou tema em todas as REDIAs anteriores da UEP.
+-- Procura o texto nos registros de conteúdo (sugestões, itens, demandas, serviços, decisões da reunião e valores de texto),
+-- mais recentes primeiro, até p_limite (máx. 300). Só leitura, com as mesmas políticas de acesso (RLS por UEP).
+create or replace function public.redia_buscar(p_uep text, p_texto text, p_limite integer default 100) returns jsonb
+language sql stable security invoker set search_path = public as $$
+  select coalesce((
+    select jsonb_agg(public.redia_json(x) order by x.data desc, x.seq desc)
+    from (
+      select r.* from public.registros r
+      where r.uep = p_uep and length(trim(p_texto)) >= 2
+        and r.tipo in ('sugestao', 'item', 'demanda', 'servico', 'reuniao', 'decisao', 'valor', 'lista')
+        and r.payload::text ilike '%' || replace(replace(trim(p_texto), '%', '\%'), '_', '\_') || '%'
+      order by r.data desc, r.seq desc
+      limit greatest(1, least(coalesce(p_limite, 100), 300))
+    ) x), '[]'::jsonb)
 $$;
 
 -- Registros gravados depois de um número de sequência (sincronização incremental).
@@ -340,13 +359,13 @@ revoke execute on function
   public.redia_registros_antes_inserir(), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
-  public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text)
+  public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer)
   from public, anon, authenticated;
 grant execute on function
   public.redia_uep_atual(), public.redia_json(public.registros), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
-  public.redia_pedidos_senha(text)
+  public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer)
   to authenticated;
 
 -- ---------------------------------------------------------------------

@@ -1,5 +1,23 @@
 # Histórico de versões
 
+## 1.9.0 · D-63 (2026-10-17) · onda 3 das propostas de boas práticas
+
+Fecha as 30 propostas aprovadas. Campos novos com captura simulada (BDO/SITOP, SAP PM, dados do ativo, meteo-oceanografia); regras e limites são PREMISSA, configuráveis por UEP.
+
+- **Deferimento de produção por causa e sistema (8):** lista D-1 (causa, sistema de uma lista fechada, volume) e **Pareto do mês por sistema** no detalhe de Indicadores da COPROD.
+- **Indicadores do ativo e do campo (6):** IUGA do ATP-BUZ e de Búzios, **cota de queima do campo** no mês, acumulado e reserva do campo (detalhe de Indicadores da COPROD; valores na abertura quando capturados).
+- **Potencial por poço (9):** colunas potencial e vazão estimada D-1 na lista de poços; poço abaixo do potencial (mais de 10% abaixo, configurável) ganha marca própria na abertura e no card de poços; detalhe de poços mostra vazão/potencial e a perda total.
+- **Manobras previstas × reserva tática (11):** lista de manobras com queima estimada; o card de reserva tática informa se cabem na reserva e o saldo.
+- **Custo da indisponibilidade (15):** coluna "equipamento" nas causas de queima; gás queimado por equipamento indisponível somado no mês (detalhe da queima).
+- **Janela meteo-oceanográfica (16):** Hs, vento, corrente e tendência × limites do offloading; semáforo no card de offloading da abertura, linha "Mar · estabilidade" na COEMB e cards no detalhe.
+- **Lastro e estabilidade (19):** calados, trim e banda × limites (detalhe da COEMB e linha no card).
+- **Aderência ao plano e backlog (20):** aderência da semana, backlog total e crítico (card e detalhe de Indicadores da COMAN).
+- **Visão semanal (28):** tela própria (`#/apresentacao/semana`, botão "Semana" nos controles, marcada no dia configurado): tendências de 7 e 30 dias, ações vencidas e no prazo, itens a escalar e recorrências. Não entra na ata diária.
+- **Recorrência automática (29):** mesma TAG (sugestões/itens), causa evitável ou equipamento da queima em 3 REDIAs nos últimos 30 dias (configurável) ganha o selo "Recorrente ×N" na fila da curadoria, nos destaques e na abertura; lista na visão semanal.
+- **Histórico pesquisável (30):** tela **Histórico** no menu: busca por TAG, poço ou tema em todas as REDIAs anteriores (função `redia_buscar` na base; no modo demonstração, o que está no navegador), com "Abrir REDIA".
+- Base: `redia_carregar` passa a trazer valores/listas dos 30 dias anteriores e as sugestões/itens de 30 dias (recorrência); nova função `redia_buscar`. **Reaplicar `supabase/00_instalar_tudo.sql`.**
+- Configuração: limites do offloading e da estabilidade, desvio de potencial por poço, recorrência (vezes e janela) e dia da visão semanal.
+
 ## 1.8.0 · D-62 (2026-10-17) · onda 2 das propostas de boas práticas
 
 Listas novas com **captura simulada** (passagem de serviço, SAP PM/MM e plano de inspeção) até as integrações; campos e regras são PREMISSA a validar com cada coordenação.

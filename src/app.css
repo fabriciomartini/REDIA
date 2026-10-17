@@ -716,3 +716,16 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .stage .tbl.insp{grid-template-columns:minmax(0,1.2fr) minmax(0,1.3fr) auto auto auto;column-gap:22px}
 .stage .tbl.crit{grid-template-columns:minmax(0,1.6fr) minmax(0,.9fr) auto auto;column-gap:22px}
 .stage .o.insp{font-size:16px;padding:4px 8px}.stage .o.insp.nok{background:rgba(218,41,28,.12)}.stage .o.insp.at{background:rgba(253,200,47,.35)}
+/* ---- D-63 · onda 3 ---- */
+.stage .w.wpd{box-shadow:inset 0 0 0 2px var(--laranja)}
+.stage .w.tv.wpd{box-shadow:inset 0 0 0 2px var(--amarelo),inset 0 0 0 4px var(--laranja)}
+.stage .o.recr{background:#000;color:#fff;border-radius:999px;padding:4px 10px;font-size:13px;text-transform:uppercase;letter-spacing:.4px}
+.stage .offa .gl .ic{vertical-align:-4px}
+.chip.rec{background:#000;color:#fff;text-transform:uppercase;font-size:11px;letter-spacing:.4px}
+.ctrl .btn.hoje{box-shadow:inset 0 0 0 2px var(--amarelo)}
+.stage .sem-h{display:grid;grid-template-columns:minmax(0,1fr) 170px 300px;gap:14px;padding:4px 0 2px}
+.stage .sem-r{display:grid;grid-template-columns:minmax(0,1fr) 170px 300px;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--claro)}
+.stage .sem-r .spk{margin:0;flex-direction:column;align-items:flex-start;gap:2px}
+.stage .sem-r .spk .spk-t{flex:none;width:100%}
+.stage .sem-r .tiles .tile span,.stage .scr .tiles.sem .tile span{font-size:17px}
+.stage .sem-r .t1{font-size:22px;font-weight:700}

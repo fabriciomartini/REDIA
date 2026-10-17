@@ -18,6 +18,8 @@ const FONTES_CAPTURA = {
   PASSAGEM: { nome: 'Passagem de serviço', desc: 'Status dos equipamentos informado pelo operador do posto', pendencia: 'I-13' },
   SAP: { nome: 'SAP PM/MM', desc: 'Ordens de manutenção, preventivas e materiais', pendencia: 'I-06' },             // D-62
   INTEGRIDADE: { nome: 'Plano de inspeção', desc: 'Plano de inspeção de integridade da embarcação', pendencia: 'I-56' },   // D-62
+  ATIVO: { nome: 'Dados do ativo', desc: 'IUGA e queima do ATP-BUZ e do campo de Búzios', pendencia: 'I-04' },            // D-63
+  METEO: { nome: 'Meteo-oceanografia', desc: 'Previsão de ondas, vento e corrente', pendencia: 'I-58' },                     // D-63
 };
 /* campos que nunca são capturados: correções manuais dos acumulados do mês (D-43) */
 const NAO_CAPTURAR = new Set(['iuga.gas_prod_mes', 'queima.acum_mes', 'iuga.margem']);   // correções manuais e a margem da reserva tática (D-57)
@@ -26,7 +28,9 @@ const LISTAS_BDO = new Set(['queima.eventos']);
 function fonteDoCampo(id) {
   if (id.startsWith('lab.')) return 'EPLAB';
   if (id.startsWith('eq.') || id.startsWith('sms.')) return 'PASSAGEM';   // D-62: eventos de segurança de processo e inibições vêm da passagem de serviço (técnico de segurança)
-  if (id === 'man.criticas' || id === 'man.pecas') return 'SAP';
+  if (id === 'man.criticas' || id === 'man.pecas' || id.startsWith('man.aderencia') || id.startsWith('man.backlog')) return 'SAP';
+  if (id === 'iuga.atp' || id === 'iuga.buzios' || id.startsWith('queima.campo_')) return 'ATIVO';
+  if (id.startsWith('meteo.')) return 'METEO';
   if (id.startsWith('insp.')) return 'INTEGRIDADE';
   if (id.startsWith('pfceo.')) return 'PFCEO';
   if (id.startsWith('servicos.')) return 'APLAT';

@@ -112,6 +112,11 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   await c.reload(); await c.waitForTimeout(1500);
   const tend = await c.evaluate(() => ({ oleo: E.tend['oleo.real'].find(p => p.redia === addDias(DIA, -2))?.valor, ext: E.classes['Extraordinária'], mes: E.mes?.n }));
   ok(tend.oleo === 25000 && tend.ext >= 10000, `tendência de 7 dias e classes de queima recarregadas da base (${JSON.stringify(tend)})`);
+  /* D-63 (proposta 30): histórico pesquisável consulta a base (redia_buscar) */
+  const bus = await c.evaluate(async () => { const r = await Store.buscar('teste', 50); return { n: r.length, tipos: [...new Set(r.map(x => x.tipo))].sort(), ant: r.some(x => x.data < DIA) }; });
+  ok(bus.n >= 2 && bus.ant && bus.tipos.includes('valor'), `histórico: Store.buscar consulta a base e encontra registros de dias anteriores (${JSON.stringify(bus)})`);
+  await c.goto(URL + '#/historico'); await c.waitForTimeout(300); await c.fill('#hs-q', 'teste'); await c.click('[data-act="buscar"]'); await c.waitForTimeout(600);
+  ok(await c.evaluate(() => document.querySelectorAll('.tb tbody tr').length >= 2 && /gravadas na base/.test(document.querySelector('.pn').textContent)), 'tela Histórico lista os resultados vindos da base');
   const { c: c3, p: x } = await novo('sem sessão'); await x.goto(URL + '#/inicio'); await x.waitForTimeout(800);
   ok(await x.$('.login .lg-card') !== null, 'outra janela (sem sessão) pede login');
   await c3.close();

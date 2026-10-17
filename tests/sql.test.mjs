@@ -93,15 +93,20 @@ ok((await gravar(U.cp, [reg('valor', { campo: 'oleo.real', valor: 3 })])).length
 await gravar(U.cp, [reg('valor', { campo: 'gas.prod_d1', valor: 5 }, { data: '2026-10-03' }), reg('valor', { campo: 'oleo.real', valor: 5 }, { data: '2026-10-03' }), reg('valor', { campo: 'gas.prod_d1', valor: 9 }, { data: '2026-09-30' })]);
 const car = (await como(U.cp, `select public.redia_carregar('P-83', '2026-10-14', array['gas.prod_d1']) as r`)).rows[0].r;
 const datas = car.registros.map(r => r.data + ':' + (r.payload.campo || r.tipo));
-ok(datas.includes('2026-10-03:gas.prod_d1') && !datas.includes('2026-10-03:oleo.real') && !datas.includes('2026-09-30:gas.prod_d1') && !datas.some(d => d.startsWith('2026-10-15')), 'carga traz o dia, as demandas e só os campos de acumulado do próprio mês');
+ok(datas.includes('2026-10-03:gas.prod_d1') && !datas.includes('2026-10-03:oleo.real') && datas.includes('2026-09-30:gas.prod_d1') && !datas.some(d => d.startsWith('2026-10-15')), 'carga traz o dia, as demandas e só os campos pedidos dos dias anteriores (mês ou 30 dias), nunca de dias futuros');
 ok(car.seq >= car.registros[car.registros.length - 1].seq, 'carga devolve a sequência para a sincronização incremental');
 const nov = (await como(U.cp, `select public.redia_novos('P-83', $1) as r`, [car.seq - 2])).rows[0].r;
 ok(nov.registros.length === 2 && nov.seq === car.seq, 'redia_novos traz só o que entrou depois da sequência');
 // D-61: tendência de 7 dias atravessa a virada do mês e traz listas (queima.causas) dos dias anteriores
-await gravar(U.cp, [reg('valor', { campo: 'oleo.real', valor: 7 }, { data: '2026-09-28' }), reg('valor', { campo: 'oleo.real', valor: 6 }, { data: '2026-09-23' }), reg('lista', { campo: 'queima.causas', itens: [{ causa: 'x', valor: 1, classe: 'Rotina' }] }, { data: '2026-09-29' })]);
+await gravar(U.cp, [reg('valor', { campo: 'oleo.real', valor: 7 }, { data: '2026-09-28' }), reg('valor', { campo: 'oleo.real', valor: 6 }, { data: '2026-08-25' }), reg('lista', { campo: 'queima.causas', itens: [{ causa: 'x', valor: 1, classe: 'Rotina' }] }, { data: '2026-09-29' }), reg('sugestao', { coord: 'COPROD', titulo: 'FGRU A fora', tag: 'FGRU A' }, { data: '2026-09-20' })]);
 const car2 = (await como(U.cp, `select public.redia_carregar('P-83', '2026-10-01', array['oleo.real', 'queima.causas']) as r`)).rows[0].r;
 const d2 = car2.registros.map(r => r.data + ':' + (r.payload.campo || r.tipo));
-ok(d2.includes('2026-09-28:oleo.real') && d2.includes('2026-09-29:queima.causas') && !d2.includes('2026-09-23:oleo.real'), 'carga traz valores e listas dos 7 dias anteriores mesmo no início do mês (D-61)');
+ok(d2.includes('2026-09-28:oleo.real') && d2.includes('2026-09-29:queima.causas') && !d2.includes('2026-08-25:oleo.real') && d2.includes('2026-09-20:sugestao'), 'carga traz valores, listas e sugestões dos 30 dias anteriores mesmo no início do mês (D-61, D-63)');
+// D-63 (proposta 30): busca no histórico
+const bus = (await como(U.cp, `select public.redia_buscar('P-83', 'fgru a', 50) as r`)).rows[0].r;
+ok(Array.isArray(bus) && bus.some(r => r.tipo === 'sugestao' && r.data === '2026-09-20') && bus.every(r => r.uep === 'P-83'), 'redia_buscar encontra registros antigos por texto (TAG), só da UEP do usuário');
+ok((await como(U.cp, `select public.redia_buscar('P-83', 'f', 50) as r`)).rows[0].r.length === 0, 'redia_buscar ignora texto com menos de 2 caracteres');
+ok((await como(U.outra, `select public.redia_buscar('P-83', 'fgru', 50) as r`)).rows[0].r.length === 0, 'redia_buscar de outra UEP não vê os registros (RLS)');
 
 // configuração
 ok(/SEM_PERMISSAO/.test(await falha(U.cp, `select public.redia_config_salvar('P-83', '{"timeboxMin":6}'::jsonb)`) || ''), 'COPROD não altera a configuração da UEP');

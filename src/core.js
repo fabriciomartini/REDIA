@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.8.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.9.0', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -65,6 +65,11 @@ const CFG_PADRAO = {
     inibicaoDias: { at: 1, nok: 3 },      // D-62: inibição/bypass de função de segurança ativa há ≥ 1 dia = Atenção; ≥ 3 dias = Não OK (PREMISSA)
     inspecaoJanelaDias: 30,               // D-62: inspeção de integridade que vence em até 30 dias fica em Atenção (PREMISSA)
   },
+  limitesOffloading: { hs: 2.5, vento: 25, corrente: 1.0 },       // D-63 (proposta 16): janela de conexão do offloading (PREMISSA; limites operacionais a confirmar)
+  limitesEstabilidade: { trim: 1.0, banda: 1.0, caladoMax: 23 },  // D-63 (proposta 19): trim e banda em módulo; calado máximo (PREMISSA)
+  pocoDesvioPct: 10,                      // D-63 (proposta 9): poço abaixo do potencial quando a vazão fica mais de 10% abaixo (PREMISSA)
+  recorrencia: { vezes: 3, dias: 30 },    // D-63 (proposta 29): item recorrente = mesma TAG/causa em 3 REDIAs em 30 dias
+  diaVisaoSemanal: 5,                     // D-63 (proposta 28): dia da semana da visão semanal (0 = domingo … 5 = sexta)
   testeVazaoDias: 90,                     // D-62 (proposta 14): periodicidade do teste de vazão por poço (PREMISSA; regulação de medição a confirmar)
   pautaExtra: { 1: '[tema de segunda]', 2: '[tema de terça]', 3: '[tema de quarta]', 4: '[tema de quinta]', 5: '[tema de sexta]', 6: '[tema de sábado]', 0: '[tema de domingo]' },
   temasPlataforma: ['Segurança', 'Saúde', 'Habitabilidade', 'Integridade', 'Conformidade', 'Auditorias', 'GDB', 'SL&R'],
@@ -204,6 +209,13 @@ const Store = {
     this.ultimaLeitura = Date.now();
     return n;
   },
+  /* D-63 (proposta 30): histórico pesquisável · na nuvem consulta a base (todas as REDIAs da UEP); na demonstração, o que está no navegador */
+  async buscar(texto, limite = 100) {
+    const t = String(texto || '').trim().toLowerCase(); if (t.length < 2) return [];
+    if (this.modo === 'nuvem') return Nuvem.buscar(CFG.uep, t, limite);
+    const tipos = new Set(['sugestao', 'item', 'demanda', 'servico', 'reuniao', 'decisao', 'valor', 'lista']);
+    return [...this.cache.values()].filter(r => tipos.has(r.tipo) && JSON.stringify(r.payload).toLowerCase().includes(t)).sort((a, b) => String(b.data).localeCompare(String(a.data)) || ordem(b, a)).slice(0, limite);
+  },
   /* reset da demonstração (D-52): apaga todos os registros da UEP (na nuvem, para todos os usuários) */
   async resetar() {
     let n;
@@ -255,7 +267,7 @@ let ULTIMO_CARIMBO = 0;
 function carimbo() { const t = Math.max(Date.now(), ULTIMO_CARIMBO + 1); ULTIMO_CARIMBO = t; return new Date(t).toISOString(); }
 function mesclarCfg(c) {
   const base = JSON.parse(JSON.stringify(CFG_PADRAO)), r = deepMerge(base, c || {});
-  for (const k of ['metasManutencao', 'limitesLab']) if (c && c[k] && typeof c[k] === 'object') r[k] = JSON.parse(JSON.stringify(c[k]));   // D-61: tabelas por UEP substituem o padrão inteiro (remover uma linha vale)
+  for (const k of ['metasManutencao', 'limitesLab', 'limitesOffloading', 'limitesEstabilidade']) if (c && c[k] && typeof c[k] === 'object') r[k] = JSON.parse(JSON.stringify(c[k]));   // D-61: tabelas por UEP substituem o padrão inteiro (remover uma linha vale)
   return r;
 }
 function deepMerge(a, b) { for (const k of Object.keys(b)) { if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object') deepMerge(a[k], b[k]); else a[k] = b[k]; } return a; }

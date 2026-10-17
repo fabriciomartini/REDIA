@@ -32,6 +32,8 @@ const CAMPOS = [
   { id: 'queima.acum_mes', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Queima no mês · correção manual (substitui a soma diária)', tipo: 'num', un: 'm³' },
   { id: 'iuga.margem', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Margem de segurança da reserva tática (p.p. acima da meta; vazio = 0,1)', tipo: 'num', un: 'p.p.', dec: 2 },
   { id: 'iuga.gas_prod_proj', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Gás produzido projetado (dias restantes do mês)', tipo: 'num', un: 'm³/d' },
+  { id: 'queima.campo_cota', coord: 'COPROD', grupo: 'IUGA e queima', rot: `Cota de queima do campo no mês (${'Búzios'})`, tipo: 'num', un: 'm³' },   // D-63 (proposta 6)
+  { id: 'queima.campo_acum', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Queima acumulada do campo no mês', tipo: 'num', un: 'm³' },
   { id: 'queima.ref', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Referência dos eventos de queima', tipo: 'texto' },
   { id: 'flare.hp', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Flare HP agora', tipo: 'opcao', opcoes: ['Fechado', 'Aberto'] },
   { id: 'flare.lp', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Flare LP agora', tipo: 'opcao', opcoes: ['Fechado', 'Aberto'] },
@@ -63,6 +65,20 @@ const CAMPOS = [
   { id: 'man.ref', coord: 'COMAN', grupo: 'Indicadores de manutenção', rot: 'Fonte dos indicadores', tipo: 'texto' },
   { id: 'man.notas_if6', coord: 'COMAN', grupo: 'Indicadores de manutenção', rot: 'Notas IF6/6 abertas', tipo: 'num' },
   { id: 'man.sensores', coord: 'COMAN', grupo: 'Indicadores de manutenção', rot: 'Sensores em falha', tipo: 'num' },
+  // D-63 (proposta 20): aderência ao plano da semana e backlog em semanas-equipe (SAP PM, I-06)
+  { id: 'man.aderencia', coord: 'COMAN', grupo: 'Plano de manutenção', rot: 'Aderência ao plano da semana (ordens programadas executadas)', tipo: 'num', un: '%', dec: 0 },
+  { id: 'man.backlog', coord: 'COMAN', grupo: 'Plano de manutenção', rot: 'Backlog total', tipo: 'num', un: 'semanas-equipe', dec: 1 },
+  { id: 'man.backlog_critico', coord: 'COMAN', grupo: 'Plano de manutenção', rot: 'Backlog de itens críticos', tipo: 'num', un: 'semanas-equipe', dec: 1 },
+  // D-63 (proposta 16): janela meteo-oceanográfica do offloading (fonte a confirmar, I-58)
+  { id: 'meteo.hs', coord: 'COEMB', grupo: 'Janela meteo-oceanográfica', rot: 'Altura significativa de onda (Hs)', tipo: 'num', un: 'm', dec: 1 },
+  { id: 'meteo.vento', coord: 'COEMB', grupo: 'Janela meteo-oceanográfica', rot: 'Vento', tipo: 'num', un: 'nós', dec: 0 },
+  { id: 'meteo.corrente', coord: 'COEMB', grupo: 'Janela meteo-oceanográfica', rot: 'Corrente de superfície', tipo: 'num', un: 'nós', dec: 1 },
+  { id: 'meteo.tendencia', coord: 'COEMB', grupo: 'Janela meteo-oceanográfica', rot: 'Tendência das próximas 24–48 h', tipo: 'texto' },
+  // D-63 (proposta 19): lastro e estabilidade (condição do dia)
+  { id: 'lastro.calado_vante', coord: 'COEMB', grupo: 'Lastro e estabilidade', rot: 'Calado a vante', tipo: 'num', un: 'm', dec: 2 },
+  { id: 'lastro.calado_re', coord: 'COEMB', grupo: 'Lastro e estabilidade', rot: 'Calado a ré', tipo: 'num', un: 'm', dec: 2 },
+  { id: 'lastro.trim', coord: 'COEMB', grupo: 'Lastro e estabilidade', rot: 'Trim (positivo = pela popa)', tipo: 'num', un: 'm', dec: 2 },
+  { id: 'lastro.banda', coord: 'COEMB', grupo: 'Lastro e estabilidade', rot: 'Banda (positiva = boreste)', tipo: 'num', un: '°', dec: 1 },
 ];
 /* Resultados de análises laboratoriais (eplab) · 5 parâmetros por coordenação.
    PREMISSA (D-52): lista inicial para validar com cada coordenação; periodicidade (dias) ajustável.
@@ -140,17 +156,21 @@ const CAMPO = Object.fromEntries(CAMPOS.map(c => [c.id, c]));
 /* ---- campos de lista (substituídos inteiros a cada edição) ---- */
 /* D-62 (proposta 1): classificação dos eventos de segurança de processo (API RP 754). Tier 1/2 = perda de contenção com consequência;
    Tier 3 = demanda a sistema de segurança (PSV, ESD, F&G) ou excursão de limite seguro; Tier 4 = barreira degradada / falha de teste. */
+/* D-63 (proposta 8): sistemas do deferimento de produção (lista fechada, PREMISSA) */
+const SISTEMAS_DEF = ['Planta de processo', 'Poços e subsea', 'Escoamento / offloading', 'Restrição externa / mercado', 'Manutenção programada', 'Utilidades', 'Outros'];
 const TIERS = ['Tier 1', 'Tier 2', 'Tier 3 · demanda a sistema de segurança', 'Tier 4 · barreira degradada'];
 /* D-61 (proposta 10): classe da queima. Rotina = purga, gás de assistência, piloto; Extraordinária = emergência, parada de compressor, teste acima do previsto. */
 const QUEIMA_CLASSES = ['Rotina', 'Extraordinária'];
 const classeQueima = c => c.classe || (c.evitavel === 'sim' ? 'Extraordinária' : 'Rotina');   // sem classe informada: evitável = extraordinária
 const ST_SIS = ['Disponível', 'Operando', 'Limitado', 'Atenção', 'Indisponível', 'Inoperante', 'Sem reserva', 'Em manutenção', 'Stand-by', 'A preencher'];
 const LISTAS = [
-  { id: 'pocos', coord: 'COPROD', rot: 'Poços · últimas 24 h', validar: validarTrens, cols: [{ k: 'poco', rot: 'Poço (BUZ-XXX)', tipo: 'texto' }, { k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['produtor', 'inj_agua', 'inj_gas'], nomes: { produtor: 'Produtor', inj_agua: 'Injetor de água', inj_gas: 'Injetor de gás' } }, { k: 'status', rot: 'Situação nas 24 h', tipo: 'opcao', opcoes: ['aberto', 'reaberto', 'fechado'], nomes: { aberto: 'Aberto 24 h', reaberto: 'Reaberto', fechado: 'Fechado agora' } }, { k: 'trem', rot: 'Trem (produtor)', tipo: 'opcao', opcoes: ['', 'A', 'B', 'Teste'], nomes: { '': '—', A: 'Trem A', B: 'Trem B', Teste: 'Trem de teste' } }, { k: 'ultimo_teste', rot: 'Último teste de vazão', tipo: 'data' }] },
+  { id: 'pocos', coord: 'COPROD', rot: 'Poços · últimas 24 h', validar: validarTrens, cols: [{ k: 'poco', rot: 'Poço (BUZ-XXX)', tipo: 'texto' }, { k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['produtor', 'inj_agua', 'inj_gas'], nomes: { produtor: 'Produtor', inj_agua: 'Injetor de água', inj_gas: 'Injetor de gás' } }, { k: 'status', rot: 'Situação nas 24 h', tipo: 'opcao', opcoes: ['aberto', 'reaberto', 'fechado'], nomes: { aberto: 'Aberto 24 h', reaberto: 'Reaberto', fechado: 'Fechado agora' } }, { k: 'trem', rot: 'Trem (produtor)', tipo: 'opcao', opcoes: ['', 'A', 'B', 'Teste'], nomes: { '': '—', A: 'Trem A', B: 'Trem B', Teste: 'Trem de teste' } }, { k: 'ultimo_teste', rot: 'Último teste de vazão', tipo: 'data' }, { k: 'potencial', rot: 'Potencial (m³/d)', tipo: 'num' }, { k: 'vazao', rot: 'Vazão estimada D-1 (m³/d)', tipo: 'num' }] },   // D-63 (proposta 9): potencial × vazão por poço
   { id: 'pocos.operacoes', coord: 'COPROD', rot: 'Operações em poços (manobras, procedimentos e operações)', cols: [{ k: 'poco', rot: 'Poço (BUZ-XXX)', tipo: 'texto' }, { k: 'operacao', rot: 'Descrição', tipo: 'texto' }, { k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['Operação', 'Manobra', 'Procedimento'] }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Prevista', 'Em curso', 'Realizada'] }, { k: 'data', rot: 'Data (início)', tipo: 'data' }, { k: 'apoio', rot: 'Apoio', tipo: 'opcao', opcoes: ['—', 'Embarcação', 'ROV', 'Embarcação + ROV'] }, { k: 'demandante', rot: 'Demandante', tipo: 'texto' }, { k: 'obs', rot: 'Observação / impacto', tipo: 'texto' }] },
   { id: 'cilindros', coord: 'COPROD', rot: 'Cilindros de amostra a bordo', cols: [{ k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['gas', 'pvt'], nomes: { gas: 'Amostra de gás pressurizado', pvt: 'PVT · petróleo pressurizado' } }, { k: 'serie', rot: 'Nº de série', tipo: 'texto' }, { k: 'chegada', rot: 'Chegada a bordo', tipo: 'data' }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Disponível', 'Coletado'] }] },
   { id: 'queima.eventos', coord: 'COPROD', rot: 'Últimas 24 h · maiores queimas (até 2)', max: 2, cols: [{ k: 'evento', rot: 'Evento', tipo: 'texto' }, { k: 'flare', rot: 'Flare', tipo: 'opcao', opcoes: ['HP', 'LP'] }, { k: 'volume', rot: 'Volume (Mm³)', tipo: 'num', dec: 1 }] },
-  { id: 'queima.causas', coord: 'COPROD', rot: 'Queima projetada D por causa', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'valor', rot: 'Mm³/d', tipo: 'num' }, { k: 'evitavel', rot: 'Evitável', tipo: 'opcao', opcoes: ['sim', 'não'] }, { k: 'classe', rot: 'Classe', tipo: 'opcao', opcoes: QUEIMA_CLASSES }] },
+  { id: 'queima.causas', coord: 'COPROD', rot: 'Queima projetada D por causa', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'valor', rot: 'Mm³/d', tipo: 'num' }, { k: 'evitavel', rot: 'Evitável', tipo: 'opcao', opcoes: ['sim', 'não'] }, { k: 'classe', rot: 'Classe', tipo: 'opcao', opcoes: QUEIMA_CLASSES }, { k: 'equipamento', rot: 'Equipamento indisponível (se houver)', tipo: 'texto' }] },   // D-63 (proposta 15)
+  { id: 'queima.manobras', coord: 'COPROD', rot: 'Manobras previstas com queima estimada', cols: [{ k: 'manobra', rot: 'Manobra', tipo: 'texto' }, { k: 'data', rot: 'Data prevista', tipo: 'data' }, { k: 'queima', rot: 'Queima estimada (Mm³)', tipo: 'num', dec: 1 }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Prevista', 'Realizada', 'Cancelada'] }] },   // D-63 (proposta 11)
+  { id: 'oleo.deferimento', coord: 'COPROD', rot: 'Deferimento de produção D-1 · por causa e sistema', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'sistema', rot: 'Sistema', tipo: 'opcao', opcoes: SISTEMAS_DEF }, { k: 'volume', rot: 'Volume (m³/d)', tipo: 'num' }, { k: 'obs', rot: 'Observação', tipo: 'texto' }] },   // D-63 (proposta 8)
   { id: 'tq.atencao', coord: 'COEMB', rot: 'Tanques em atenção', cols: [{ k: 'tanque', rot: 'Tanque', tipo: 'texto' }, { k: 'nota', rot: 'Situação', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ST_SIS }] },
   { id: 'util', coord: 'COEMB', rot: 'Utilidades · estoque × mínimo', cols: [{ k: 'nome', rot: 'Utilidade', tipo: 'texto' }, { k: 'estoque', rot: 'Estoque (m³)', tipo: 'num' }, { k: 'minimo', rot: 'Mínimo (m³)', tipo: 'num' }, { k: 'consumo', rot: 'Consumo (m³/d)', tipo: 'num' }, { k: 'producao', rot: 'Produção (m³/d)', tipo: 'num' }] },
   { id: 'ger.tgs', coord: 'COMAN', rot: 'Turbogeradores', cols: [{ k: 'tg', rot: 'TG', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ['Operando', 'Stand-by', 'Indisponível', 'Em manutenção'] }, { k: 'linha1', rot: 'Combustível · carga · limitador', tipo: 'texto' }, { k: 'linha2', rot: 'WHRU / observação', tipo: 'texto' }, { k: 'alerta', rot: 'Destacar observação', tipo: 'opcao', opcoes: ['não', 'sim'] }] },
@@ -366,7 +386,7 @@ const CAMPOS_MES = ['gas.prod_d1', 'queima.real_d1'];
 /* D-61 (proposta 4): tendência de 7 dias dos indicadores da abertura, com os registros já gravados nas REDIAs anteriores.
    A REDIA do dia x traz o realizado de x−1: a série vai da REDIA de D-6 à de D (7 pontos = realizados de D-7 a D-1). */
 const CAMPOS_TENDENCIA = ['oleo.real', 'iuga.real', 'gas.real', 'agua.real', 'queima.real_d1'];
-const CAMPOS_HISTORICO = [...new Set([...CAMPOS_MES, ...CAMPOS_TENDENCIA, 'queima.causas'])];   // o que redia_carregar traz dos dias anteriores
+const CAMPOS_HISTORICO = [...new Set([...CAMPOS_MES, ...CAMPOS_TENDENCIA, 'queima.causas', 'oleo.deferimento'])];   // + deferimento (Pareto do mês, D-63)   // o que redia_carregar traz dos dias anteriores
 const TENDENCIA_DIAS = 7;
 function tendencias(iso, regsDoDia, n = TENDENCIA_DIAS) {
   const num = v => (v === null || v === undefined || v === '' || isNaN(+v)) ? null : +v, out = {};
@@ -496,6 +516,71 @@ function segurancaProcesso(E, hoje) {
   const sem = t12.length || venc.length || piorInib === 'nok' ? 'nok' : t3.length || t4.length || inib.length || v7.length ? 'at' : (E.listas['sms.eventos'] || E.listas['sms.inibicoes'] || E.listas['man.criticas']) ? 'ok' : 'sd';
   return { eventos: ev, t12, t3, t4, inib, maisAntiga: inib[0] || null, piorInib, crit, venc, v7, sem };
 }
+/* D-63 · onda 3 (PREMISSAS de regra, ver 40_Pendencias D-63a) */
+/* (8) deferimento D-1 por causa e sistema + Pareto do mês por sistema (soma das listas diárias) */
+function deferimentoDe(E) { return L(E, 'oleo.deferimento').map(d => ({ ...d, volume: +d.volume || 0 })).sort((a, b) => b.volume - a.volume); }
+function acumuladoDeferimento(iso, regsDoDia) {
+  const d = parseData(iso), porSistema = {}, porCausa = {}; let total = 0, dias = 0;
+  for (let x = 1; x <= d.getDate(); x++) {
+    const dia = iso.slice(0, 8) + pad(x); let lista = null;
+    for (const r of regsDoDia(dia)) if (r.tipo === 'lista' && r.payload.campo === 'oleo.deferimento') lista = r.payload.itens;
+    if (!lista) continue; dias++;
+    for (const c of lista) { const v = +c.volume || 0; total += v; porSistema[c.sistema || 'Outros'] = (porSistema[c.sistema || 'Outros'] || 0) + v; porCausa[c.causa || '—'] = (porCausa[c.causa || '—'] || 0) + v; }
+  }
+  const ord = o => Object.entries(o).map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v);
+  return { total, dias, porSistema: ord(porSistema), porCausa: ord(porCausa) };
+}
+/* (16) janela meteo-oceanográfica × limites do offloading (CFG.limitesOffloading) */
+function janelaMeteo(E) {
+  const Lm = CFG.limitesOffloading || {}, par = (id, lim) => { const v = VN(E, id); if (v == null) return { v, sem: 'sd' }; if (lim == null) return { v, sem: null }; return { v, lim, sem: v > lim ? 'nok' : v > lim * 0.85 ? 'at' : 'ok' }; };
+  const hs = par('meteo.hs', Lm.hs), vento = par('meteo.vento', Lm.vento), corrente = par('meteo.corrente', Lm.corrente);
+  const sems = [hs.sem, vento.sem, corrente.sem].filter(Boolean), sem = sems.includes('nok') ? 'nok' : sems.includes('at') ? 'at' : sems.includes('ok') ? 'ok' : 'sd';
+  return { hs, vento, corrente, tendencia: V(E, 'meteo.tendencia') || '', sem, rot: sem === 'nok' ? 'Fora da janela' : sem === 'at' ? 'Perto do limite' : sem === 'ok' ? 'Dentro da janela' : 'Sem dado' };
+}
+/* (19) lastro e estabilidade × limites (CFG.limitesEstabilidade) */
+function estabilidade(E) {
+  const Le = CFG.limitesEstabilidade || {}, cv = VN(E, 'lastro.calado_vante'), cr = VN(E, 'lastro.calado_re'), trim = VN(E, 'lastro.trim') ?? (cv != null && cr != null ? +(cr - cv).toFixed(2) : null), banda = VN(E, 'lastro.banda');
+  const chk = (v, lim) => v == null ? 'sd' : lim == null ? null : Math.abs(v) > lim ? 'nok' : Math.abs(v) > lim * 0.8 ? 'at' : 'ok';
+  const calMax = cv != null || cr != null ? Math.max(cv ?? -Infinity, cr ?? -Infinity) : null;
+  const s = { trim: chk(trim, Le.trim), banda: chk(banda, Le.banda), calado: calMax == null ? 'sd' : Le.caladoMax == null ? null : calMax > Le.caladoMax ? 'nok' : calMax > Le.caladoMax * 0.97 ? 'at' : 'ok' };
+  const sems = Object.values(s).filter(Boolean), sem = sems.includes('nok') ? 'nok' : sems.includes('at') ? 'at' : sems.includes('ok') ? 'ok' : 'sd';
+  return { cv, cr, trim, banda, calMax, s, sem, lim: Le };
+}
+/* (9) poço produtor abaixo do potencial: vazão estimada D-1 < potencial × (1 − CFG.pocoDesvioPct/100) */
+function pocoDesvio(p) { const pot = +p.potencial, vz = +p.vazao; if (p.tipo !== 'produtor' || !(pot > 0) || p.vazao === '' || p.vazao == null || isNaN(vz)) return null; const pct = vz / pot * 100; return { pot, vz, pct, abaixo: pct < 100 - (CFG.pocoDesvioPct || 10), perda: Math.max(0, pot - vz) }; }
+/* (11) manobras previstas × reserva tática */
+function manobrasDe(E, iso) {
+  const t = iugaTatico(E, iso), prev = L(E, 'queima.manobras').filter(m => m.situacao !== 'Cancelada' && m.situacao !== 'Realizada').sort((a, b) => String(a.data || '9').localeCompare(String(b.data || '9')));
+  const total = prev.reduce((a, m) => a + (+m.queima || 0) * 1000, 0);
+  return { itens: prev, total, tatica: t.tatica, modo: t.modo, cabe: t.modo === 'reserva' && t.tatica != null ? total <= t.tatica : t.modo === 'recuperar' ? false : null, saldo: t.tatica != null ? t.tatica - total : null };
+}
+/* (15) custo da indisponibilidade: queima do mês ligada a equipamento indisponível (coluna "equipamento" das causas) */
+function custoIndisponibilidade(iso, regsDoDia) {
+  const d = parseData(iso), por = {}; let total = 0, dias = 0;
+  for (let x = 1; x <= d.getDate(); x++) {
+    const dia = iso.slice(0, 8) + pad(x); let lista = null;
+    for (const r of regsDoDia(dia)) if (r.tipo === 'lista' && r.payload.campo === 'queima.causas') lista = r.payload.itens;
+    if (!lista) continue; dias++;
+    for (const c of lista) { const eq = String(c.equipamento || '').trim(); if (!eq) continue; const v = (+c.valor || 0) * 1000; total += v; (por[eq] ||= { m3: 0, dias: 0 }); por[eq].m3 += v; por[eq].dias++; }
+  }
+  return { total, dias, itens: Object.entries(por).map(([eq, o]) => ({ eq, ...o })).sort((a, b) => b.m3 - a.m3) };
+}
+/* (29) recorrência: mesma TAG (sugestões e itens) ou causa de queima / função do PFCEO com desvio em ≥ N REDIAs nos últimos D dias (CFG.recorrencia) */
+const chaveRec = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+function recorrencias(iso, regsDoDia) {
+  const R = CFG.recorrencia || { vezes: 3, dias: 30 }, mapa = new Map();
+  const marca = (chave, dia, rot) => { if (!chave) return; const m = mapa.get(chave) || { chave, rot, dias: new Set() }; m.dias.add(dia); if (!m.rot) m.rot = rot; mapa.set(chave, m); };
+  for (let k = 0; k < R.dias; k++) {
+    const dia = addDias(iso, -k);
+    for (const r of regsDoDia(dia)) {
+      if (r.tipo === 'sugestao' || r.tipo === 'item') { const t = r.payload.tag; if (t) marca(chaveRec(t), dia, t); }
+      else if (r.tipo === 'lista' && r.payload.campo === 'queima.causas') for (const c of r.payload.itens || []) { if (c.evitavel === 'sim') marca('causa:' + chaveRec(c.causa), dia, c.causa); if (c.equipamento) marca(chaveRec(c.equipamento), dia, c.equipamento); }
+    }
+  }
+  const out = {}; for (const m of mapa.values()) if (m.dias.size >= R.vezes) out[m.chave] = { rot: m.rot, n: m.dias.size, dias: [...m.dias].sort() };
+  return out;
+}
+const recorrenteDe = (E, tag) => E.rec ? E.rec[chaveRec(tag)] || null : null;
 /* D-61 (proposta 26): taxa de demandas do Canal Base x Bordo fechadas no prazo, no mês da REDIA, por coordenação e sentido.
    Conta as demandas registradas no mês já decididas (encerradas ou vencidas); no prazo = encerrada até a data do prazo. */
 function taxaPrazo(E, iso) {
@@ -539,6 +624,8 @@ function montarExemplo(iso) {
   val('sms.dias_incendio', 553); val('sms.recorde_incendio', 652); val('pob.atual', 181); val('pob.max', 190);
   val('oleo.real', 26925, 'A', 'BDO D-1 03:41'); val('oleo.potencial', 26869); val('oleo.proj', 26869);
   val('iuga.real', 96.35, 'A', 'BDO D-1 03:41'); val('iuga.meta', 97, 'A', 'Metas da UEP'); val('iuga.proj', 97.94);
+  val('iuga.buzios', 97.41, 'A', 'Dados do ativo 05:00');   // D-63 (proposta 6): contexto do ativo e do campo (o IUGA do ATP fica sem dado para mostrar o alerta da captura)
+  val('queima.campo_cota', 42000000, 'A', 'Dados do ativo 05:00'); val('queima.campo_acum', 19800000, 'A', 'Dados do ativo 05:00');
   val('queima.proj', 140); val('queima.ref', 'BDO ' + ddmm(D2), 'A', 'BDO');
   val('flare.hp', 'Fechado', 'M', 'Passagem 06:00'); val('flare.lp', 'Aberto', 'M', 'Passagem 06:00');
   val('gas.real', 3791, 'A', 'BDO ' + ddmm(D2)); val('gas.meta', 5500, 'A', 'Metas da UEP'); val('gas.proj', 3570); val('gas.ref', 'BDO ' + ddmm(D2), 'A', 'BDO');
@@ -548,12 +635,15 @@ function montarExemplo(iso) {
   val('off.top', `${ddmm(iso)} 12:47`); val('off.navio', `Maran Libra · 80.000 m³ · ETA ${ddmm(D2)}`, 'M', 'COEMB'); val('off.navio_ok', 'Sim', 'M', 'COEMB');
   val('off.qualidade', 'BSW 0,25% · salinidade 57 mg/L'); val('off.estacoes', 'Proa e popa');
   val('ger.reserva', 'Reserva disponível'); val('man.ref', 'Exemplo P-77 · fonte a definir', 'M', 'COMAN'); val('man.notas_if6', 15, 'M', 'COMAN'); val('man.sensores', 7, 'M', 'COMAN');
+  val('man.aderencia', 82, 'A', 'SAP PM'); val('man.backlog', 6.4, 'A', 'SAP PM'); val('man.backlog_critico', 1.2, 'A', 'SAP PM');   // D-63 (proposta 20)
+  val('meteo.hs', 1.8, 'A', 'Meteo 06:00'); val('meteo.vento', 18, 'A', 'Meteo 06:00'); val('meteo.corrente', 0.6, 'A', 'Meteo 06:00'); val('meteo.tendencia', 'Ondas de 2,5 m a partir de amanhã à tarde', 'A', 'Meteo 06:00');   // D-63 (proposta 16)
+  val('lastro.calado_vante', 21.4); val('lastro.calado_re', 21.9); val('lastro.trim', 0.5); val('lastro.banda', 0.3);   // D-63 (proposta 19) · SITOP
 
   const dt = n => addDias(iso, -n);
   lst('pocos', [
-    { poco: 'BUZ-095', tipo: 'produtor', status: 'reaberto', trem: 'A', ultimo_teste: dt(41) }, { poco: 'BUZ-130', tipo: 'produtor', status: 'fechado', trem: 'Teste', ultimo_teste: dt(64) },
-    { poco: 'BUZ-061', tipo: 'produtor', status: 'aberto', trem: 'A', ultimo_teste: dt(20) }, { poco: 'BUZ-074', tipo: 'produtor', status: 'aberto', trem: 'A', ultimo_teste: dt(35) },
-    { poco: 'BUZ-088', tipo: 'produtor', status: 'aberto', trem: 'B', ultimo_teste: dt(12) }, { poco: 'BUZ-112', tipo: 'produtor', status: 'aberto', trem: 'B', ultimo_teste: dt(95) },
+    { poco: 'BUZ-095', tipo: 'produtor', status: 'reaberto', trem: 'A', ultimo_teste: dt(41), potencial: 5200, vazao: 4100 }, { poco: 'BUZ-130', tipo: 'produtor', status: 'fechado', trem: 'Teste', ultimo_teste: dt(64), potencial: 4800, vazao: 0 },
+    { poco: 'BUZ-061', tipo: 'produtor', status: 'aberto', trem: 'A', ultimo_teste: dt(20), potencial: 5600, vazao: 5550 }, { poco: 'BUZ-074', tipo: 'produtor', status: 'aberto', trem: 'A', ultimo_teste: dt(35), potencial: 5300, vazao: 5280 },
+    { poco: 'BUZ-088', tipo: 'produtor', status: 'aberto', trem: 'B', ultimo_teste: dt(12), potencial: 6100, vazao: 6050 }, { poco: 'BUZ-112', tipo: 'produtor', status: 'aberto', trem: 'B', ultimo_teste: dt(95), potencial: 6200, vazao: 5945 },
     { poco: 'BUZ-047', tipo: 'inj_agua', status: 'aberto' }, { poco: 'BUZ-053', tipo: 'inj_agua', status: 'aberto' }, { poco: 'BUZ-119', tipo: 'inj_agua', status: 'aberto' },
     { poco: 'BUZ-068', tipo: 'inj_gas', status: 'aberto' }, { poco: 'BUZ-102', tipo: 'inj_gas', status: 'aberto' },
   ], 'M', 'Fonte a definir (I-25)');
@@ -580,10 +670,12 @@ function montarExemplo(iso) {
     { poco: 'BUZ-095', operacao: 'Ajuste da configuração das zonas produtoras', tipo: 'Manobra', situacao: 'Realizada', data: addDias(iso, -1), apoio: '—', demandante: 'Gerência de poços de Búzios', obs: 'Poço reaberto às 02:10 · em estabilização' },
   ], 'M', 'COPROD · exemplo');
   lst('queima.eventos', [{ evento: 'Partida do TC-A', flare: 'LP', volume: 57.0 }, { evento: 'Passagem de válvulas', flare: 'HP', volume: 15.1 }], 'A', 'BDO ' + ddmm(D2));
-  lst('queima.causas', [{ causa: 'Queda do TC-A e da FGRU', valor: 90, evitavel: 'sim', classe: 'Extraordinária' }, { causa: 'Gás de assistência', valor: 24, evitavel: 'não', classe: 'Rotina' }, { causa: 'Indisponibilidade da FGRU A', valor: 22, evitavel: 'sim', classe: 'Extraordinária' }, { causa: 'Purga do flare', valor: 4, evitavel: 'não', classe: 'Rotina' }]);
+  lst('queima.causas', [{ causa: 'Queda do TC-A e da FGRU', valor: 90, evitavel: 'sim', classe: 'Extraordinária', equipamento: 'TC-A' }, { causa: 'Gás de assistência', valor: 24, evitavel: 'não', classe: 'Rotina', equipamento: '' }, { causa: 'Indisponibilidade da FGRU A', valor: 22, evitavel: 'sim', classe: 'Extraordinária', equipamento: 'FGRU A' }, { causa: 'Purga do flare', valor: 4, evitavel: 'não', classe: 'Rotina', equipamento: '' }]);
+  lst('queima.manobras', [{ manobra: 'Partida da Injection A', data: iso, queima: 35, situacao: 'Prevista' }, { manobra: 'Retorno da FGRU A (despressurização)', data: addDias(iso, 1), queima: 12, situacao: 'Prevista' }, { manobra: 'Teste de vazão do BUZ-112 · alinhamento', data: addDias(iso, 2), queima: 8, situacao: 'Prevista' }], 'M', 'COPROD');   // D-63 (proposta 11)
+  lst('oleo.deferimento', [{ causa: 'Injection A indisponível · restrição de gas lift', sistema: 'Planta de processo', volume: 620, obs: 'Até o retorno da Injection A' }, { causa: 'BUZ-130 fechado para teste', sistema: 'Poços e subsea', volume: 380, obs: 'Teste de produção' }, { causa: 'Limitação do TC-A após a partida', sistema: 'Planta de processo', volume: 150, obs: '' }], 'A', 'BDO D-1 03:41');   // D-63 (proposta 8)
   { // D-61: tendência de 7 dias (REDIAs de D-6 a D-1, cada uma com o realizado do dia anterior) e queima por classe nas REDIAs anteriores do mês
     const ant = (dia, campo, valor, fonte) => { const r = mk('valor', { campo, valor, origem: 'A', fonte, exemplo: true }); r.data = dia; regs.push(r); };
-    for (let k = 6; k >= 1; k--) {
+    for (let k = 29; k >= 1; k--) {   // 30 dias (visão semanal, D-63); os últimos 7 alimentam a abertura
       const dia = addDias(iso, -k), f = `BDO D-1 · REDIA ${ddmm(dia)}`;
       ant(dia, 'oleo.real', Math.round(26400 + 420 * Math.sin(k * 1.3) + (k === 3 ? -1800 : 0)), f);   // queda no D-4 (parada curta)
       ant(dia, 'iuga.real', +(97.4 + 0.5 * Math.cos(k * 0.9) - (k === 1 ? 0.9 : 0)).toFixed(2), f);
@@ -593,7 +685,8 @@ function montarExemplo(iso) {
     const hoje = parseData(iso).getDate();
     for (let x = 1; x < hoje; x++) {
       const dia = iso.slice(0, 8) + pad(x), q = 28 + 6 * Math.sin(x * 1.7), extra = x % 5 === 0 ? 60 : x % 3 === 0 ? 18 : 0;
-      const r = mk('lista', { campo: 'queima.causas', itens: [{ causa: 'Gás de assistência e purga', valor: Math.round(q), evitavel: 'não', classe: 'Rotina' }, ...(extra ? [{ causa: 'Parada de compressor', valor: extra, evitavel: 'sim', classe: 'Extraordinária' }] : [])], origem: 'A', fonte: `SITOP ${ddmm(dia)} 00:37`, exemplo: true }); r.data = dia; regs.push(r);
+      const r = mk('lista', { campo: 'queima.causas', itens: [{ causa: 'Gás de assistência e purga', valor: Math.round(q), evitavel: 'não', classe: 'Rotina', equipamento: '' }, ...(extra ? [{ causa: 'Parada de compressor', valor: extra, evitavel: 'sim', classe: 'Extraordinária', equipamento: x % 5 === 0 ? 'TC-A' : 'FGRU A' }] : [])], origem: 'A', fonte: `SITOP ${ddmm(dia)} 00:37`, exemplo: true }); r.data = dia; regs.push(r);
+      const df = mk('lista', { campo: 'oleo.deferimento', itens: [...(x % 4 === 0 ? [{ causa: 'Parada de compressor', sistema: 'Planta de processo', volume: 900, obs: '' }] : []), ...(x % 6 === 0 ? [{ causa: 'Teste de produção', sistema: 'Poços e subsea', volume: 400, obs: '' }] : []), ...(x % 9 === 0 ? [{ causa: 'Offloading · redução de vazão', sistema: 'Escoamento / offloading', volume: 300, obs: '' }] : [])], origem: 'A', fonte: `BDO ${ddmm(dia)}`, exemplo: true }); if (df.payload.itens.length) { df.data = dia; regs.push(df); }   // D-63 (proposta 8): Pareto do mês
     }
   }
   /* status dos equipamentos (D-53): o da passagem de serviço das 06:00; CO2 B fica sem informação para mostrar o alerta da captura */
@@ -802,6 +895,11 @@ function montarExemplo(iso) {
     'Fechamento do turno: 15 notas IF6 abertas e 7 sensores em falha registrados.',
     { categoria: 'Integridade', tag: 'IF6', status: 'Atenção', impacto: 'Integridade' });
 
+  // D-63 (proposta 29): sugestões de REDIAs anteriores com a mesma TAG (recorrência · FGRU A em 3 REDIAs em 30 dias; UE-5121501 em 3)
+  for (const [k, coord, tag, titulo] of [[5, 'COPROD', 'FGRU A · Injection A', 'FGRU A desarmou por alta temperatura'], [12, 'COPROD', 'FGRU A · Injection A', 'FGRU A indisponível · troca de selo'], [3, 'COMAN', 'UE-5121501', 'Eletrocloradora de vante em falha'], [10, 'COMAN', 'UE-5121501', 'Transformador da UE-5121501 em reparo']]) {
+    const r = mk('sugestao', { coord, passagem: '06:00', turno: 'noturno', dataPassagem: addDias(iso, -k), prioridade: 'media', origem: 'SUPROD', titulo, textoOriginal: titulo + '.', tag, categoria: 'Falha / degradação', status: 'Indisponível', impacto: 'Queima', exemplo: true });
+    r.data = addDias(iso, -k); r.autor = { nome: 'Supervisor (exemplo)', chave: '', papel: 'supervisor' }; regs.push(r);
+  }
   // D-52: na demonstração, todas as sugestões dos supervisores chegam às curadorias sem classificação (nenhuma decisão prévia)
 
   /* PFCEO (D-54): COPROD inclui um sistema normal na tela e destaca a FGRU na abertura; COEMB e COMAN ficam com a aprovação automática dos desvios */

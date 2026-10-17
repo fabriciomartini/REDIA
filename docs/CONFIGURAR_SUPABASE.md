@@ -147,6 +147,6 @@ Para limpar os dados de teste:
 delete from public.registros where uep = 'P-83' and payload->>'exemplo' = 'true';
 ```
 
-> Atualização de versão: rode de novo o `supabase/00_instalar_tudo.sql` (é idempotente). Na v1.1 ele criou `redia_resetar`; na v1.5, a coluna `perfis.compartilhado`, a tabela `pedidos_senha` e a função `redia_pedidos_senha`; na v1.7, o tipo de registro `reuniao` e a `redia_carregar` com os 7 dias anteriores (tendências).
+> Atualização de versão: rode de novo o `supabase/00_instalar_tudo.sql` (é idempotente). Na v1.1 ele criou `redia_resetar`; na v1.5, a coluna `perfis.compartilhado`, a tabela `pedidos_senha` e a função `redia_pedidos_senha`; na v1.7, o tipo de registro `reuniao` e a `redia_carregar` com os 7 dias anteriores (tendências); na v1.9, `redia_carregar` com 30 dias (tendências e recorrência) e a função `redia_buscar` (histórico).
 
 > Use só dados de exemplo até a aprovação da TIC/SI para dados operacionais reais (docs/SEGURANCA.md).
