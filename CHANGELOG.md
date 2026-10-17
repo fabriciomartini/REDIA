@@ -1,5 +1,23 @@
 # Histórico de versões
 
+## 1.7.0 · D-61 (2026-10-17) · onda 1 das propostas de boas práticas
+
+Primeira das três ondas de implementação das 30 propostas aprovadas na análise das telas (documento "Propostas de melhoria com base em boas práticas"). Nenhuma integração nova: tudo usa registros que já existem na base.
+
+- **Tendência de 7 dias (4):** sparklines na abertura em Produção, IUGA, Injeção de gás e Injeção de água, com a linha de referência (potencial ou meta) e a variação do período. Os pontos são os realizados D-1 gravados nas REDIAs anteriores; `redia_carregar` passa a trazer os campos de tendência dos 7 dias anteriores (também na virada do mês).
+- **Pauta extra com dono e prazo (5):** o tema da plataforma leva dono (função) e prazo, exibidos na abertura; com uma ação preenchida, o sistema registra também a demanda no Canal Base x Bordo (GEPLAT, origem C), ligada ao tema.
+- **Escalonamento (7):** destaques (aprovados ou criados) e temas da pauta extra podem ser marcados "Escalar · precisa de decisão do GEOP ou da gerência": ganham o selo, sobem para o topo do bloco e da abertura e aparecem no Fechamento e na ata como pendentes de decisão.
+- **Queima rotina × extraordinária (10):** coluna "Classe" em Queima projetada D por causa (sem classe, evitável = extraordinária); acumulado do mês por classe no card da COPROD e no detalhe da queima (soma das listas diárias do mês).
+- **Gráfico do IUGA acumulado (12):** no detalhe da queima, IUGA acumulado dia a dia contra a meta, com a projeção no ritmo atual e, abaixo da meta, a trajetória com a queima máxima diária que ainda fecha o mês na meta. Não coube no card da tela COPROD sem esconder os poços (ver 40_Pendencias).
+- **Limites de especificação nas análises (13):** mínimo e máximo por parâmetro na Configuração da UEP; o resultado ganha semáforo por faixa (fora = Não OK; a menos de 10% da faixa = Atenção), além da data. Valores iniciais são referências públicas a confirmar (PREMISSA): BSW e salinidade do óleo, TOG da água produzida e do slop, cloro e turbidez da água potável.
+- **Sistemas de segurança no PFCEO (22):** coluna "Sistema de segurança" nas listas do PFCEO; os marcados ficam sempre na tela, na primeira linha do card (com o pior estado entre eles), antes dos desvios de processo. Exemplo da COMAN: SIS/ESD, F&G, dilúvio e geração de emergência.
+- **Metas de manutenção por UEP (24):** tabela "Metas dos indicadores de manutenção" na Configuração; a linha do indicador usa a própria meta ou, vazia, a da UEP.
+- **Decisões e aprendizados (25):** no Fechamento e ata, "Decisões tomadas na reunião" (texto, quem decidiu, coordenação) separadas das demandas, e "Aprendizados do dia". Entram na tela Fechamento e no PDF da ata. Novo tipo de registro `reuniao`, aceito com a pauta congelada (durante e após a REDIA).
+- **Taxa de ações no prazo (26):** percentual de demandas do mês fechadas até o prazo, por coordenação e sentido, no Fechamento (tela e ata).
+- **Agenda fixa e timebox medido (27):** itens de segurança sobem na ordem dos destaques (depois dos escalados); o cronômetro da apresentação registra início, fim, duração e estouro de cada bloco (ao trocar de bloco ou sair), exibidos no Fechamento e na ata.
+- Base: `redia_carregar` traz valores e listas (`p_campos_mes`) do início do mês ou de D-7, o que vier antes; restrição de tipos inclui `reuniao`. Reaplicar `supabase/00_instalar_tudo.sql`.
+- Deck: capturas de tela regeneradas.
+
 ## 1.6.0 · D-57 (2026-10-17)
 
 - **Reserva tática do IUGA** (abertura do GEPLAT e tela da COPROD): volume que ainda pode ser queimado, além do ritmo atual, fechando o mês com IUGA ≥ meta + margem. Cálculo: (IUGA do mês − meta − margem) × produção de gás projetada do mês (acumulado até D-1 + produção diária × dias restantes; projeção do SITOP ou média do mês). Margem de segurança padrão de 0,1 p.p., ajustável na curadoria da COPROD (campo "Margem de segurança da reserva tática").

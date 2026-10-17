@@ -115,7 +115,20 @@ async function gerarAtaPdf(d) {
   const dem = E.demandas.filter(x => x.payload.dataRedia === DIA);
   if (dem.length) tabela(['#', 'Demanda', 'Sentido', 'Responsável', 'Prazo', 'Origem'], dem.map((x, i) => [String(i + 1), x.payload.titulo, x.payload.sentido, x.payload.responsavel || '', x.payload.prazo ? ddmmaaaa(x.payload.prazo) : '—', `${x.payload.origem} ${x.payload.coord}`]), { 0: { cellWidth: 8 }, 1: { cellWidth: 70 } });
   else par('Nenhuma.');
-  tit('Decisões e observações'); par(d.observacoes || '—');
+  /* D-61: decisões tomadas (com quem decidiu), itens a escalar, aprendizados, taxa de ações no prazo e tempo medido por bloco */
+  tit('Decisões tomadas na reunião');
+  const dec = reuniaoDe(E, 'decisao'), escl = escalados(S);
+  if (dec.length) tabela(['#', 'Decisão', 'Decidido por', 'Coordenação', 'Hora'], dec.map((x, i) => [String(i + 1), x.payload.texto, x.payload.por || x.autor?.nome || '', x.payload.coord || '—', hhmm(x.criadoEm)]), { 0: { cellWidth: 8 }, 1: { cellWidth: 80 } });
+  else par('Nenhuma decisão registrada.');
+  if (escl.length) { par('Itens marcados “Escalar” (aguardam decisão do GEOP ou da gerência)', { neg: true, tam: 9.5, esp: 0.3 }); lista(escl.map(x => `${x.coord} · [${SEM_NOME[x.semaforo]}] ${x.titulo}`)); }
+  tit('Aprendizados do dia'); lista(reuniaoDe(E, 'aprendizado').map(a => a.payload.texto), 'Nenhum aprendizado registrado.');
+  tit('Observações'); par(d.observacoes || '—');
+  const tx_ = taxaPrazo(E, DIA), tb = temposBlocos(E), mmss = seg => seg == null ? '—' : `${Math.floor(seg / 60)}:${pad(Math.round(seg % 60))}`;
+  tit('Canal Base x Bordo · ações fechadas no prazo no mês');
+  par(tx_.n ? `${fmtN(tx_.pct, 0)}% (${tx_.ok} de ${tx_.n} demandas do mês decididas)${tx_.porCoord.length ? ' · por coordenação: ' + tx_.porCoord.map(g => `${g.k} ${fmtN(g.pct, 0)}% (${g.ok}/${g.n})`).join(', ') : ''}${tx_.porSentido.length ? ' · por sentido: ' + tx_.porSentido.map(g => `${g.k} ${fmtN(g.pct, 0)}%`).join(', ') : ''}. Em aberto: ${tx_.abertas}.` : `Nenhuma demanda do mês decidida ainda. Em aberto: ${tx_.abertas}.`);
+  tit('Tempo por bloco (agenda fixa: segurança primeiro)');
+  tabela(['Bloco', 'Previsto', 'Medido', 'Estouro', 'Início', 'Fim'], tb.linhas.map(l => [l.nome, mmss(l.timebox), mmss(l.segundos), l.segundos == null ? '—' : l.estouro > 0 ? '+' + mmss(l.estouro) : '0:00', l.inicio ? hhmm(l.inicio) : '—', l.fim ? hhmm(l.fim) : '—']), { 0: { cellWidth: 50 } });
+  par(tb.medidos ? `${tb.medidos} de 5 blocos medidos pelo cronômetro · ${mmss(tb.total)} de ${mmss(tb.previsto)} previstos · estouro total ${mmss(tb.estouro)}.` : 'Cronômetro não utilizado nesta REDIA.', { cor: CINZA, tam: 9.5 });
   tit('Transcrição'); par(E.anexos.filter(a => a.payload.tipo === 'transcricao').map(a => a.payload.nome + (a.payload.caminho ? ' · ' + a.payload.caminho : '')).join('\n') || 'Não anexada.');
 
   tit('Anexo · telas da apresentação');

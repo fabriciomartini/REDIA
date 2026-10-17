@@ -101,8 +101,22 @@ function labDe(E, coord, hojeIso = (typeof DIA !== 'undefined' ? DIA : isoData(n
     const id = `lab.${coord}.${a.k}`, v = E.valores[id], d = E.valores[id + '.data'];
     const valor = v ? v.valor : null, data = d && /^\d{4}-\d{2}-\d{2}$/.test(d.valor || '') ? d.valor : null;
     const dias = data ? diffDias(hojeIso, data) : null;
-    return { ...a, id, valor: valor === '' ? null : valor, data, dias, atrasada: dias !== null && dias > a.per, origem: v?.origem || null, fonte: v?.fonte || '', em: v?.em || null };
+    const lim = (CFG.limitesLab || {})[id] || {}, r = labSem(valor === '' ? null : valor, lim, a.tipo, a.dec);
+    return { ...a, id, valor: valor === '' ? null : valor, data, dias, atrasada: dias !== null && dias > a.per, origem: v?.origem || null, fonte: v?.fonte || '', em: v?.em || null, lim, sem: r.sem, limTxt: r.txt };
   });
+}
+/* D-61 (proposta 13): semáforo por faixa de especificação. Limites por parâmetro ficam na configuração da UEP (CFG.limitesLab),
+   não no código; sem limite informado, não há semáforo (só a data). Atenção = dentro do limite, mas a menos de 10% da faixa dele. */
+function labSem(valor, lim = {}, tipo = 'num', dec = 0) {
+  const min = lim.min === '' || lim.min == null ? null : +lim.min, max = lim.max === '' || lim.max == null ? null : +lim.max;
+  const f = v => fmtN(v, Math.max(dec || 0, v % 1 ? 1 : 0));
+  const txt = min != null && max != null ? `${f(min)} a ${f(max)}` : max != null ? `≤ ${f(max)}` : min != null ? `≥ ${f(min)}` : '';
+  if (tipo === 'texto' || (min == null && max == null)) return { sem: null, txt };
+  if (valor == null || isNaN(+valor)) return { sem: 'sd', txt };
+  const v = +valor, faixa = min != null && max != null ? max - min : Math.abs(max != null ? max : min) || 1, folga = 0.1 * faixa;
+  if ((max != null && v > max) || (min != null && v < min)) return { sem: 'nok', txt };
+  if ((max != null && v > max - folga) || (min != null && v < min + folga)) return { sem: 'at', txt };
+  return { sem: 'ok', txt };
 }
 /* Equipamentos da COPROD com status individual (D-53): uma linha por equipamento, com caixa de seleção do status.
    Captura: status informado na passagem de serviço pelo operador do posto que opera o equipamento.
@@ -124,18 +138,21 @@ function equipDe(E, conj) {
 const CAMPO = Object.fromEntries(CAMPOS.map(c => [c.id, c]));
 
 /* ---- campos de lista (substituídos inteiros a cada edição) ---- */
+/* D-61 (proposta 10): classe da queima. Rotina = purga, gás de assistência, piloto; Extraordinária = emergência, parada de compressor, teste acima do previsto. */
+const QUEIMA_CLASSES = ['Rotina', 'Extraordinária'];
+const classeQueima = c => c.classe || (c.evitavel === 'sim' ? 'Extraordinária' : 'Rotina');   // sem classe informada: evitável = extraordinária
 const ST_SIS = ['Disponível', 'Operando', 'Limitado', 'Atenção', 'Indisponível', 'Inoperante', 'Sem reserva', 'Em manutenção', 'Stand-by', 'A preencher'];
 const LISTAS = [
   { id: 'pocos', coord: 'COPROD', rot: 'Poços · últimas 24 h', validar: validarTrens, cols: [{ k: 'poco', rot: 'Poço (BUZ-XXX)', tipo: 'texto' }, { k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['produtor', 'inj_agua', 'inj_gas'], nomes: { produtor: 'Produtor', inj_agua: 'Injetor de água', inj_gas: 'Injetor de gás' } }, { k: 'status', rot: 'Situação nas 24 h', tipo: 'opcao', opcoes: ['aberto', 'reaberto', 'fechado'], nomes: { aberto: 'Aberto 24 h', reaberto: 'Reaberto', fechado: 'Fechado agora' } }, { k: 'trem', rot: 'Trem (produtor)', tipo: 'opcao', opcoes: ['', 'A', 'B', 'Teste'], nomes: { '': '—', A: 'Trem A', B: 'Trem B', Teste: 'Trem de teste' } }, { k: 'ultimo_teste', rot: 'Último teste de vazão', tipo: 'data' }] },
   { id: 'pocos.operacoes', coord: 'COPROD', rot: 'Operações em poços (manobras, procedimentos e operações)', cols: [{ k: 'poco', rot: 'Poço (BUZ-XXX)', tipo: 'texto' }, { k: 'operacao', rot: 'Descrição', tipo: 'texto' }, { k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['Operação', 'Manobra', 'Procedimento'] }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Prevista', 'Em curso', 'Realizada'] }, { k: 'data', rot: 'Data (início)', tipo: 'data' }, { k: 'apoio', rot: 'Apoio', tipo: 'opcao', opcoes: ['—', 'Embarcação', 'ROV', 'Embarcação + ROV'] }, { k: 'demandante', rot: 'Demandante', tipo: 'texto' }, { k: 'obs', rot: 'Observação / impacto', tipo: 'texto' }] },
   { id: 'cilindros', coord: 'COPROD', rot: 'Cilindros de amostra a bordo', cols: [{ k: 'tipo', rot: 'Tipo', tipo: 'opcao', opcoes: ['gas', 'pvt'], nomes: { gas: 'Amostra de gás pressurizado', pvt: 'PVT · petróleo pressurizado' } }, { k: 'serie', rot: 'Nº de série', tipo: 'texto' }, { k: 'chegada', rot: 'Chegada a bordo', tipo: 'data' }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Disponível', 'Coletado'] }] },
   { id: 'queima.eventos', coord: 'COPROD', rot: 'Últimas 24 h · maiores queimas (até 2)', max: 2, cols: [{ k: 'evento', rot: 'Evento', tipo: 'texto' }, { k: 'flare', rot: 'Flare', tipo: 'opcao', opcoes: ['HP', 'LP'] }, { k: 'volume', rot: 'Volume (Mm³)', tipo: 'num', dec: 1 }] },
-  { id: 'queima.causas', coord: 'COPROD', rot: 'Queima projetada D por causa', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'valor', rot: 'Mm³/d', tipo: 'num' }, { k: 'evitavel', rot: 'Evitável', tipo: 'opcao', opcoes: ['sim', 'não'] }] },
+  { id: 'queima.causas', coord: 'COPROD', rot: 'Queima projetada D por causa', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'valor', rot: 'Mm³/d', tipo: 'num' }, { k: 'evitavel', rot: 'Evitável', tipo: 'opcao', opcoes: ['sim', 'não'] }, { k: 'classe', rot: 'Classe', tipo: 'opcao', opcoes: QUEIMA_CLASSES }] },
   { id: 'tq.atencao', coord: 'COEMB', rot: 'Tanques em atenção', cols: [{ k: 'tanque', rot: 'Tanque', tipo: 'texto' }, { k: 'nota', rot: 'Situação', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ST_SIS }] },
   { id: 'util', coord: 'COEMB', rot: 'Utilidades · estoque × mínimo', cols: [{ k: 'nome', rot: 'Utilidade', tipo: 'texto' }, { k: 'estoque', rot: 'Estoque (m³)', tipo: 'num' }, { k: 'minimo', rot: 'Mínimo (m³)', tipo: 'num' }, { k: 'consumo', rot: 'Consumo (m³/d)', tipo: 'num' }, { k: 'producao', rot: 'Produção (m³/d)', tipo: 'num' }] },
   { id: 'ger.tgs', coord: 'COMAN', rot: 'Turbogeradores', cols: [{ k: 'tg', rot: 'TG', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ['Operando', 'Stand-by', 'Indisponível', 'Em manutenção'] }, { k: 'linha1', rot: 'Combustível · carga · limitador', tipo: 'texto' }, { k: 'linha2', rot: 'WHRU / observação', tipo: 'texto' }, { k: 'alerta', rot: 'Destacar observação', tipo: 'opcao', opcoes: ['não', 'sim'] }] },
   { id: 'ger.aux', coord: 'COMAN', rot: 'Emergência e auxiliares', cols: [{ k: 'nome', rot: 'Equipamento', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ['Operacional', 'Operacionais', 'Indisponível', 'Em manutenção'] }] },
-  { id: 'man.ind', coord: 'COMAN', rot: 'Indicadores de manutenção', cols: [{ k: 'ind', rot: 'Indicador', tipo: 'texto' }, { k: 'valor', rot: 'Valor (%)', tipo: 'num', dec: 1 }, { k: 'meta', rot: 'Meta (%)', tipo: 'num', dec: 1 }] },
+  { id: 'man.ind', coord: 'COMAN', rot: 'Indicadores de manutenção', cols: [{ k: 'ind', rot: 'Indicador', tipo: 'texto' }, { k: 'valor', rot: 'Valor (%)', tipo: 'num', dec: 1 }, { k: 'meta', rot: 'Meta (%) · vazio = meta da UEP (Configuração)', tipo: 'num', dec: 1 }] },
   { id: 'legais', coord: 'COMAN', rot: 'Órgãos legais e suprimentos', cols: [{ k: 'item', rot: 'Item', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ST_SIS }] },
 ];
 /* Equipamentos e Sistemas · PFCEO (Painel de Funções Críticas para Eficiência Operacional, 02_Glossario).
@@ -143,7 +160,7 @@ const LISTAS = [
 const PF_DISP = ['Indisponível', 'Disponível com Restrição', 'Indefinido', 'Disponível'];
 const PF_COND = ['Crítico', 'Atenção', 'Pré-Atenção', 'Indefinido', 'Normal'];
 const PF_SIT = ['Ligado', 'Desligado', 'Indefinido'];
-for (const c of ['COPROD', 'COEMB', 'COMAN']) LISTAS.push({ id: 'pfceo.' + c, coord: c, aba: 'pfceo', rot: 'Equipamentos e Sistemas · PFCEO (dados)', cols: [{ k: 'funcao', rot: 'Função crítica / sistema', tipo: 'texto' }, { k: 'tag', rot: 'TAG', tipo: 'texto' }, { k: 'redundancia', rot: 'Redundância (ex.: 3×66%)', tipo: 'texto' }, { k: 'unidades', rot: 'Unidades', tipo: 'num' }, { k: 'disponiveis', rot: 'Disponíveis', tipo: 'num' }, { k: 'disponibilidade', rot: 'Disponibilidade', tipo: 'opcao', opcoes: PF_DISP }, { k: 'condicao', rot: 'Condição', tipo: 'opcao', opcoes: PF_COND }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: PF_SIT }, { k: 'nota', rot: 'Nota', tipo: 'texto' }, { k: 'nm', rot: 'NM SAP', tipo: 'texto' }] });
+for (const c of ['COPROD', 'COEMB', 'COMAN']) LISTAS.push({ id: 'pfceo.' + c, coord: c, aba: 'pfceo', rot: 'Equipamentos e Sistemas · PFCEO (dados)', cols: [{ k: 'funcao', rot: 'Função crítica / sistema', tipo: 'texto' }, { k: 'tag', rot: 'TAG', tipo: 'texto' }, { k: 'redundancia', rot: 'Redundância (ex.: 3×66%)', tipo: 'texto' }, { k: 'unidades', rot: 'Unidades', tipo: 'num' }, { k: 'disponiveis', rot: 'Disponíveis', tipo: 'num' }, { k: 'disponibilidade', rot: 'Disponibilidade', tipo: 'opcao', opcoes: PF_DISP }, { k: 'condicao', rot: 'Condição', tipo: 'opcao', opcoes: PF_COND }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: PF_SIT }, { k: 'nota', rot: 'Nota', tipo: 'texto' }, { k: 'nm', rot: 'NM SAP', tipo: 'texto' }, { k: 'seguranca', rot: 'Sistema de segurança', tipo: 'opcao', opcoes: ['não', 'sim'] }] });
 const LISTA = Object.fromEntries(LISTAS.map(l => [l.id, l]));
 /* Preenchimento manual (D-46): itens sem captura automática ganham aba própria no menu da curadoria.
    [id da aba, rótulo do menu, campos, listas, onde aparece na apresentação] */
@@ -185,9 +202,10 @@ const PF = {
   /* desvio: qualquer estado diferente de disponível com condição normal (ligado ou desligado) */
   desvio: i => i.disponibilidade !== 'Disponível' || (i.condicao && i.condicao !== 'Normal'),
   chave: i => (String(i.funcao || '').trim() + '|' + String(i.tag || '').trim()).toLowerCase(),
+  seguranca: i => i.seguranca === 'sim',   // D-61 (proposta 22): barreira de segurança (SIS, F&G, dilúvio, ESD, geração de emergência) · sempre na tela, primeiro
   margem: i => (+i.unidades > 0 && i.disponiveis !== null && i.disponiveis !== '' && !isNaN(+i.disponiveis)) ? +i.disponiveis / +i.unidades : 1,
   /* piores primeiro: disponibilidade, depois condição, depois menor margem de redundância */
-  ordem: (a, b) => (PF_DISP.indexOf(a.disponibilidade) + 9) % 9 - (PF_DISP.indexOf(b.disponibilidade) + 9) % 9 || (PF_COND.indexOf(a.condicao) + 9) % 9 - (PF_COND.indexOf(b.condicao) + 9) % 9 || PF.margem(a) - PF.margem(b) || String(a.funcao).localeCompare(String(b.funcao)),
+  ordem: (a, b) => (PF.seguranca(b) - PF.seguranca(a)) || (PF_DISP.indexOf(a.disponibilidade) + 9) % 9 - (PF_DISP.indexOf(b.disponibilidade) + 9) % 9 || (PF_COND.indexOf(a.condicao) + 9) % 9 - (PF_COND.indexOf(b.condicao) + 9) % 9 || PF.margem(a) - PF.margem(b) || String(a.funcao).localeCompare(String(b.funcao)),
 };
 
 /* ---- status textual -> semáforo ---- */
@@ -244,7 +262,7 @@ const Regras = {
 function construirEstado(regs, demRegs, hojeIso) {
   const E = {
     valores: {}, listas: {}, sugestoes: [], servicos: [], servicosOcultos: [], itens: [], demandas: [], comentarios: {},
-    congelamento: null, reaberturas: [], atas: [], aceites: [], anexos: [], hist: {}, ultimaAlteracao: null, conclusoes: {}, notificacoes: [], selecoes: {},
+    congelamento: null, reaberturas: [], atas: [], aceites: [], anexos: [], hist: {}, ultimaAlteracao: null, conclusoes: {}, notificacoes: [], selecoes: {}, reuniao: [],
   };
   const porId = new Map(), removidos = new Set(), atualizacoes = [], decisoes = [];
   const todos = [...regs, ...demRegs].sort(ordem);
@@ -278,6 +296,7 @@ function construirEstado(regs, demRegs, hojeIso) {
     if (r.tipo === 'sugestao') { r.decisao = r._decisoes.length ? r._decisoes[r._decisoes.length - 1] : null; E.sugestoes.push(r); }
     else if (r.tipo === 'servico') E.servicos.push(r);
     else if (r.tipo === 'item') E.itens.push(r);
+    else if (r.tipo === 'reuniao') E.reuniao.push(r);
     else if (r.tipo === 'demanda') { r.situacao = Regras.demanda(r.payload.prazo, r.payload.status, hojeIso); E.demandas.push(r); }
   }
   E.servicos.sort((a, b) => (a.payload.ordem ?? 0) - (b.payload.ordem ?? 0) || ordem(a, b));
@@ -299,10 +318,13 @@ function atividadesAbertura(E, coord) { return E.servicos.filter(s => s.payload.
    Para o GEPLAT, todo destaque aprovado vai para a abertura (é o bloco dele). */
 const ORD_SEM = ['nok', 'at', 'ok', 'sd'];
 function destaquesDe(E, coord) {
-  const ps = aprovados(E, coord).map(s => { const d = s.decisao.payload, p = s.payload; return { id: s.id, tipo: 'sugestao', fonte: 'PS', coord, titulo: d.titulo, tag: d.tag || p.tag || '', status: d.status, semaforo: d.semaforo || 'at', impacto: d.impacto, pedido: d.pedido, abertura: coord === 'GEPLAT' || !!d.abertura, meta: `${p.turno} · ${p.passagem}${p.dataPassagem && p.dataPassagem !== s.data ? ' (' + ddmm(p.dataPassagem) + ')' : ''}`, por: s.decisao.autor, em: s.decisao.criadoEm, ref: s }; });
-  const cc = itensDe(E, coord, 'destaque').map(i => { const p = i.payload; return { id: i.id, tipo: 'item', fonte: 'C', coord, titulo: p.texto, tag: p.tag || '', status: p.status, semaforo: p.semaforo || 'at', impacto: p.impacto, pedido: p.pedido, abertura: coord === 'GEPLAT' || !!p.abertura, meta: 'coordenação', por: i.atualizadoPor || i.autor, em: i.atualizadoEm || i.criadoEm, ref: i }; });
-  return [...ps, ...cc].sort((a, b) => ORD_SEM.indexOf(a.semaforo) - ORD_SEM.indexOf(b.semaforo) || (b.abertura - a.abertura));
+  const ps = aprovados(E, coord).map(s => { const d = s.decisao.payload, p = s.payload; return { id: s.id, tipo: 'sugestao', fonte: 'PS', coord, titulo: d.titulo, tag: d.tag || p.tag || '', status: d.status, semaforo: d.semaforo || 'at', impacto: d.impacto, pedido: d.pedido, abertura: coord === 'GEPLAT' || !!d.abertura, escalar: !!d.escalar, seguranca: ehSeguranca(d.categoria || p.categoria, d.impacto), meta: `${p.turno} · ${p.passagem}${p.dataPassagem && p.dataPassagem !== s.data ? ' (' + ddmm(p.dataPassagem) + ')' : ''}`, por: s.decisao.autor, em: s.decisao.criadoEm, ref: s }; });
+  const cc = itensDe(E, coord, 'destaque').map(i => { const p = i.payload; return { id: i.id, tipo: 'item', fonte: 'C', coord, titulo: p.texto, tag: p.tag || '', status: p.status, semaforo: p.semaforo || 'at', impacto: p.impacto, pedido: p.pedido, abertura: coord === 'GEPLAT' || !!p.abertura, escalar: !!p.escalar, seguranca: ehSeguranca(p.categoria, p.impacto), meta: 'coordenação', por: i.atualizadoPor || i.autor, em: i.atualizadoEm || i.criadoEm, ref: i }; });
+  /* D-61: ordem da agenda fixa — escalonamento (7) e segurança (27) primeiro; depois semáforo e abertura */
+  return [...ps, ...cc].sort((a, b) => (b.escalar - a.escalar) || (b.seguranca - a.seguranca) || ORD_SEM.indexOf(a.semaforo) - ORD_SEM.indexOf(b.semaforo) || (b.abertura - a.abertura));
 }
+const ehSeguranca = (categoria, impacto) => /seguran/i.test(String(categoria || '')) || /seguran/i.test(String(impacto || ''));
+function escalados(E) { return COORDS.flatMap(c => destaquesDe(E, c).filter(d => d.escalar)); }
 function destaquesAbertura(E, coord) { return destaquesDe(E, coord).filter(d => d.abertura); }
 /* Conclusão do preenchimento por coordenação e notificações do GEPLAT */
 function concluida(E, coord) { const c = E.conclusoes[coord]; return c && c.payload.concluido ? c : null; }
@@ -326,12 +348,39 @@ function pfceoSelecao(E, coord) {
   const todos = pfceoDe(E, coord), r0 = E.selecoes['pfceo:' + coord];
   const reg = r0 && (r0.payload.fora || r0.payload.extra || r0.payload.abertura) ? r0 : null;   // seleção antiga (lista de ids) é ignorada
   const fora = new Set(reg?.payload.fora || []), extra = new Set(reg?.payload.extra || []), ab = new Set(reg?.payload.abertura || []);
-  const naTela = i => PF.desvio(i) ? !fora.has(PF.chave(i)) : extra.has(PF.chave(i));
-  return { todos, itens: todos.filter(naTela), naTela, abertura: todos.filter(i => ab.has(PF.chave(i))).slice(0, PF_ABERTURA_MAX), sugerida: !reg, reg, fora: [...fora], extra: [...extra], ab: [...ab] };
+  const naTela = i => PF.seguranca(i) || (PF.desvio(i) ? !fora.has(PF.chave(i)) : extra.has(PF.chave(i)));
+  return { todos, itens: todos.filter(naTela), naTela, seguranca: todos.filter(PF.seguranca), abertura: todos.filter(i => ab.has(PF.chave(i))).slice(0, PF_ABERTURA_MAX), sugerida: !reg, reg, fora: [...fora], extra: [...extra], ab: [...ab] };
 }
 /* Acumulados do mês (D-43): o sistema soma, dia a dia, o gás produzido D-1 e a queima D-1 do SITOP gravados em cada REDIA do mês.
    A REDIA do dia x traz os valores de x-1; por isso a soma vai da REDIA do dia 2 até a REDIA do dia (a do dia 1 traz o mês anterior). */
 const CAMPOS_MES = ['gas.prod_d1', 'queima.real_d1'];
+/* D-61 (proposta 4): tendência de 7 dias dos indicadores da abertura, com os registros já gravados nas REDIAs anteriores.
+   A REDIA do dia x traz o realizado de x−1: a série vai da REDIA de D-6 à de D (7 pontos = realizados de D-7 a D-1). */
+const CAMPOS_TENDENCIA = ['oleo.real', 'iuga.real', 'gas.real', 'agua.real', 'queima.real_d1'];
+const CAMPOS_HISTORICO = [...new Set([...CAMPOS_MES, ...CAMPOS_TENDENCIA, 'queima.causas'])];   // o que redia_carregar traz dos dias anteriores
+const TENDENCIA_DIAS = 7;
+function tendencias(iso, regsDoDia, n = TENDENCIA_DIAS) {
+  const num = v => (v === null || v === undefined || v === '' || isNaN(+v)) ? null : +v, out = {};
+  for (const c of CAMPOS_TENDENCIA) out[c] = [];
+  for (let k = n - 1; k >= 0; k--) {
+    const dia = addDias(iso, -k), v = {};
+    for (const r of regsDoDia(dia)) if (r.tipo === 'valor' && CAMPOS_TENDENCIA.includes(r.payload.campo)) v[r.payload.campo] = r.payload.valor;
+    for (const c of CAMPOS_TENDENCIA) out[c].push({ redia: dia, ref: addDias(dia, -1), valor: num(v[c]) });
+  }
+  return out;
+}
+/* D-61 (proposta 10): queima do mês por classe (rotina × extraordinária), somando as listas "queima projetada D por causa" de cada REDIA do mês (Mm³/d → m³) */
+function acumuladoClasses(iso, regsDoDia) {
+  const d = parseData(iso), out = { Rotina: 0, 'Extraordinária': 0, dias: 0 };
+  for (let x = 1; x <= d.getDate(); x++) {
+    const dia = iso.slice(0, 8) + pad(x); let lista = null;
+    for (const r of regsDoDia(dia)) if (r.tipo === 'lista' && r.payload.campo === 'queima.causas') lista = r.payload.itens;
+    if (!lista) continue;
+    out.dias++;
+    for (const c of lista) out[classeQueima(c)] += (+c.valor || 0) * 1000;
+  }
+  return out;
+}
 function acumuladoMes(iso, regsDoDia) {
   const d = parseData(iso), dias = [], faltam = [];
   let gas = 0, queima = 0, nG = 0, nQ = 0;
@@ -397,7 +446,28 @@ function iugaTatico(E, iso) {
     .map(o => { acum += o.m3d; return { ...o, acum, cobre: t.reducao ? Math.min(100, acum / t.reducao * 100) : null }; });
   return t;
 }
+/* D-61 (proposta 24): meta do indicador de manutenção = a informada na linha ou, vazia, a da linha de base da UEP (CFG.metasManutencao) */
+function metaManutencao(i) { const m = i.meta; if (m !== '' && m != null && !isNaN(+m)) return +m; const c = (CFG.metasManutencao || {})[String(i.ind || '').trim()]; return c == null || c === '' ? null : +c; }
 function itensDe(E, coord, tipo) { return E.itens.filter(i => i.payload.coord === coord && i.payload.tipo === tipo); }
+/* D-61 (propostas 25 e 27): registros da reunião · decisões tomadas (com quem decidiu), aprendizados do dia e tempo medido por bloco */
+function reuniaoDe(E, tipo) { return E.reuniao.filter(r => r.payload.tipo === tipo); }
+const BLOCOS_NOME = { 1: 'Abertura · GEPLAT', 2: 'COPROD', 3: 'COEMB', 4: 'COMAN', 5: 'Fechamento' };
+function temposBlocos(E) {
+  const ult = {};
+  for (const r of reuniaoDe(E, 'tempo')) ult[r.payload.bloco] = r;   // em ordem de gravação: vale a última passagem por cada bloco
+  const linhas = [1, 2, 3, 4, 5].map(b => { const r = ult[b], p = r?.payload; return { bloco: b, nome: BLOCOS_NOME[b], reg: r || null, inicio: p?.inicio || null, fim: p?.fim || null, segundos: p ? +p.segundos : null, timebox: p ? +p.timebox : CFG.timeboxMin * 60, estouro: p ? Math.max(0, +p.segundos - +p.timebox) : null }; });
+  const medidos = linhas.filter(l => l.segundos != null);
+  return { linhas, medidos: medidos.length, total: medidos.reduce((a, l) => a + l.segundos, 0), estouro: medidos.reduce((a, l) => a + l.estouro, 0), previsto: linhas.reduce((a, l) => a + l.timebox, 0) };
+}
+/* D-61 (proposta 26): taxa de demandas do Canal Base x Bordo fechadas no prazo, no mês da REDIA, por coordenação e sentido.
+   Conta as demandas registradas no mês já decididas (encerradas ou vencidas); no prazo = encerrada até a data do prazo. */
+function taxaPrazo(E, iso) {
+  const mes = iso.slice(0, 7), dec = E.demandas.filter(d => String(d.payload.dataRedia || '').startsWith(mes) && (d.payload.status === 'encerrada' || d.situacao === 'vencida'));
+  const noPrazo = d => d.payload.status === 'encerrada' && (!d.payload.prazo || !d.payload.statusEm || d.payload.statusEm.slice(0, 10) <= d.payload.prazo);
+  const grupo = f => { const g = {}; for (const d of dec) { const k = f(d); (g[k] ||= { n: 0, ok: 0 }); g[k].n++; if (noPrazo(d)) g[k].ok++; } return Object.entries(g).map(([k, v]) => ({ k, ...v, pct: v.n ? v.ok / v.n * 100 : null })); };
+  const n = dec.length, ok = dec.filter(noPrazo).length;
+  return { n, ok, pct: n ? ok / n * 100 : null, abertas: E.demandas.filter(d => d.payload.status !== 'encerrada').length, porCoord: grupo(d => d.payload.coord), porSentido: grupo(d => d.payload.sentido) };
+}
 function principalAmeaca(E, coord) {
   const a = itensDe(E, coord, 'ameaca');
   return a.slice().sort((x, y) => ['nok', 'at', 'ok', 'sd'].indexOf(x.payload.semaforo) - ['nok', 'at', 'ok', 'sd'].indexOf(y.payload.semaforo))[0] || null;
@@ -473,7 +543,22 @@ function montarExemplo(iso) {
     { poco: 'BUZ-095', operacao: 'Ajuste da configuração das zonas produtoras', tipo: 'Manobra', situacao: 'Realizada', data: addDias(iso, -1), apoio: '—', demandante: 'Gerência de poços de Búzios', obs: 'Poço reaberto às 02:10 · em estabilização' },
   ], 'M', 'COPROD · exemplo');
   lst('queima.eventos', [{ evento: 'Partida do TC-A', flare: 'LP', volume: 57.0 }, { evento: 'Passagem de válvulas', flare: 'HP', volume: 15.1 }], 'A', 'BDO ' + ddmm(D2));
-  lst('queima.causas', [{ causa: 'Queda do TC-A e da FGRU', valor: 90, evitavel: 'sim' }, { causa: 'Gás de assistência', valor: 24, evitavel: 'não' }, { causa: 'Indisponibilidade da FGRU A', valor: 22, evitavel: 'sim' }, { causa: 'Purga do flare', valor: 4, evitavel: 'não' }]);
+  lst('queima.causas', [{ causa: 'Queda do TC-A e da FGRU', valor: 90, evitavel: 'sim', classe: 'Extraordinária' }, { causa: 'Gás de assistência', valor: 24, evitavel: 'não', classe: 'Rotina' }, { causa: 'Indisponibilidade da FGRU A', valor: 22, evitavel: 'sim', classe: 'Extraordinária' }, { causa: 'Purga do flare', valor: 4, evitavel: 'não', classe: 'Rotina' }]);
+  { // D-61: tendência de 7 dias (REDIAs de D-6 a D-1, cada uma com o realizado do dia anterior) e queima por classe nas REDIAs anteriores do mês
+    const ant = (dia, campo, valor, fonte) => { const r = mk('valor', { campo, valor, origem: 'A', fonte, exemplo: true }); r.data = dia; regs.push(r); };
+    for (let k = 6; k >= 1; k--) {
+      const dia = addDias(iso, -k), f = `BDO D-1 · REDIA ${ddmm(dia)}`;
+      ant(dia, 'oleo.real', Math.round(26400 + 420 * Math.sin(k * 1.3) + (k === 3 ? -1800 : 0)), f);   // queda no D-4 (parada curta)
+      ant(dia, 'iuga.real', +(97.4 + 0.5 * Math.cos(k * 0.9) - (k === 1 ? 0.9 : 0)).toFixed(2), f);
+      ant(dia, 'gas.real', Math.round(5100 + 250 * Math.sin(k * 0.8) - (k <= 2 ? 1200 : 0)), f);   // Injection A fora desde D-3
+      ant(dia, 'agua.real', Math.round(17350 + 180 * Math.cos(k * 1.1)), f);
+    }
+    const hoje = parseData(iso).getDate();
+    for (let x = 1; x < hoje; x++) {
+      const dia = iso.slice(0, 8) + pad(x), q = 28 + 6 * Math.sin(x * 1.7), extra = x % 5 === 0 ? 60 : x % 3 === 0 ? 18 : 0;
+      const r = mk('lista', { campo: 'queima.causas', itens: [{ causa: 'Gás de assistência e purga', valor: Math.round(q), evitavel: 'não', classe: 'Rotina' }, ...(extra ? [{ causa: 'Parada de compressor', valor: extra, evitavel: 'sim', classe: 'Extraordinária' }] : [])], origem: 'A', fonte: `SITOP ${ddmm(dia)} 00:37`, exemplo: true }); r.data = dia; regs.push(r);
+    }
+  }
   /* status dos equipamentos (D-53): o da passagem de serviço das 06:00; CO2 B fica sem informação para mostrar o alerta da captura */
   const ST_EX = { 'vru.a': 'Operando', 'vru.b': 'Stand By', 'main.a': 'Operando', 'main.b': 'Operando', 'main.c': 'Stand By', 'injection.a': 'Indisponível', 'injection.b': 'Operando', 'injection.c': 'Operando', 'co2.a': 'Operando',
     'fgru.a': 'Indisponível', 'fgru.b': 'Operando', 'fgru.c': 'Em manutenção', 'tgru.a': 'Operando', 'tgru.b': 'Stand By', 'srgu.a': 'Operando', 'srgu.b': 'Stand By',
@@ -491,7 +576,7 @@ function montarExemplo(iso) {
     { tg: 'TG-C', status: 'Operando', linha1: 'Gás · full load 23 MW · T48', linha2: 'WHRU molhado e restringido', alerta: 'sim' },
     { tg: 'TG-D', status: 'Operando', linha1: 'Gás · full load 25 MW · NPT', linha2: 'WHRU operando', alerta: 'não' }], 'A', 'SITOP Equipamentos');
   lst('ger.aux', [{ nome: 'Gerador de emergência', status: 'Operacional' }, { nome: 'Auxiliar', status: 'Operacional' }, { nome: 'Bombas de incêndio A/B/C', status: 'Operacionais' }], 'A', 'SITOP Equipamentos');
-  lst('man.ind', [{ ind: 'ICPMe', valor: 88.1, meta: 90 }, { ind: 'ICPMeIF6', valor: 97.2, meta: 97 }, { ind: 'IARP', valor: 100, meta: 95 }], 'M', 'Exemplo P-77');
+  lst('man.ind', [{ ind: 'ICPMe', valor: 88.1, meta: '' }, { ind: 'ICPMeIF6', valor: 97.2, meta: '' }, { ind: 'IARP', valor: 100, meta: '' }], 'M', 'Exemplo P-77');   // metas vêm da Configuração da UEP (D-61)
 
   // Equipamentos e Sistemas · PFCEO (exemplo; sem integração com o Portal de Integridade, I-03)
   const pf = (funcao, tag, redundancia, unidades, disponiveis, disponibilidade, condicao, situacao, nota, nm = '') => ({ funcao, tag, redundancia, unidades, disponiveis, disponibilidade, condicao, situacao, nota, nm });
@@ -517,6 +602,11 @@ function montarExemplo(iso) {
     pf('Descarte do slop', '', '', '', '', 'Disponível', 'Normal', 'Ligado', '557 m³ descartados ao mar em 24 h'),
   ], 'A', fontePf);
   lst('pfceo.COMAN', [
+    /* D-61 (proposta 22): barreiras de segurança sempre na primeira linha do PFCEO da COMAN */
+    { ...pf('Sistema instrumentado de segurança · ESD', 'SIS/ESD', '', '', '', 'Disponível', 'Normal', 'Ligado', 'Sem inibições ativas'), seguranca: 'sim' },
+    { ...pf('Detecção de fogo e gás', 'F&G', '', '', '', 'Disponível com Restrição', 'Atenção', 'Ligado', '2 detectores de gás do M-10 em falha · NM aberta', '[NM]'), seguranca: 'sim' },
+    { ...pf('Dilúvio e combate a incêndio', 'Bombas de incêndio A/B/C', '3×50%', 3, 3, 'Disponível', 'Normal', 'Ligado', 'Teste do M-10 concluído sem anomalias'), seguranca: 'sim' },
+    { ...pf('Geração de emergência', 'GE', '', 1, 1, 'Disponível', 'Normal', 'Desligado', 'Teste semanal em dia'), seguranca: 'sim' },
     pf('Tratamento de efluentes', 'Z-5312502', '', 1, 0, 'Indisponível', 'Crítico', 'Desligado', 'Descarte de 57 m³/d pelo Z-5312502'),
     pf('HVAC · AC-5252003A (M22)', 'AC-5252003A', '', 1, 0, 'Indisponível', 'Atenção', 'Desligado', 'Compressor instalado; faltam contator, disjuntor e PSVs novas', '[NM]'),
     pf('HVAC · AC-5252001A (M17)', 'AC-5252001A', '', 1, 0, 'Indisponível', 'Atenção', 'Desligado', 'Vazamento no condensador · reparo pela contratada', '[NM]'),
@@ -549,9 +639,11 @@ function montarExemplo(iso) {
   item('COEMB', 'ameaca', 'Água potável abaixo do mínimo em cerca de 6 dias', 'at', 2);
   item('COMAN', 'ameaca', 'Eletrocloradora de vante indisponível · a de ré opera sem reserva', 'at', 1);
   item('COMAN', 'ameaca', 'Duas unidades de HVAC inoperantes', 'at', 2);
-  item('GEPLAT', 'pauta_extra', 'Habitabilidade', 'at', 1, 'AC-5252003A (M22) inoperante');
+  regs.push(mk('item', { coord: 'GEPLAT', tipo: 'pauta_extra', texto: 'Habitabilidade', detalhe: 'AC-5252003A (M22) inoperante', semaforo: 'at', ordem: 1, dono: '4º GEPLAT', prazo: addDias(iso, 2), exemplo: true }));   // D-61: pauta extra com dono e prazo
   const dst = (coord, texto, semaforo, abertura, extra) => { const r = mk('item', { coord, tipo: 'destaque', texto, semaforo, abertura, ordem: 1, exemplo: true, ...extra }); r.autor = { nome: coord + ' (exemplo)', chave: '', papel: coord }; regs.push(r); };
-  dst('COEMB', 'Janela do offloading do Maran Libra depende do mar de amanhã', 'at', true, { tag: 'Estação de offloading', status: 'Atenção', impacto: 'Escoamento', categoria: 'Logística', pedido: 'Confirmar a janela com a logística' });
+  dst('COEMB', 'Janela do offloading do Maran Libra depende do mar de amanhã', 'at', true, { tag: 'Estação de offloading', status: 'Atenção', impacto: 'Escoamento', categoria: 'Logística', pedido: 'Confirmar a janela com a logística', escalar: true });   // D-61: decisão do GEOP/gerência
+  /* D-61 (proposta 25): decisões e aprendizados ficam registrados na reunião (exemplo de REDIA anterior, para mostrar o formato) */
+  regs.push(mk('reuniao', { tipo: 'aprendizado', texto: 'Partida de compressor com a FGRU sem reserva: alinhar a sequência de partida com a base antes da manobra', exemplo: true }));
   item('GEPLAT', 'pauta_extra', 'Integridade', 'at', 2, 'Pintura: 64% realizado × 82% planejado');
 
   const sug = (coord, passagem, prioridade, origem, titulo, textoOriginal, extra = {}) => {

@@ -83,10 +83,10 @@ const DETALHES = {
     const comMargem = s.itens.filter(i => +i.unidades > 0 && i.disponiveis !== '' && i.disponiveis != null), menor = comMargem.slice().sort((x, y) => PF.margem(x) - PF.margem(y))[0];
     return `<main class="m3 det" style="grid-template-columns:minmax(0,2.4fr) minmax(0,1fr)">
       <div class="colg">
-        <div class="dtiles">${tile('Na tela da ' + coord, s.itens.length, '', '', s.sugerida ? 'desvios aprovados automaticamente' : 'desvios + ajustes do coordenador')}${tile('Indisponíveis', nInd, '', nInd ? 'nok' : 'ok')}${tile('Com restrição', nRes, '', nRes ? 'at' : 'ok')}${tile('Menor margem', menor ? `${menor.disponiveis}/${menor.unidades}` : '—', '', menor ? (PF.margem(menor) < 1 ? 'at' : 'ok') : '', menor ? T(menor.funcao) : 'sem redundância informada')}</div>
+        <div class="dtiles">${tile('Na tela da ' + coord, s.itens.length, '', '', (s.sugerida ? 'desvios aprovados automaticamente' : 'desvios + ajustes do coordenador') + (s.seguranca.length ? ` · ${s.seguranca.length} de segurança` : ''))}${tile('Indisponíveis', nInd, '', nInd ? 'nok' : 'ok')}${tile('Com restrição', nRes, '', nRes ? 'at' : 'ok')}${tile('Menor margem', menor ? `${menor.disponiveis}/${menor.unidades}` : '—', '', menor ? (PF.margem(menor) < 1 ? 'at' : 'ok') : '', menor ? T(menor.funcao) : 'sem redundância informada')}</div>
         <div class="card col fill">${hd('Funções críticas selecionadas · piores primeiro', v ? `<span class="cap nw">${tag(v.origem)} ${esc(v.fonte || '')} · ${hhmm(v.em)}</span>` : '')}
           <div class="tbl pft"><span class="th l">Função crítica · TAG</span><span class="th l">Redundância</span><span class="th l">Unidades</span><span class="th l">Disponibilidade</span><span class="th l">Condição</span><span class="th l">Situação</span><span class="th l">Nota · NM SAP</span>
-          ${s.itens.map(i => `<span class="td l"><b>${T(i.funcao)}</b><span class="un">${T(i.tag || '')}</span></span><span class="td l">${esc(i.redundancia || '—')}</span><span class="td l">${unidadesHtml(i) || '—'}</span><span class="td l">${pill(PF.semDisp(i.disponibilidade), PF.curto(i.disponibilidade))}</span><span class="td l"><span class="row-c">${glyph(PF.semCond(i.condicao), 16)}${esc(i.condicao || '—')}</span></span><span class="td l">${esc(i.situacao || '—')}</span><span class="td l">${T(i.nota || '')}${i.nm ? ` <span class="sec">· NM ${esc(i.nm)}</span>` : ''}</span>`).join('') || '<span class="td l sec">Nenhuma função selecionada</span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span>'}
+          ${s.itens.map(i => `<span class="td l"><b>${PF.seguranca(i) ? '<span class="o escl escl-seg">Segurança</span> ' : ''}${T(i.funcao)}</b><span class="un">${T(i.tag || '')}</span></span><span class="td l">${esc(i.redundancia || '—')}</span><span class="td l">${unidadesHtml(i) || '—'}</span><span class="td l">${pill(PF.semDisp(i.disponibilidade), PF.curto(i.disponibilidade))}</span><span class="td l"><span class="row-c">${glyph(PF.semCond(i.condicao), 16)}${esc(i.condicao || '—')}</span></span><span class="td l">${esc(i.situacao || '—')}</span><span class="td l">${T(i.nota || '')}${i.nm ? ` <span class="sec">· NM ${esc(i.nm)}</span>` : ''}</span>`).join('') || '<span class="td l sec">Nenhuma função selecionada</span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span>'}
           </div></div></div>
       <div class="card col">${hd('Demais funções no PFCEO', `<span class="cap">${outros.length}</span>`)}
         ${outros.map(i => `<div class="li"><span class="row-c">${glyph(PF.semDisp(i.disponibilidade), 16)}${T(i.funcao)}</span><span class="s">${esc(PF.curto(i.disponibilidade))}</span></div>`).join('') || '<div class="li n0"><span class="sec">Todas estão na tela</span></div>'}
@@ -111,15 +111,15 @@ const DETALHES = {
 
   /* ---------- Resultados de Análises (eplab) · D-52 ---------- */
   analises(E, ctx, b, coord) {
-    const an = labDe(E, coord, ctx.dia), atr = an.filter(a => a.atrasada).length, sem = an.filter(a => a.valor === null).length;
+    const an = labDe(E, coord, ctx.dia), atr = an.filter(a => a.atrasada).length, sem = an.filter(a => a.valor === null).length, fora = an.filter(a => a.sem === 'nok').length;
     return `<main class="m3 det" style="grid-template-columns:minmax(0,1fr)">
       <div class="colg">
-        <div class="dtiles">${tile('Análises', an.length)}${tile('Em dia', an.filter(a => a.data && !a.atrasada).length, '', 'ok')}${tile('Atrasadas', atr, '', atr ? 'at' : 'ok')}${tile('Sem resultado', sem, '', sem ? 'at' : 'ok')}</div>
+        <div class="dtiles">${tile('Análises', an.length)}${tile('Fora da especificação', fora, '', fora ? 'nok' : 'ok', `${an.filter(a => a.limTxt).length} com limite definido`)}${tile('Em dia', an.filter(a => a.data && !a.atrasada).length, '', 'ok')}${tile('Atrasadas', atr, '', atr ? 'at' : 'ok')}${tile('Sem resultado', sem, '', sem ? 'at' : 'ok')}</div>
         <div class="card col fill">${hd('Resultados de Análises · ' + COORD_NOME[coord], `<span class="cap nw">${tag('A')} eplab · captura em Dados automáticos</span>`)}
-          <div class="tbl lab"><span class="th l">Análise</span><span class="th">Resultado</span><span class="th l">Data do resultado</span><span class="th l">Periodicidade</span><span class="th l">Situação</span><span class="th l">Origem</span>
-          ${an.map(a => `<span class="td l fb">${esc(a.rot)}</span><span class="td">${a.valor === null ? '<span class="sec">Sem dado</span>' : `<b>${a.tipo === 'texto' ? esc(a.valor) : fmtN(a.valor, a.dec)}</b>${a.un ? `<span class="u">${NBSP}${esc(a.un)}</span>` : ''}`}</span><span class="td l nw">${a.data ? (a.atrasada ? `<span class="o at dt">${SH.at(15)}${ddmmaaaa(a.data)}</span>` : ddmmaaaa(a.data)) : '—'}</span><span class="td l nw">a cada ${a.per} ${a.per === 1 ? 'dia' : 'dias'}</span><span class="td l">${a.valor === null ? pill('sd', 'Sem resultado') : a.atrasada ? pill('at', `Atrasada · ${a.dias} dias`) : a.data ? pill('ok', 'Em dia') : pill('sd', 'Sem data')}</span><span class="td l cap">${esc(a.fonte || '—')}</span>`).join('')}
+          <div class="tbl lab"><span class="th l">Análise</span><span class="th">Resultado</span><span class="th l">Especificação</span><span class="th l">Data do resultado</span><span class="th l">Periodicidade</span><span class="th l">Situação</span><span class="th l">Origem</span>
+          ${an.map(a => `<span class="td l fb">${esc(a.rot)}</span><span class="td">${a.valor === null ? '<span class="sec">Sem dado</span>' : `<b>${a.tipo === 'texto' ? esc(a.valor) : fmtN(a.valor, a.dec)}</b>${a.un ? `<span class="u">${NBSP}${esc(a.un)}</span>` : ''}`}</span><span class="td l nw">${a.sem ? `<span class="row-c">${glyph(a.sem, 16)}${esc(a.limTxt)}${a.un ? NBSP + esc(a.un) : ''}</span>` : a.limTxt ? esc(a.limTxt) : '<span class="sec">sem limite</span>'}</span><span class="td l nw">${a.data ? (a.atrasada ? `<span class="o at dt">${SH.at(15)}${ddmmaaaa(a.data)}</span>` : ddmmaaaa(a.data)) : '—'}</span><span class="td l nw">a cada ${a.per} ${a.per === 1 ? 'dia' : 'dias'}</span><span class="td l">${a.valor === null ? pill('sd', 'Sem resultado') : a.sem === 'nok' ? pill('nok', 'Fora da especificação') : a.atrasada ? pill('at', `Atrasada · ${a.dias} dias`) : a.sem === 'at' ? pill('at', 'Perto do limite') : a.data ? pill('ok', 'Em dia') : pill('sd', 'Sem data')}</span><span class="td l cap">${esc(a.fonte || '—')}</span>`).join('')}
           </div>
-          <span class="cap mt-auto">Parâmetros e periodicidades iniciais, a ajustar com cada coordenação (D-52). Resultado atrasado: intervalo desde a última amostra maior que a periodicidade.</span></div>
+          <span class="cap mt-auto">Parâmetros e periodicidades iniciais, a ajustar com cada coordenação (D-52). Limites de especificação na Configuração da UEP (D-61): fora do limite = Não OK; a menos de 10% da faixa = Atenção. Resultado atrasado: intervalo desde a última amostra maior que a periodicidade.</span></div>
       </div></main>`;
   },
 
@@ -151,19 +151,19 @@ const DETALHES = {
   },
   'queima:COPROD'(E, ctx) {
     const r = reservaQueima(E, ctx.dia), iuS = Regras.iuga(r.iugaMes, r.meta);
-    const causas = L(E, 'queima.causas'), totQ = causas.reduce((a, c) => a + (+c.valor || 0), 0) || 1, ev = L(E, 'queima.eventos');
+    const causas = L(E, 'queima.causas'), totQ = causas.reduce((a, c) => a + (+c.valor || 0), 0) || 1, ev = L(E, 'queima.eventos'), cl = E.classes || { Rotina: 0, 'Extraordinária': 0, dias: 0 };
     const m3 = v => v != null ? fmtN(v) + NBSP + 'm³' : 'Sem dado';
-    return `<main class="m3 det" style="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)">
+    const hojeCl = k => causas.filter(c => classeQueima(c) === k).reduce((a, c) => a + (+c.valor || 0), 0), totCl = cl.Rotina + cl['Extraordinária'];
+    return `<main class="m3 det" style="grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)">
       <div class="colg">
         <div class="dtiles">${tile('Queima projetada D', fmtN(VN(E, 'queima.proj')), 'Mm³/d')}${tile('Acumulado no mês', fmtN(r.Qacc), 'm³', r.faltam.length ? 'at' : '', r.faltam.length ? `até D-1 · falta${r.faltam.length > 1 ? 'm' : ''} ${r.faltam.length} dia${r.faltam.length > 1 ? 's' : ''}` : `até D-1 · ${r.dias} dia${r.dias === 1 ? '' : 's'}`)}${tile('IUGA parcial do mês', r.iugaMes != null ? fmtN(r.iugaMes, 2) : '—', '%', iuS.sem, 'meta ' + (r.meta != null ? fmtN(r.meta, 2) + '%' : '—'))}</div>
         ${cardTatico(E, ctx.dia)}
-        <div class="card col">${hd('Queima projetada D · por causa')}
-          <div class="bars">${causas.map(c => `<span>${T(c.causa)}</span><div class="track"><div style="width:${(+c.valor || 0) / totQ * 100}%;background:${c.evitavel === 'sim' ? '#ED8B00' : '#75787B'}"></div></div><b>${fmtN(c.valor)}</b>`).join('') || '<span class="sec">Sem causas registradas</span>'}</div>
-          <span class="cap lg2"><span><i style="background:#ED8B00"></i>Evitável · falha de equipamento</span><span><i style="background:#75787B"></i>Rotina</span><span>valores em Mm³/d</span></span></div>
-        <div class="card col fill">${hd('Últimas 24 h · maiores queimas', V(E, 'queima.ref') ? tag(V(E, 'queima.ref')) : '')}
-          ${ev.map(e => `<div class="li"><span>${T(e.evento)} <span class="sec n">· flare ${esc(e.flare)}</span></span><span class="v">${fmtU(e.volume, 1, 'Mm³')}</span></div>`).join('') || '<div class="li n0"><span class="sec">Sem evento relevante</span></div>'}
-          ${li('Flare HP agora', esc(V(E, 'flare.hp') || 'Sem dado'))}${li('Flare LP agora', esc(V(E, 'flare.lp') || 'Sem dado'))}</div>
+        <div class="card col">${hd('Queima projetada D · por causa e classe', `<span class="cap nw">hoje: rotina ${fmtN(hojeCl('Rotina'))} · extraordinária ${fmtN(hojeCl('Extraordinária'))} Mm³/d</span>`)}
+          <div class="bars">${causas.map(c => `<span>${T(c.causa)} <span class="sec n">· ${esc(classeQueima(c))}${c.evitavel === 'sim' ? ' · evitável' : ''}</span></span><div class="track"><div style="width:${(+c.valor || 0) / totQ * 100}%;background:${classeQueima(c) === 'Extraordinária' ? '#ED8B00' : '#75787B'}"></div></div><b>${fmtN(c.valor)}</b>`).join('') || '<span class="sec">Sem causas registradas</span>'}</div>
+          <span class="cap lg2"><span><i style="background:#ED8B00"></i>Extraordinária · emergência, parada de compressor, teste acima do previsto</span><span><i style="background:#75787B"></i>Rotina · purga, piloto, gás de assistência</span><span>Mm³/d</span></span>
+          ${cl.dias ? `<div class="qcl"><div class="row-sb"><span class="gh">No mês · ${cl.dias} dia${cl.dias === 1 ? '' : 's'} (inclui a projeção de hoje)</span><span class="cap"><b class="k">Rotina ${fmtN(cl.Rotina)}</b> m³ (${totCl ? fmtN(cl.Rotina / totCl * 100, 0) : '—'}%) · <b class="k">Extraordinária ${fmtN(cl['Extraordinária'])}</b> m³ (${totCl ? fmtN(cl['Extraordinária'] / totCl * 100, 0) : '—'}%)</span></div><div class="bar b16"><div style="width:${totCl ? cl.Rotina / totCl * 100 : 0}%;background:#75787B"></div><div style="width:${totCl ? cl['Extraordinária'] / totCl * 100 : 0}%;background:#ED8B00"></div></div></div>` : '<span class="cap">Sem classe registrada nas REDIAs anteriores do mês</span>'}</div>
       </div>
+      <div class="colg">
       <div class="card col qcalc s-${r.sem}">${hd('Reserva de queima no mês', pill(r.sem, r.sem === 'nok' ? 'Sem reserva' : r.sem === 'at' ? 'Abaixo do projetado' : r.sem === 'ok' ? 'Folga' : 'Sem dado'))}
         <div class="nw"><b class="big b64">${r.reserva != null ? fmtN(Math.max(0, r.reserva)) : '—'}</b><span class="unit">m³</span></div>
         <span class="cap">${r.porDia != null ? `≈ <b class="k">${fmtN(Math.max(0, r.porDia))}${NBSP}m³/d</b> nos ${r.restantes} dias restantes · queima projetada D ${r.projDia != null ? fmtN(r.projDia) + NBSP + 'm³/d' : '—'}` : 'Faltam dados para o cálculo'}</span>
@@ -177,6 +177,9 @@ const DETALHES = {
         ${li('<b>Reserva = limite − acumulado</b>', m3(r.reserva))}
         ${li('Sem contar a produção futura', m3(r.conservadora), 1)}
         <span class="cap mt-auto">${r.faltam.length ? `<b class="k">Dias sem dado na soma: ${r.faltam.map(ddmm).join(', ')}.</b> ` : ''}Acumulados = soma diária do gás produzido D-1 e da queima D-1 do SITOP; projeção do SITOP. Reserva negativa significa que a meta mensal já não é alcançável.</span></div>
+      <div class="card col fill">${hd('IUGA acumulado do mês × trajetória para a meta')}${graficoIuga(E, ctx.dia, { w: 760, h: 170 })}
+        <span class="cap mt-auto">Últimas 24 h${V(E, 'queima.ref') ? ' (' + esc(V(E, 'queima.ref')) + ')' : ''}: ${ev.map(e => `${esc(e.evento)} ${fmtN(e.volume, 1)}${NBSP}Mm³ (flare ${esc(e.flare)})`).join(' · ') || 'sem evento relevante'} · flare HP ${esc(V(E, 'flare.hp') || '—')} · LP ${esc(V(E, 'flare.lp') || '—')}</span></div>
+      </div>
     </main>`;
   },
   'pocos:COPROD'(E, ctx) {
@@ -247,8 +250,8 @@ const DETALHES = {
     const ind = L(E, 'man.ind');
     return `<main class="m3 det" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)">
       <div class="card col">${hd('Indicadores de manutenção', V(E, 'man.ref') ? tag(V(E, 'man.ref')) : '')}
-        <div class="dtiles dt-in">${ind.map(i => { const s = Regras.manutencao(+i.valor, +i.meta), d = +i.valor - +i.meta; return tile(T(i.ind), fmtN(i.valor, i.valor % 1 ? 1 : 0), '%', s, `meta ${fmtN(i.meta, i.meta % 1 ? 1 : 0)}% · ${d >= 0 ? '+' : '−'}${fmtN(Math.abs(d), 1)} p.p.`); }).join('')}</div>
-        <span class="cap mt-auto">Atenção até ${CFG.limiares.manutencaoFaixaAtencao} p.p. abaixo da meta. Fonte dos indicadores a definir (I-06).</span></div>
+        <div class="dtiles dt-in">${ind.map(i => { const mt = metaManutencao(i), s = Regras.manutencao(+i.valor, mt), d = mt != null ? +i.valor - mt : null; return tile(T(i.ind), fmtN(i.valor, i.valor % 1 ? 1 : 0), '%', s, mt != null ? `meta ${fmtN(mt, mt % 1 ? 1 : 0)}%${i.meta === '' || i.meta == null ? ' (UEP)' : ''} · ${d >= 0 ? '+' : '−'}${fmtN(Math.abs(d), 1)} p.p.` : 'meta não definida na Configuração'); }).join('')}</div>
+        <span class="cap mt-auto">Atenção até ${CFG.limiares.manutencaoFaixaAtencao} p.p. abaixo da meta. Metas da linha de base da ${esc(CFG.uep)} na Configuração da UEP (D-61); fonte dos indicadores a definir (I-06).</span></div>
       <div class="card col">${hd('Segurança operacional')}
         <div class="nums"><span><b class="big b52">${fmtN(VN(E, 'man.notas_if6'))}</b><span class="cap">notas IF6/6 abertas</span></span><span><b class="big b52">${fmtN(VN(E, 'man.sensores'))}</b><span class="cap">sensores em falha</span></span></div></div>
     </main>`;

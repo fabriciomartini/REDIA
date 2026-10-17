@@ -3,7 +3,12 @@
 let E = null;                      // estado atual reconstruído
 const UI = { sel: {}, aba: {}, pres: { bloco: 1, restante: null, rodando: false, ult: 0 } };
 
-function atualizarEstado() { E = construirEstado(Store.registros(DIA), Store.demandas(), DIA); E.mes = acumuladoMes(DIA, x => Store.registros(x)); return E; }
+function atualizarEstado() {
+  E = construirEstado(Store.registros(DIA), Store.demandas(), DIA);
+  const regs = x => Store.registros(x);
+  E.mes = acumuladoMes(DIA, regs); E.tend = tendencias(DIA, regs); E.classes = acumuladoClasses(DIA, regs);   // D-43, D-61
+  return E;
+}
 function congelada() { return !!E?.congelamento; }
 function fase() {
   const m = Relogio.minutos(), h = CFG.horarios;
@@ -13,7 +18,7 @@ function fase() {
   return { id: 'congelar', nome: 'Hora de congelar', desc: `desde ${h.congelamento}` };
 }
 function snapshotDe(E) {
-  const s = JSON.parse(JSON.stringify({ valores: E.valores, listas: E.listas, sugestoes: E.sugestoes, servicos: E.servicos, itens: E.itens, demandas: E.demandas, selecoes: E.selecoes, mes: E.mes }));
+  const s = JSON.parse(JSON.stringify({ valores: E.valores, listas: E.listas, sugestoes: E.sugestoes, servicos: E.servicos, itens: E.itens, demandas: E.demandas, selecoes: E.selecoes, mes: E.mes, tend: E.tend, classes: E.classes }));
   return s;
 }
 function estadoApresentacao(bloco) {
@@ -65,6 +70,7 @@ function rotear() {
   for (const r of ROTAS) {
     const m = r.re.exec(h);
     if (m) {
+      if (ROTA_ATUAL?.id === 'apresentacao' && r.id !== 'apresentacao') { registrarTempoBloco(); UI.pres.rodando = false; }   // D-61: fecha o tempo do bloco ao sair
       ROTA_ATUAL = { ...r, m };
       if (r.id !== 'imprimir') $('.printroot')?.remove();
       r.fn(m); return;
@@ -84,7 +90,7 @@ function rerender() { if (ROTA_ATUAL) ROTA_ATUAL.fn(ROTA_ATUAL.m); }
 const telaEstreita = () => matchMedia('(max-width: 900px)').matches;
 /* R-03: antes de gravar uma alteração da curadoria, sincroniza e confere se outra sessão já congelou a pauta.
    Na nuvem, o servidor também recusa (PAUTA_CONGELADA), mesmo se duas sessões gravarem ao mesmo tempo. */
-const PERMITIDOS_CONGELADA = ['demanda', 'anexo', 'ata', 'reabertura', 'notificacao'];
+const PERMITIDOS_CONGELADA = ['demanda', 'anexo', 'ata', 'reabertura', 'notificacao', 'reuniao'];   // reunião (D-61): decisões, aprendizados e tempos são registrados durante/após a REDIA
 async function podeEditar(tipo, extra) {
   if (PERMITIDOS_CONGELADA.includes(tipo) || extra?.escopo === 'demandas') return true;
   if (Store.remoto()) { await Store.sincronizar(); atualizarEstado(); }
@@ -493,7 +499,7 @@ function abaSugestoes(coord) {
         <fieldset style="border:0;margin:10px 0 0;padding:0"><legend class="gh2" style="padding:0">Semáforo na apresentação</legend>
           <div class="seg">${['ok', 'at', 'nok'].map(s => `<label><input type="radio" name="f-sem" value="${s}" ${s === sem ? 'checked' : ''} ${dis}>${glyph(s, 14)}${SEM_NOME[s]}</label>`).join('')}</div></fieldset>
         <label class="lbl" for="f-ped">Pedido à base</label><textarea id="f-ped" class="in" rows="2" ${dis}>${esc(v.pedido || '')}</textarea>
-        ${chkAbertura(coord, !!(d && d.abertura), dis)}
+        ${chkAbertura(coord, !!(d && d.abertura), dis)}${chkEscalar(!!(d && d.escalar), dis)}
       </div>
     </div>
     ${!p.somenteLeitura && !bloqueado() && !d ? `<div class="row" style="padding-top:8px;border-top:1px solid #fff">
@@ -511,6 +517,8 @@ function chkAbertura(coord, marcado, dis = '') {
   if (coord === 'GEPLAT') return '<p class="note" style="margin-top:10px">Destaques do GEPLAT são apresentados na tela de abertura.</p>';
   return `<label class="chk-ab"><input type="checkbox" id="f-ab" ${marcado ? 'checked' : ''} ${dis}><span><b>Muito importante · apresentar na abertura</b><span class="note">O GEPLAT apresenta o item na tela de abertura, além do bloco ${coord}. Recomendado: até ${CFG.destaquesAberturaMax} por coordenação.</span></span></label>`;
 }
+/* D-61 (proposta 7): item que precisa de decisão do GEOP ou da gerência leva o selo "Escalar" e vai para o topo nos primeiros minutos */
+const chkEscalar = (marcado, dis = '', id = 'f-esc') => `<label class="chk-ab esc"><input type="checkbox" id="${id}" ${marcado ? 'checked' : ''} ${dis}><span><b>Escalar · precisa de decisão do GEOP ou da gerência</b><span class="note">O item ganha o selo “Escalar”, sobe para o topo do bloco e da abertura e aparece no Fechamento como pendente de decisão.</span></span></label>`;
 
 /* ---- destaques criados pelo coordenador (além das sugestões dos supervisores) ---- */
 function abaDestaques(coord) {
@@ -518,8 +526,8 @@ function abaDestaques(coord) {
   const own = ds.filter(d => d.fonte === 'C'), edit = own.find(d => d.id === UI.edDst);
   const nAb = destaquesAbertura(E, coord).length, geplat = coord === 'GEPLAT';
   const opt = (arr, val) => arr.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('');
-  const v = edit || { titulo: '', tag: '', status: 'Atenção', semaforo: 'at', impacto: 'Produção', pedido: '', abertura: false, ref: { payload: { categoria: 'Operação' } } };
-  const linha = d => `<tr${edit && d.id === edit.id ? ' class="sel"' : ''}><td>${semChip(d.semaforo)}</td><td><b>${esc(d.titulo)}</b><br><span class="note">${esc(d.tag)}${d.tag ? ' · ' : ''}${esc(d.status || '')}${d.pedido ? ' · pedido à base: ' + esc(d.pedido) : ''}</span></td>
+  const v = edit || { titulo: '', tag: '', status: 'Atenção', semaforo: 'at', impacto: 'Produção', pedido: '', abertura: false, escalar: false, ref: { payload: { categoria: 'Operação' } } };
+  const linha = d => `<tr${edit && d.id === edit.id ? ' class="sel"' : ''}><td>${semChip(d.semaforo)}</td><td>${d.escalar ? '<span class="chip esc">Escalar</span> ' : ''}<b>${esc(d.titulo)}</b><br><span class="note">${esc(d.tag)}${d.tag ? ' · ' : ''}${esc(d.status || '')}${d.pedido ? ' · pedido à base: ' + esc(d.pedido) : ''}</span></td>
     <td><span class="tg0">${d.fonte}</span> <span class="note">${d.fonte === 'PS' ? esc(d.ref.payload.origem || '') + ' · ' + esc(d.meta) : 'coordenação'}</span></td>
     <td>${geplat ? '<span class="chip ab">Abertura</span>' : `<label class="sw"><input type="checkbox" data-ab="${d.id}" ${d.abertura ? 'checked' : ''} ${dis}><span>Abertura</span></label>`}</td>
     <td class="note">${esc(d.por?.nome || '')} · ${hhmm(d.em)}</td>
@@ -544,7 +552,7 @@ function abaDestaques(coord) {
       <fieldset style="border:0;margin:10px 0 0;padding:0"><legend class="gh2" style="padding:0">Semáforo na apresentação</legend>
         <div class="seg">${['ok', 'at', 'nok'].map(s => `<label><input type="radio" name="d-sem" value="${s}" ${s === v.semaforo ? 'checked' : ''} ${dis}>${glyph(s, 14)}${SEM_NOME[s]}</label>`).join('')}</div></fieldset>
       <label class="lbl" for="d-ped">Pedido à base</label><textarea id="d-ped" class="in" rows="2" ${dis}>${esc(v.pedido || '')}</textarea>
-      ${chkAbertura(coord, v.abertura, dis).replace('id="f-ab"', 'id="d-ab"')}
+      ${chkAbertura(coord, v.abertura, dis).replace('id="f-ab"', 'id="d-ab"')}${chkEscalar(v.escalar, dis, 'd-esc')}
       <div class="row end" style="margin-top:10px">${edit ? '<button class="btn" data-act="cancelar-dst">Cancelar</button>' : ''}<button class="btn pri" data-act="salvar-dst" ${dis}>${edit ? 'Salvar alterações' : 'Incluir na pauta'}</button></div>
     </div>
   </section>`;
@@ -557,7 +565,7 @@ function abaDestaques(coord) {
       $$('[data-vsug]').forEach(a => a.onclick = () => { UI.sel[coord] = a.dataset.vsug; });
       const can = $('[data-act="cancelar-dst"]'); if (can) can.onclick = () => { UI.edDst = null; rerender(); };
       $('[data-act="salvar-dst"]').onclick = () => {
-        const c = { texto: tit.value.trim(), categoria: $('#d-cat').value, tag: $('#d-tag').value.trim(), status: $('#d-st').value, impacto: $('#d-imp').value, semaforo: ($('input[name="d-sem"]:checked') || {}).value || 'at', pedido: $('#d-ped').value.trim(), abertura: !!$('#d-ab')?.checked };
+        const c = { texto: tit.value.trim(), categoria: $('#d-cat').value, tag: $('#d-tag').value.trim(), status: $('#d-st').value, impacto: $('#d-imp').value, semaforo: ($('input[name="d-sem"]:checked') || {}).value || 'at', pedido: $('#d-ped').value.trim(), abertura: !!$('#d-ab')?.checked, escalar: !!$('#d-esc')?.checked };
         if (!c.texto) { aviso('Informe o título.', 'erro'); tit.focus(); return; }
         const dest = c.abertura ? `no bloco ${coord} e na tela de abertura` : geplat ? 'na tela de abertura' : `no bloco ${coord}`;
         if (edit) { UI.edDst = null; salvarE('atualiza', { alvo: edit.id, campos: c }, {}, `Destaque atualizado (${dest}).`); }
@@ -587,7 +595,7 @@ function bindSugestoes(coord, sel) {
   $$('[data-sel]').forEach(b => b.onclick = () => { UI.sel[coord] = b.dataset.sel; (UI.det ||= {})[coord] = true; rerender(); if (telaEstreita()) window.scrollTo(0, 0); });
   const vf = $('[data-act="voltar-fila"]'); if (vf) vf.onclick = () => { (UI.det ||= {})[coord] = false; rerender(); const it = $(`[data-sel="${UI.sel[coord]}"]`); if (it) it.scrollIntoView({ block: 'center' }); };
   const tit = $('#f-tit'); if (tit) tit.oninput = () => { $('[data-cont]').textContent = tit.value.length; };
-  const campos = () => ({ titulo: $('#f-tit').value.trim(), categoria: $('#f-cat').value, tag: $('#f-tag').value.trim(), status: $('#f-st').value, impacto: $('#f-imp').value, semaforo: ($('input[name="f-sem"]:checked') || {}).value || 'at', pedido: $('#f-ped').value.trim(), abertura: !!$('#f-ab')?.checked });
+  const campos = () => ({ titulo: $('#f-tit').value.trim(), categoria: $('#f-cat').value, tag: $('#f-tag').value.trim(), status: $('#f-st').value, impacto: $('#f-imp').value, semaforo: ($('input[name="f-sem"]:checked') || {}).value || 'at', pedido: $('#f-ped').value.trim(), abertura: !!$('#f-ab')?.checked, escalar: !!$('#f-esc')?.checked });
   const on = (a, fn) => { const b = $(`[data-act="${a}"]`); if (b) b.onclick = fn; };
   on('aprovar', () => { const c = campos(); if (!c.titulo) return aviso('Informe o título.', 'erro'); salvarE('decisao', { alvo: sel.id, acao: 'aprovar', ...c }, {}, c.abertura ? `Aprovado: entra no bloco ${coord} e na tela de abertura.` : coord === 'GEPLAT' ? 'Aprovado: entra na tela de abertura.' : `Aprovado: entra no bloco ${coord}.`); });
   on('salvar-ed', () => salvarE('decisao', { alvo: sel.id, acao: 'aprovar', ...campos() }, {}, 'Destaque atualizado.'));
@@ -615,12 +623,12 @@ function abaPfceo(coord) {
   const nDesv = s.todos.filter(PF.desvio).length, nNorm = s.todos.length - nDesv;
   const card = (i, pos) => { const sd = PF.semDisp(i.disponibilidade), k = PF.chave(i), desv = PF.desvio(i), tela = s.naTela(i), ab = abSet.has(k);
     const u = +i.unidades > 0 && i.disponiveis !== '' && i.disponiveis != null ? `${i.disponiveis}/${i.unidades} disponíveis` : '';
-    return `<div class="pfk s-${sd}${tela ? ' tela' : ''}" data-pfk="${esc(k)}"><div class="row" style="justify-content:space-between;gap:8px"><span class="row" style="gap:8px"><span class="pfn">${pos}</span><b>${esc(i.funcao)}</b></span><span class="row" style="gap:6px">${i.condicao ? `<span class="chip ${PF.semCond(i.condicao)}">${esc(i.condicao)}</span>` : ''}<span class="chip ${sd}">${esc(PF.curto(i.disponibilidade))}</span></span></div>
+    return `<div class="pfk s-${sd}${tela ? ' tela' : ''}" data-pfk="${esc(k)}"><div class="row" style="justify-content:space-between;gap:8px"><span class="row" style="gap:8px"><span class="pfn">${pos}</span>${PF.seguranca(i) ? '<span class="chip ok" title="Sistema de segurança: sempre na primeira linha da tela (D-61)">Segurança</span>' : ''}<b>${esc(i.funcao)}</b></span><span class="row" style="gap:6px">${i.condicao ? `<span class="chip ${PF.semCond(i.condicao)}">${esc(i.condicao)}</span>` : ''}<span class="chip ${sd}">${esc(PF.curto(i.disponibilidade))}</span></span></div>
       <span class="note">${[i.tag, i.redundancia, u, i.condicao ? 'Condição ' + i.condicao : '', i.situacao === 'Desligado' ? 'Parado' : i.situacao === 'Ligado' ? 'Operando' : i.situacao].filter(Boolean).map(esc).join(' · ')}</span>
       ${i.nota ? `<span>${esc(i.nota)}</span>` : ''}${i.nm ? `<span class="note">NM ${esc(i.nm)}</span>` : ''}
-      <div class="row pfa"><span class="tg0">${desv ? 'Com desvio' : 'Normal'}</span><span class="note">${tela ? (desv ? `Aprovado para a tela da ${coord} (automático)` : `Incluído na tela da ${coord}`) : (desv ? 'Retirado da tela pelo coordenador' : 'Fora da tela da ' + coord)}</span><span style="flex:1"></span>
+      <div class="row pfa"><span class="tg0">${desv ? 'Com desvio' : 'Normal'}</span><span class="note">${PF.seguranca(i) ? 'Sistema de segurança: fica sempre na tela, no topo' : tela ? (desv ? `Aprovado para a tela da ${coord} (automático)` : `Incluído na tela da ${coord}`) : (desv ? 'Retirado da tela pelo coordenador' : 'Fora da tela da ' + coord)}</span><span style="flex:1"></span>
         <label class="row ab" style="gap:6px"><input type="checkbox" data-pfab="${esc(k)}" ${ab ? 'checked' : ''} ${dis}> Abertura do GEPLAT</label>
-        <button class="btn sm ${tela ? '' : 'pri'}" data-pft="${esc(k)}" data-v="${tela ? 0 : 1}" ${dis}>${tela ? 'Retirar da tela' : 'Incluir na tela'}</button></div></div>`; };
+        ${PF.seguranca(i) ? '' : `<button class="btn sm ${tela ? '' : 'pri'}" data-pft="${esc(k)}" data-v="${tela ? 0 : 1}" ${dis}>${tela ? 'Retirar da tela' : 'Incluir na tela'}</button>`}</div></div>`; };
   const html = `<section class="ed" style="grid-column:2 / -1">
     ${bloqueado() ? '<div class="banner">Pauta congelada: a seleção está bloqueada.</div>' : ''}
     <div class="pn" data-lista-pf="pfceo.${coord}"><div class="pn-h"><h2>Equipamentos e Sistemas – PFCEO · ${coord}</h2><span class="note">Origem: PFCEO</span><span style="flex:1"></span><button class="btn sm pri" data-capturar="${esc(chave)}" ${dis}>Capturar dados</button></div>
@@ -879,21 +887,33 @@ function abaItens(coord) {
   const html = `<section class="ed" style="grid-column:2 / -1">
     <div class="pn"><h2>${geplat ? 'Pauta extra' : 'Ameaças e oportunidades'} · ${coord}</h2>
       <p class="note">${geplat ? `O tema do dia vem do calendário (Configuração). Os temas da plataforma com registro aparecem com semáforo; os demais ficam numa linha de rodapé.` : 'A ameaça mais grave (e, em empate, a primeira da lista) vai para as Principais ameaças da abertura.'}</p>
-      <div class="tbw"><table class="tb"><thead><tr><th>Tipo</th><th>${geplat ? 'Tema' : 'Texto'}</th>${geplat ? '<th>Nota curta</th>' : ''}<th>Semáforo</th><th>Por</th><th></th></tr></thead><tbody>
-      ${it.map(i => `<tr><td>${esc({ ameaca: 'Ameaça', oportunidade: 'Oportunidade', pauta_extra: 'Pauta extra' }[i.payload.tipo])}</td><td><b>${esc(i.payload.texto)}</b></td>${geplat ? `<td>${esc(i.payload.detalhe || '')}</td>` : ''}<td>${semChip(i.payload.semaforo)}</td><td class="note">${esc(i.autor.nome)} · ${hhmm(i.criadoEm)}</td><td><button class="btn sm lnk" data-rm="${i.id}" ${dis}>Remover</button></td></tr>`).join('') || `<tr><td colspan="6" class="note">Nenhum item.</td></tr>`}
+      <div class="tbw"><table class="tb"><thead><tr><th>Tipo</th><th>${geplat ? 'Tema' : 'Texto'}</th>${geplat ? '<th>Nota curta</th><th>Dono · prazo</th>' : ''}<th>Semáforo</th><th>Por</th><th></th></tr></thead><tbody>
+      ${it.map(i => `<tr><td>${esc({ ameaca: 'Ameaça', oportunidade: 'Oportunidade', pauta_extra: 'Pauta extra' }[i.payload.tipo])}</td><td>${i.payload.escalar ? '<span class="chip esc">Escalar</span> ' : ''}<b>${esc(i.payload.texto)}</b></td>${geplat ? `<td>${esc(i.payload.detalhe || '')}</td><td class="nw">${esc(i.payload.dono || '—')}${i.payload.prazo ? ' · até ' + ddmm(i.payload.prazo) : ''}${i.payload.demandaId ? ' <span class="tg0" title="Ação registrada no Canal Base x Bordo">Canal</span>' : ''}</td>` : ''}<td>${semChip(i.payload.semaforo)}</td><td class="note">${esc(i.autor.nome)} · ${hhmm(i.criadoEm)}</td><td><button class="btn sm lnk" data-rm="${i.id}" ${dis}>Remover</button></td></tr>`).join('') || `<tr><td colspan="7" class="note">Nenhum item.</td></tr>`}
       </tbody></table></div></div>
-    <div class="pn"><h2>Incluir</h2><div class="fgrid">
+    <div class="pn"><h2>Incluir</h2><div class="fgrid pe-form">
       <div><label class="lbl" for="i-tipo">Tipo</label><select id="i-tipo" class="in" ${dis}>${tipos.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
       ${geplat ? `<div><label class="lbl" for="i-txt">Tema</label><select id="i-txt" class="in" ${dis}>${CFG.temasPlataforma.map(t => `<option>${esc(t)}</option>`).join('')}</select></div><div><label class="lbl" for="i-det">Nota curta</label><input id="i-det" class="in" maxlength="60" ${dis}></div>` : `<div style="grid-column:span 2"><label class="lbl" for="i-txt">Texto (até 90 caracteres)</label><input id="i-txt" class="in" maxlength="90" ${dis}></div>`}
-      <div><label class="lbl" for="i-sem">Semáforo</label><select id="i-sem" class="in" ${dis}><option value="at">Atenção</option><option value="nok">Não OK</option><option value="ok">OK</option></select></div></div>
+      <div><label class="lbl" for="i-sem">Semáforo</label><select id="i-sem" class="in" ${dis}><option value="at">Atenção</option><option value="nok">Não OK</option><option value="ok">OK</option></select></div>
+      ${geplat ? `<div><label class="lbl" for="i-dono">Dono (função)</label><input id="i-dono" class="in" placeholder="ex.: 4º GEPLAT" ${dis}></div><div><label class="lbl" for="i-prazo">Prazo</label><input id="i-prazo" type="date" class="in" ${dis}></div>
+      <div style="grid-column:span 2"><label class="lbl" for="i-acao">Ação que sai da reunião (opcional · vira item do Canal Base x Bordo)</label><input id="i-acao" class="in" maxlength="100" placeholder="ex.: Enviar plano de remanejamento dos camarotes do M22" ${dis}></div>
+      <div><label class="lbl" for="i-sent">Sentido da ação</label><select id="i-sent" class="in" ${dis}><option>bordo → base</option><option>base → bordo</option></select></div>` : ''}</div>
+      ${geplat ? `<p class="note">D-61: o tema com dono e prazo aparece assim na abertura. Com uma ação preenchida, o sistema registra também uma demanda no Canal Base x Bordo (coordenação GEPLAT, origem C), com o mesmo dono e prazo.</p>${chkEscalar(false, dis, 'i-esc')}` : ''}
       <div class="row end" style="margin-top:8px"><button class="btn pri" data-act="add-item" ${dis}>Incluir</button></div></div>
   </section>`;
   return {
     html, dois: true, bind: () => {
       $$('[data-rm]').forEach(b => b.onclick = () => salvarE('remove', { alvo: b.dataset.rm }, {}, 'Item removido.'));
-      const add = $('[data-act="add-item"]'); if (add) add.onclick = () => {
+      const add = $('[data-act="add-item"]'); if (add) add.onclick = async () => {
         const t = $('#i-txt').value.trim(); if (!t) return aviso('Informe o texto.', 'erro');
-        salvarE('item', { coord, tipo: $('#i-tipo').value, texto: t, detalhe: geplat ? $('#i-det').value.trim() : '', semaforo: $('#i-sem').value, ordem: it.length + 1 }, {}, 'Item incluído.');
+        const p = { coord, tipo: $('#i-tipo').value, texto: t, detalhe: geplat ? $('#i-det').value.trim() : '', semaforo: $('#i-sem').value, ordem: it.length + 1 };
+        if (!geplat) return salvarE('item', p, {}, 'Item incluído.');
+        Object.assign(p, { dono: $('#i-dono').value.trim(), prazo: $('#i-prazo').value, escalar: !!$('#i-esc')?.checked });
+        const acao = $('#i-acao').value.trim();
+        try {
+          if (!(await podeEditar('item'))) return;
+          if (acao) { const d = await registrar('demanda', { titulo: acao, sentido: $('#i-sent').value, responsavel: p.dono || '[responsável]', prazo: p.prazo || addDias(DIA, 3), origem: 'C', coord: 'GEPLAT', dataRedia: DIA, status: 'aberta', pautaExtra: t }, { escopo: 'demandas' }); p.demandaId = d.id; }
+          await registrar('item', p); atualizarEstado(); aviso(acao ? 'Tema incluído e ação registrada no Canal Base x Bordo.' : 'Item incluído.', 'ok'); rerender();
+        } catch (e) { await tratarErroGravacao(e); }
       };
     },
   };
@@ -942,9 +962,18 @@ function abaAceite() {
 
 /* ======================= Apresentação ======================= */
 let tickPres = null, ocultarCtrl = null;
+/* D-61 (proposta 27): ao sair de um bloco com o cronômetro usado, grava o tempo medido (início, fim, segundos × timebox) como registro da reunião */
+function registrarTempoBloco() {
+  const P = UI.pres; if (!P.inicio || !USUARIO) return;
+  const fim = Relogio.agora().toISOString(), segundos = Math.max(0, Math.round((Date.now() - P.inicioMs) / 1000) - Math.round((P.pausado || 0) / 1000));
+  const payload = { tipo: 'tempo', bloco: P.bloco, inicio: P.inicio, fim, segundos, timebox: CFG.timeboxMin * 60 };
+  P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0;
+  if (segundos < 5) return;   // passagem relâmpago (navegação), não é apresentação
+  registrar('reuniao', payload).then(() => { atualizarEstado(); }).catch(e => aviso('Tempo do bloco não registrado: ' + e.message, 'erro'));
+}
 function telaApresentacao(m) {
   const P = UI.pres, b = +m[1];
-  if (P.bloco !== b || P.restante === null) { P.bloco = b; P.restante = CFG.timeboxMin * 60; P.rodando = P.rodando && P.restante > 0; }
+  if (P.bloco !== b || P.restante === null) { if (P.bloco !== b) registrarTempoBloco(); P.bloco = b; P.restante = CFG.timeboxMin * 60; P.rodando = P.rodando && P.restante > 0; if (P.rodando) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } }
   const ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(P.restante) };
   const top = m[2] && topicoValido(b, m[2]) ? m[2] : null;
   const tela = top ? telaDetalhe(estadoApresentacao(b), ctx, b, top) : TELAS[b - 1](estadoApresentacao(b), ctx);
@@ -956,13 +985,18 @@ function telaApresentacao(m) {
     <button class="btn sm" data-act="tela">Tela cheia</button><a class="btn sm" href="#/inicio">Sair</a>
     <span class="cl">← → blocos · espaço cronômetro · F tela cheia</span></div>`);
   ajustarPalco(); encaixar($('.stage')); atualizarTimer();
-  $('[data-act="tmr"]').onclick = alternarTimer; $('[data-act="zera"]').onclick = () => { P.restante = CFG.timeboxMin * 60; P.rodando = false; rerender(); };
+  $('[data-act="tmr"]').onclick = alternarTimer; $('[data-act="zera"]').onclick = () => { P.restante = CFG.timeboxMin * 60; P.rodando = false; P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0; rerender(); };
   $('[data-act="tela"]').onclick = telaCheia;
   mostrarCtrl();
 }
 function fmtTimer(s) { const neg = s < 0, a = Math.abs(s); return `${neg ? '+' : ''}${pad(Math.floor(a / 60))}:${pad(a % 60)}`; }
 function atualizarTimer() { const el = $('[data-tmr]'); if (el) { el.textContent = fmtTimer(UI.pres.restante); el.classList.toggle('alerta', UI.pres.restante <= 60); } }
-function alternarTimer() { UI.pres.rodando = !UI.pres.rodando; UI.pres.ult = Date.now(); const b = $('[data-act="tmr"]'); if (b) b.textContent = (UI.pres.rodando ? 'Pausar' : 'Iniciar') + ' cronômetro'; }
+function alternarTimer() {
+  const P = UI.pres; P.rodando = !P.rodando; P.ult = Date.now();
+  if (P.rodando) { if (!P.inicio) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } else if (P.pausaEm) { P.pausado = (P.pausado || 0) + (Date.now() - P.pausaEm); P.pausaEm = 0; } }
+  else P.pausaEm = Date.now();
+  const b = $('[data-act="tmr"]'); if (b) b.textContent = (P.rodando ? 'Pausar' : 'Iniciar') + ' cronômetro';
+}
 function ajustarPalco() {
   const w = $('.stw'); if (!w) return;
   const s = Math.min(innerWidth / 1920, innerHeight / 1080);
@@ -978,6 +1012,7 @@ function telaAta() {
   const trans = E.anexos.filter(a => a.payload.tipo === 'transcricao');
   const ata = E.atas[E.atas.length - 1];
   const apr = E.sugestoes.filter(s => s.decisao?.payload.acao === 'aprovar').length, rec = E.sugestoes.filter(s => s.decisao?.payload.acao === 'recusar').length;
+  const dec = reuniaoDe(E, 'decisao'), apz = reuniaoDe(E, 'aprendizado'), tb = temposBlocos(E), tx = taxaPrazo(E, DIA), escl = escalados(E), mmss = seg => seg == null ? '—' : `${Math.floor(seg / 60)}:${pad(Math.round(seg % 60))}`;   // D-61
   render(cabecalhoApp({ id: 'ata', titulo: 'Fechamento e ata' }) + `<div class="wrap"><div class="grid2">
     <section class="pn"><h2>Pauta do dia</h2>
       ${cong ? `<div class="banner ok">Pauta congelada às <b>${hhmm(cong.criadoEm)}</b> por ${esc(cong.autor.nome)} · código de integridade <b>${esc(cong.payload.hash)}</b>.</div>` : `<div class="banner">${f.id === 'congelar' ? 'Já passou das ' + CFG.horarios.congelamento + '. ' : ''}A pauta ainda não foi congelada. Congelar grava a versão oficial e bloqueia a curadoria.</div>`}
@@ -989,8 +1024,31 @@ function telaAta() {
       <div class="row" style="gap:28px"><div class="kpi"><b>${apr}</b><span class="note">itens aprovados</span></div><div class="kpi"><b>${rec}</b><span class="note">recusados</span></div></div>
       <p class="note">Quando a integração com o app de passagem estiver liberada (T-05), o status volta ao supervisor na troca de turno seguinte. Nesta versão ele fica registrado na base.</p>
     </section></div>
+    <div class="grid2" style="margin-top:16px">
+      <section class="pn"><h2>Decisões tomadas na reunião</h2>
+        <p class="note">D-61: decisões separadas das demandas, com quem decidiu. Podem ser registradas com a pauta congelada (durante e após a REDIA) e entram na ata e na tela Fechamento.${escl.length ? ` <b>${escl.length} item(ns) marcado(s) “Escalar”</b> aguardam decisão do GEOP ou da gerência: ${escl.map(d => esc(d.coord + ': ' + d.titulo)).join('; ')}.` : ''}</p>
+        <div class="tbw"><table class="tb"><thead><tr><th>Decisão</th><th>Decidido por</th><th>Coordenação</th><th>Hora</th><th></th></tr></thead><tbody>
+        ${dec.map(d => `<tr><td><b>${esc(d.payload.texto)}</b></td><td>${esc(d.payload.por || d.autor.nome)}</td><td>${esc(d.payload.coord || '—')}</td><td class="nw">${hhmm(d.criadoEm)}</td><td>${cong ? '' : `<button class="btn sm lnk" data-rm-reu="${d.id}">Remover</button>`}</td></tr>`).join('') || '<tr><td colspan="5" class="note">Nenhuma decisão registrada.</td></tr>'}
+        </tbody></table></div>
+        <div class="fgrid" style="margin-top:8px"><div style="grid-column:span 2"><label class="lbl" for="dc-txt">Decisão</label><input id="dc-txt" class="in" maxlength="160"></div>
+          <div><label class="lbl" for="dc-por">Decidido por (função)</label><input id="dc-por" class="in" placeholder="ex.: GEOP" value="${esc(USUARIO?.posto || '')}"></div>
+          <div><label class="lbl" for="dc-coord">Coordenação</label><select id="dc-coord" class="in">${['GEPLAT', 'COPROD', 'COEMB', 'COMAN'].map(c => `<option>${c}</option>`).join('')}</select></div></div>
+        <div class="row end" style="margin-top:8px"><button class="btn pri" data-act="add-decisao">Registrar decisão</button></div></section>
+      <section class="pn"><h2>Aprendizados do dia</h2>
+        <p class="note">O que a reunião aprendeu e vale repetir ou evitar (huddles). Entram na ata e na tela Fechamento.</p>
+        <ul class="lst">${apz.map(a => `<li>${esc(a.payload.texto)} <span class="note">· ${esc(a.autor.nome)} · ${hhmm(a.criadoEm)}</span>${cong ? '' : ` <button class="btn sm lnk" data-rm-reu="${a.id}">Remover</button>`}</li>`).join('') || '<li class="note">Nenhum aprendizado registrado.</li>'}</ul>
+        <label class="lbl" for="ap-txt">Aprendizado</label><input id="ap-txt" class="in" maxlength="200">
+        <div class="row end" style="margin-top:8px"><button class="btn pri" data-act="add-aprendizado">Registrar aprendizado</button></div>
+        <h3>Tempo por bloco · medido pelo cronômetro da apresentação</h3>
+        <div class="tbw"><table class="tb"><thead><tr><th>Bloco</th><th>Previsto</th><th>Medido</th><th>Estouro</th><th>Início · fim</th></tr></thead><tbody>
+        ${tb.linhas.map(l => `<tr><td>${esc(l.nome)}</td><td>${mmss(l.timebox)}</td><td><b>${mmss(l.segundos)}</b></td><td>${l.segundos == null ? '—' : l.estouro > 0 ? '<span class="chip at">+' + mmss(l.estouro) + '</span>' : '<span class="chip ok">0:00</span>'}</td><td class="nw note">${l.inicio ? hhmm(l.inicio) + ' · ' + hhmm(l.fim) : '—'}</td></tr>`).join('')}
+        </tbody></table></div>
+        <p class="note">${tb.medidos ? `${tb.medidos} de 5 blocos medidos · ${mmss(tb.total)} de ${mmss(tb.previsto)} previstos · estouro total ${mmss(tb.estouro)}.` : 'Inicie o cronômetro na apresentação: ao trocar de bloco o tempo é registrado aqui e na ata.'}</p></section>
+    </div>
     <section class="pn" style="margin-top:16px"><h2>Demandas registradas nesta REDIA</h2>${tabelaDemandas(hoje)}<h3>Nova demanda</h3>${formDemanda(null)}</section>
-    <section class="pn" style="margin-top:16px"><h2>Demandas de reuniões anteriores em aberto</h2>${tabelaDemandas(ant)}</section>
+    <section class="pn" style="margin-top:16px"><h2>Demandas de reuniões anteriores em aberto</h2>
+      <p class="note">Fechadas no prazo no mês (D-61): <b>${tx.pct != null ? fmtN(tx.pct, 0) + '%' : '—'}</b>${tx.n ? ` · ${tx.ok} de ${tx.n} decididas` : ' · nenhuma demanda do mês decidida ainda'}${tx.porCoord.length ? ' · por coordenação: ' + tx.porCoord.map(g => `${esc(g.k)} ${fmtN(g.pct, 0)}% (${g.ok}/${g.n})`).join(', ') : ''}${tx.porSentido.length ? ' · por sentido: ' + tx.porSentido.map(g => `${esc(g.k)} ${fmtN(g.pct, 0)}%`).join(', ') : ''}.</p>
+      ${tabelaDemandas(ant)}</section>
     <div class="grid2" style="margin-top:16px">
       <section class="pn"><h2>Transcrição do Teams</h2>
         ${trans.length ? trans.map(t => `<p>Anexada: <b>${esc(t.payload.nome)}</b> (${fmtN(t.payload.tamanho / 1024, 0)} kB) por ${esc(t.autor.nome)} às ${hhmm(t.criadoEm)}${t.payload.caminho ? ` <button class="btn sm sec" data-arq="${esc(t.payload.caminho)}">Baixar</button>` : ''}</p>`).join('') : '<p class="note">Baixe a transcrição da reunião no Teams (.docx ou .vtt) e anexe aqui.</p>'}
@@ -1007,6 +1065,9 @@ function telaAta() {
   </div><iframe id="ifr-ata" title="Ata para impressão" style="position:absolute;width:0;height:0;border:0"></iframe>`);
   bindDemandas();
   const on = (a, fn) => { const b = $(`[data-act="${a}"]`); if (b) b.onclick = fn; };
+  on('add-decisao', () => { const t = $('#dc-txt').value.trim(); if (!t) return aviso('Descreva a decisão.', 'erro'); salvarE('reuniao', { tipo: 'decisao', texto: t, por: $('#dc-por').value.trim() || USUARIO?.nome || '', coord: $('#dc-coord').value }, {}, 'Decisão registrada.'); });
+  on('add-aprendizado', () => { const t = $('#ap-txt').value.trim(); if (!t) return aviso('Descreva o aprendizado.', 'erro'); salvarE('reuniao', { tipo: 'aprendizado', texto: t }, {}, 'Aprendizado registrado.'); });
+  $$('[data-rm-reu]').forEach(b => b.onclick = () => salvarE('remove', { alvo: b.dataset.rmReu }, {}, 'Registro removido.'));
   on('congelar', congelarPauta);
   on('reabrir-pauta', () => { const m = $('#mot-re').value.trim(); if (!m) return aviso('Informe o motivo da reabertura.', 'erro'); descongelarPauta(m); });
   $$('[data-arq]').forEach(b => b.onclick = async () => {
@@ -1107,7 +1168,16 @@ function telaConfig() {
         ${num('l-iu', 'IUGA · faixa de atenção (p.p. abaixo da meta)', L.iugaFaixaAtencao)}${num('l-ma', 'Manutenção · faixa de atenção (p.p.)', L.manutencaoFaixaAtencao)}
         ${num('l-ut-ok', 'Utilidades · OK acima de (% do mínimo)', L.utilidades.ok)}${num('l-ut-d', 'Utilidades · atenção se chega ao mínimo em (dias)', L.utilidades.diasAtencao)}</div></section>
       <section class="pn"><h2>Calendário da pauta extra</h2><div class="fgrid">${[1, 2, 3, 4, 5, 6, 0].map(d => `<div><label class="lbl" for="pe-${d}">${DIAS[d]}</label><input id="pe-${d}" class="in" value="${esc(C.pautaExtra[d] || '')}"></div>`).join('')}</div></section>
+      <section class="pn"><h2>Metas dos indicadores de manutenção</h2><p class="note">D-61: linha de base da UEP (I-05), usada quando a linha do indicador não traz meta própria. Indicador = nome exato usado na lista da COMAN.</p>
+        <div class="tbw"><table class="tb" id="mm-tab"><thead><tr><th>Indicador</th><th>Meta (%)</th><th></th></tr></thead><tbody>
+        ${Object.entries(C.metasManutencao || {}).map(([k, v], i) => `<tr><td><input class="in" data-mm-k value="${esc(k)}"></td><td><input class="in" type="number" step="any" data-mm-v value="${esc(v)}"></td><td><button class="btn sm lnk" data-mm-rm="${i}">Remover</button></td></tr>`).join('')}
+        </tbody></table></div><div class="row" style="margin-top:6px"><button class="btn sm sec" data-act="mm-add">Adicionar indicador</button></div></section>
     </div>
+    <section class="pn" style="margin-top:16px"><h2>Limites de especificação das análises (eplab)</h2>
+      <p class="note">D-61 (proposta 13): com limite informado, o resultado ganha semáforo (fora do limite = Não OK; a menos de 10% da faixa = Atenção). Vazio = só a data é avaliada. Valores iniciais são referências públicas a confirmar pela coordenação (PREMISSA).</p>
+      <div class="tbw"><table class="tb"><thead><tr><th>Coordenação</th><th>Análise</th><th>Unidade</th><th>Mínimo</th><th>Máximo</th></tr></thead><tbody>
+      ${Object.entries(LAB).flatMap(([coord, ans]) => ans.filter(a => a.tipo !== 'texto').map(a => { const id = `lab.${coord}.${a.k}`, l = (C.limitesLab || {})[id] || {}; return `<tr><td>${coord}</td><td>${esc(a.rot)}</td><td>${esc(a.un || '—')}</td><td><input class="in" type="number" step="any" style="width:110px" data-ll="${id}" data-ll-k="min" value="${l.min ?? ''}"></td><td><input class="in" type="number" step="any" style="width:110px" data-ll="${id}" data-ll-k="max" value="${l.max ?? ''}"></td></tr>`; })).join('')}
+      </tbody></table></div></section>
     <div class="row end" style="margin-top:16px"><button class="btn sec" data-act="padrao" ${podeAdministrar() ? '' : 'disabled'}>Restaurar padrão</button><button class="btn pri" data-act="salvar-cfg" ${podeAdministrar() ? '' : 'disabled'}>Salvar configuração</button></div>
   </div>`);
   $('[data-act="salvar-cfg"]').onclick = async () => {
@@ -1120,8 +1190,12 @@ function telaConfig() {
     Object.assign(CFG.limiares.efop, { ok: n('l-ef-ok'), at: n('l-ef-at') }); Object.assign(CFG.limiares.injecao, { ok: n('l-in-ok'), at: n('l-in-at') });
     CFG.limiares.iugaFaixaAtencao = n('l-iu'); CFG.limiares.manutencaoFaixaAtencao = n('l-ma'); CFG.limiares.utilidades.ok = n('l-ut-ok'); CFG.limiares.utilidades.diasAtencao = n('l-ut-d');
     for (const d of [0, 1, 2, 3, 4, 5, 6]) CFG.pautaExtra[d] = $('#pe-' + d).value.trim();
+    const mm = {}; $$('#mm-tab tbody tr').forEach(tr => { const k = $('[data-mm-k]', tr).value.trim(), v = $('[data-mm-v]', tr).value; if (k && v !== '' && !isNaN(+v)) mm[k] = +v; }); CFG.metasManutencao = mm;
+    const ll = {}; $$('[data-ll]').forEach(i => { const v = i.value; (ll[i.dataset.ll] ||= { min: '', max: '' })[i.dataset.llK] = v === '' ? '' : +v; }); CFG.limitesLab = ll;
     try { await Store.salvarConfig(); atualizarEstado(); aviso('Configuração salva.', 'ok'); rerender(); } catch (e) { aviso(e.message, 'erro'); }
   };
+  $('[data-act="mm-add"]').onclick = () => { const tb = $('#mm-tab tbody'); const tr = document.createElement('tr'); tr.innerHTML = '<td><input class="in" data-mm-k placeholder="ex.: ICPMe"></td><td><input class="in" type="number" step="any" data-mm-v></td><td><button class="btn sm lnk" data-mm-rm>Remover</button></td>'; tb.appendChild(tr); $('[data-mm-rm]', tr).onclick = () => tr.remove(); $('[data-mm-k]', tr).focus(); };
+  $$('[data-mm-rm]').forEach(b => b.onclick = () => b.closest('tr').remove());
   $('[data-act="padrao"]').onclick = async () => { const uep = CFG.uep; CFG = mesclarCfg({}); if (Store.remoto()) CFG.uep = uep; try { await Store.salvarConfig(); aviso('Padrão restaurado.', 'ok'); } catch (e) { aviso(e.message, 'erro'); } rerender(); };
 }
 

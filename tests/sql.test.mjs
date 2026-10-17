@@ -83,6 +83,7 @@ ok(/PAUTA_CONGELADA/.test(await falha(U.cp, `select public.redia_gravar($1::json
 ok(/PAUTA_CONGELADA/.test(await falha(U.gp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('congelamento', { snapshot: {}, hash: 'x' })])]) || ''), 'congelar duas vezes é recusado');
 const okCong = await gravar(U.cp, [reg('demanda', { titulo: 'x', status: 'aberta' }, { escopo: 'demandas' }), reg('notificacao', { coord: 'COPROD' }), reg('anexo', { tipo: 'transcricao' }), reg('atualiza', { alvo: 'x', campos: {} }, { escopo: 'demandas' })]);
 ok(okCong.length === 4 && okCong[0].escopo === 'demandas', 'demanda, notificação, anexo e status de demanda passam com a pauta congelada');
+ok((await gravar(U.cp, [reg('reuniao', { tipo: 'decisao', texto: 'teste', por: 'GEOP' })])).length === 1, 'registro da reunião (decisão/aprendizado/tempo) passa com a pauta congelada (D-61)');
 const outroDia = await gravar(U.cp, [reg('valor', { campo: 'oleo.real', valor: 2 }, { data: '2026-10-15' })]);
 ok(outroDia.length === 1, 'o congelamento vale só para o dia congelado');
 await gravar(U.gp, [reg('reabertura', { motivo: 'teste' })]);
@@ -96,6 +97,11 @@ ok(datas.includes('2026-10-03:gas.prod_d1') && !datas.includes('2026-10-03:oleo.
 ok(car.seq >= car.registros[car.registros.length - 1].seq, 'carga devolve a sequência para a sincronização incremental');
 const nov = (await como(U.cp, `select public.redia_novos('P-83', $1) as r`, [car.seq - 2])).rows[0].r;
 ok(nov.registros.length === 2 && nov.seq === car.seq, 'redia_novos traz só o que entrou depois da sequência');
+// D-61: tendência de 7 dias atravessa a virada do mês e traz listas (queima.causas) dos dias anteriores
+await gravar(U.cp, [reg('valor', { campo: 'oleo.real', valor: 7 }, { data: '2026-09-28' }), reg('valor', { campo: 'oleo.real', valor: 6 }, { data: '2026-09-23' }), reg('lista', { campo: 'queima.causas', itens: [{ causa: 'x', valor: 1, classe: 'Rotina' }] }, { data: '2026-09-29' })]);
+const car2 = (await como(U.cp, `select public.redia_carregar('P-83', '2026-10-01', array['oleo.real', 'queima.causas']) as r`)).rows[0].r;
+const d2 = car2.registros.map(r => r.data + ':' + (r.payload.campo || r.tipo));
+ok(d2.includes('2026-09-28:oleo.real') && d2.includes('2026-09-29:queima.causas') && !d2.includes('2026-09-23:oleo.real'), 'carga traz valores e listas dos 7 dias anteriores mesmo no início do mês (D-61)');
 
 // configuração
 ok(/SEM_PERMISSAO/.test(await falha(U.cp, `select public.redia_config_salvar('P-83', '{"timeboxMin":6}'::jsonb)`) || ''), 'COPROD não altera a configuração da UEP');

@@ -459,6 +459,7 @@ table.tb tr.sel td{background:#FFF7DA}
 .stage .dq.c .dq-t{font-size:21px}
 .stage .dq.c .dq-i{font-size:18px}
 .stage .pfc{flex:0 1 auto;max-height:52%}
+.stage .pfc.pfc-seg{max-height:64%}   /* D-61: com a linha dos sistemas de segurança, o card cresce para manter os desvios de processo */
 .stage .row2.pf .tg{align-items:center}
 .stage .un2{display:inline-flex;align-items:center;gap:3px;margin-right:6px}
 .stage .un2 i{display:inline-block;width:9px;height:16px;border-radius:3px;box-shadow:inset 0 0 0 1.5px rgba(117,120,123,.6)}
@@ -618,7 +619,7 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .stage .anv .u{font-size:15px;font-weight:600;color:var(--cinza)}
 .stage .dt0{font-size:15px;color:var(--cinza);font-variant-numeric:tabular-nums;min-width:46px;text-align:right}
 .stage .o.at.dt{display:inline-flex;flex-direction:row;white-space:nowrap;background:rgba(253,200,47,.55);border-radius:999px;padding:4px 9px 4px 6px;font-variant-numeric:tabular-nums}
-.stage .tbl.lab{grid-template-columns:minmax(0,1.6fr) auto auto auto auto minmax(0,.9fr);column-gap:22px}
+.stage .tbl.lab{grid-template-columns:minmax(0,1.6fr) auto auto auto auto auto minmax(0,.9fr);column-gap:22px}
 .stage .tbl.lab .u{color:var(--cinza);font-size:16px}
 .stage .tbl.cnl{grid-template-columns:minmax(0,1fr) auto minmax(0,.5fr) auto;column-gap:18px}
 
@@ -666,3 +667,38 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .stage .qtat .cap .gl{vertical-align:-2px}
 .stage .card.iuga .li.tat,.stage .card.iuga .li.tat2{font-size:19px}
 .stage .card.iuga .li.tat span,.stage .card.iuga .li.tat2 span{white-space:nowrap}
+
+/* ---- D-61 · onda 1 das propostas (v1.7) ---- */
+.stage .spk{display:flex;align-items:center;gap:10px;margin:2px 0 4px;min-width:0;max-width:100%;overflow:hidden}
+.stage .spk svg{flex:none}
+.stage .spk .spk-t{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1 1 0}
+.stage .o.escl{background:#000;color:#fff;border-radius:999px;padding:4px 10px;text-transform:uppercase;letter-spacing:.4px;font-size:13px}
+.stage .o.escl.escl-seg{background:var(--verde)}
+.stage .dq.esc .dq-t{font-weight:700}
+.stage .pe-d{display:block;color:#000;font-weight:600}
+.stage .pfs .cps{margin:2px 0}
+.stage .pfs .w{font-size:16px;padding:3px 8px}
+.stage .pfs .t2{font-size:15px}
+.stage .an .an-l{font-size:15px;white-space:nowrap}
+.stage .an .tg .gl{margin-right:4px}
+.stage .an.an-nok .anv{color:var(--vermelho)}
+.stage .qk .gq.c svg{display:block;max-width:100%;height:auto;margin-top:2px}
+.stage .gq{display:flex;flex-direction:column;gap:8px}
+.stage .gq svg{max-width:100%;height:auto;display:block}
+.stage .gq .lg2{font-size:16px}
+.stage .lg2 i.tr{width:16px;height:0;border-top:3px dashed #75787B;background:none}
+.stage .qcl{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.stage .tiles.t4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.stage .tiles.t4 .tile{padding:12px 14px;gap:10px}
+.stage .tiles.t4 .tile span{font-size:17px;line-height:1.15}
+.stage .tile.v0{background:#fff;box-shadow:inset 0 0 0 3px var(--claro)}
+.stage .li.dcs,.stage .li.apz{align-items:flex-start}
+.stage .li.dcs .col,.stage .li.apz .col{min-width:0}
+.stage .tbl.tpb{grid-template-columns:minmax(0,1fr) auto auto auto;column-gap:18px}
+.stage .tbl.tpb .td,.stage .tbl.tpb .th{font-size:18px;padding:4px 0}
+/* curadoria: pauta extra com dono e prazo, decisões da reunião */
+.ed .pe-form .in{min-width:0}
+.kpi3{display:flex;gap:22px;flex-wrap:wrap}
+.chip.esc{background:#000;color:#fff;text-transform:uppercase;font-size:11px;letter-spacing:.4px}
+.chk-ab.esc{margin-top:8px}
+.lst{margin:0 0 8px;padding-left:18px}.lst li{margin:4px 0}

@@ -75,6 +75,10 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | 6.1 | Anexar a transcrição do Teams (.docx/.vtt) | "Transcrição anexada"; botão **Baixar** funciona |
 | 6.2 | Fechar a ata (**Fechar ata e gerar PDF**) | Barra de progresso; PDF gravado na base (botão **Baixar arquivo da ata**) com o relatório e, em seguida, uma página em paisagem para cada tela da apresentação, com os dados de referência da REDIA |
 | 6.3 | Imprimir / salvar PDF da pauta | Uma página 16:9 por bloco |
+| 6.4 | Registrar uma decisão (com quem decidiu) e um aprendizado com a pauta congelada | Aparecem na tela Fechamento (bloco 5) e no PDF da ata |
+| 6.5 | Apresentar com o cronômetro ligado e trocar de bloco | "Tempo por bloco" mostra previsto × medido × estouro no Fechamento e na ata |
+| 6.6 | Pauta extra do GEPLAT com dono, prazo e ação | Dono e prazo na abertura; a ação vira demanda no Canal Base x Bordo |
+| 6.7 | Marcar um destaque como "Escalar" | Selo na abertura/bloco, item no topo e listado no Fechamento como pendente de decisão |
 
 ## 7. Configuração
 
@@ -82,6 +86,7 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 |---|---|---|
 | 7.1 | COPROD/COEMB/COMAN abrem Configuração | Somente leitura |
 | 7.2 | GEPLAT altera o tempo por bloco e salva | Vale para todos após recarregar |
+| 7.3 | GEPLAT altera a meta de um indicador de manutenção e um limite de análise | COMAN: semáforo do indicador muda; análise com resultado fora do limite fica Não OK |
 
 ## Registro do resultado
 

@@ -234,6 +234,17 @@ async function checarPalco(page, nome) {
   await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => { const c = [...document.querySelectorAll('.stage .card')].find(x => /Previsão de TOP/.test(x.textContent)); return c && /Offloading · Previsão de TOP/.test(c.textContent) && /Maran Libra/.test(c.querySelector('.b').textContent) && !!c.querySelector('.tq2 > div') && /Ocupado/.test(c.textContent) && /livre/.test(c.textContent); }), 'abertura: offloading com “Previsão de TOP”, navio designado e barra ocupado × livre');
   ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /3,9%/.test(t) && /679\s?m³/.test(t) && /Produzida descartada no mar: 0\s?m³/.test(t); }), 'abertura: água produzida reinjetada = 3,9% e descarte preservado (0 m³)');
+  /* D-61 (proposta 4): tendência de 7 dias com os registros das REDIAs anteriores */
+  const t4 = await page.evaluate(() => { const t = E.tend; const n = c => t[c].filter(p => p.valor != null).length; return { oleo: n('oleo.real'), iuga: n('iuga.real'), gas: n('gas.real'), agua: n('agua.real'), ult: t['oleo.real'].at(-1), spk: document.querySelectorAll('.stage .spk svg').length, ref: !!document.querySelector('.stage .spk svg line') }; });
+  ok(t4.oleo === 7 && t4.iuga === 7 && t4.gas === 7 && t4.agua === 7 && t4.ult.redia === '2026-10-09' && t4.ult.valor === 26925 && t4.spk === 4 && t4.ref, `abertura: 4 sparklines de 7 dias (último ponto = realizado D-1 desta REDIA) com linha de referência (${JSON.stringify(t4)})`);
+  /* D-61 (proposta 10): queima por classe no dia e acumulada no mês */
+  const c10 = await page.evaluate(() => { const cl = E.classes, h = L(E, 'queima.causas'); return { dias: cl.dias, rot: cl.Rotina, ext: cl['Extraordinária'], hoje: h.map(classeQueima), semClasse: classeQueima({ evitavel: 'sim' }) }; });
+  ok(c10.dias === 9 && c10.rot > 0 && c10.ext > 0 && c10.hoje.slice(0, 4).join() === 'Extraordinária,Rotina,Extraordinária,Rotina' && c10.semClasse === 'Extraordinária', `queima classificada rotina × extraordinária com acumulado do mês por classe (${JSON.stringify(c10)})`);
+  await page.goto(URL + '#/apresentacao/2/queima'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent, g = document.querySelector('.stage .gq svg'); return /por causa e classe/.test(t) && /Rotina/.test(t) && /Extraordinária/.test(t) && !!g && g.querySelectorAll('path').length >= 2 && /IUGA acumulado do mês × trajetória/.test(t); }), 'detalhe da queima: classes no dia e no mês + gráfico do IUGA acumulado × meta × trajetória (D-61)');
+  await page.goto(URL + '#/apresentacao/4'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => { const c = document.querySelector('.stage .pfc'), f = c.querySelector('.row2'); return f.classList.contains('pfs') && /Sistemas de segurança/.test(f.textContent) && /Detecção de fogo e gás/.test(f.textContent) && /Com restrição/.test(f.textContent) && /Tratamento de efluentes/.test(c.textContent); }), 'COMAN: sistemas de segurança na primeira linha do PFCEO, com o pior estado, e os desvios de processo em seguida (D-61)');
+  await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(300);
   const eqAb = await page.evaluate(() => { const st = document.querySelector('.stage'); const card = t => [...st.querySelectorAll('.card')].find(c => c.querySelector('.hd')?.textContent.includes(t)); return { grupos: st.querySelectorAll('.w.eqg').length, bul: st.querySelectorAll('.w.eqg .eb').length, injA: st.querySelector('.eb[aria-label="Injection A: Indisponível"]')?.className, fgruC: !!st.querySelector('.eb.eq-mn[aria-label="FGRU C: Em manutenção"]'), lim: !!st.querySelector('.eb.eq-lm[aria-label="Principal B: Limitado"]'), sb: !!st.querySelector('.eb.eq-sb[aria-label="VRU B: Stand By"]'), leg: [...st.querySelectorAll('.lge .eb')].map(e => e.textContent).join('|'), gas: card('Injeção de gás')?.querySelectorAll('.eqg').length, agua: card('Injeção de água')?.querySelectorAll('.eqg').length }; });
   ok(eqAb.grupos === 9 && eqAb.bul === 23 && eqAb.gas === 4 && eqAb.agua === 2 && /\beq-in\b/.test(eqAb.injA || '') && eqAb.fgruC && eqAb.lim && eqAb.sb, `abertura: um bullet de status por equipamento nos cards de IUGA, injeção de gás e de água (${eqAb.bul} bullets)`);
   ok(eqAb.leg === 'Operando|Stand By|Em manutenção|Indisponível|Limitado', `abertura: legenda dos 5 status de disponibilidade (${eqAb.leg})`);
@@ -347,12 +358,13 @@ async function checarPalco(page, nome) {
   ok(await page.evaluate(() => { const r = UI.captura['COPROD|lista:pfceo.COPROD']; return r && r.passos.some(p => /PFCEO/.test(p.txt)) && r.faltando.length === 0 && !!document.querySelector('[data-capt="COPROD|lista:pfceo.COPROD"] .banner.ok'); }), 'PFCEO: botão Capturar dados importa os sistemas, com progresso e resultado');
   ok(await page.evaluate(() => { const ks = [...document.querySelectorAll('.pfk')].map(x => x.dataset.pfk), ord = pfceoDe(E, 'COPROD').map(PF.chave); return ks.length === ord.length && ks.every((k, i) => k === ord[i]) && document.querySelectorAll('.pf-resumo > div').length === 5; }), 'PFCEO: cards numa lista única, do pior estado ao normal, com contagem por situação');
   await page.goto(URL + '#/curadoria/COMAN/pfceo'); await page.waitForTimeout(200);
-  const pfC = await page.evaluate(() => { const s = pfceoSelecao(E, 'COMAN'); return { sug: s.sugerida, n: s.itens.length, desv: s.todos.filter(PF.desvio).length, normalFora: !s.itens.some(i => i.funcao === 'Geração principal'), ab: s.abertura.length }; });
-  ok(pfC.sug && pfC.n === pfC.desv && pfC.n === 7 && pfC.normalFora && pfC.ab === 0, `PFCEO: sistemas com desvio já aprovados para a tela; normal fica fora (${JSON.stringify(pfC)})`);
+  const pfC = await page.evaluate(() => { const s = pfceoSelecao(E, 'COMAN'); return { sug: s.sugerida, n: s.itens.length, desv: s.todos.filter(PF.desvio).length, seg: s.seguranca.length, segNormalNaTela: s.itens.filter(i => PF.seguranca(i) && !PF.desvio(i)).length, primeiro: PF.seguranca(s.itens[0]), normalFora: !s.itens.some(i => i.funcao === 'Geração principal'), ab: s.abertura.length }; });
+  ok(pfC.sug && pfC.n === 11 && pfC.desv === 8 && pfC.seg === 4 && pfC.segNormalNaTela === 3 && pfC.primeiro && pfC.normalFora && pfC.ab === 0, `PFCEO: desvios já aprovados para a tela, sistemas de segurança sempre na tela e primeiro (D-61), normal fica fora (${JSON.stringify(pfC)})`);
+  ok(await page.$('.pfk:has-text("Sistema instrumentado") [data-pft]') === null && await page.$('.pfk:has-text("Sistema instrumentado") .chip') !== null, 'PFCEO: sistema de segurança não tem botão de retirar da tela');
   await page.click('.pfk:has-text("Geração principal") [data-pft]'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => pfceoSelecao(E, 'COMAN').itens.some(i => i.funcao === 'Geração principal')), 'PFCEO: o coordenador pode incluir um sistema normal na tela');
   await page.click('.pfk:has-text("Ar comprimido") [data-pft]'); await page.waitForTimeout(200);
-  ok(await page.evaluate(() => !pfceoSelecao(E, 'COMAN').itens.some(i => i.funcao === 'Ar comprimido') && pfceoSelecao(E, 'COMAN').itens.length === 7), 'PFCEO: e retirar um sistema com desvio');
+  ok(await page.evaluate(() => !pfceoSelecao(E, 'COMAN').itens.some(i => i.funcao === 'Ar comprimido') && pfceoSelecao(E, 'COMAN').itens.length === 11), 'PFCEO: e retirar um sistema com desvio');
   await page.check('.pfk:has-text("Tratamento de efluentes") [data-pfab]'); await page.waitForTimeout(200);
   await page.check('.pfk:has-text("HVAC · AC-5252003A") [data-pfab]'); await page.waitForTimeout(200);
   await page.click('.pfk:has-text("Eletrocloração") [data-pfab]'); await page.waitForTimeout(200);
@@ -386,6 +398,24 @@ async function checarPalco(page, nome) {
   ok(await page.evaluate(() => itensDe(E, 'COPROD', 'oportunidade').length) === 1, 'oportunidade incluída');
   await page.goto(URL + '#/curadoria/GEPLAT/itens'); await page.waitForTimeout(150);
   await page.selectOption('#i-txt', 'Saúde'); await page.fill('#i-det', 'Campanha de vacinação a bordo'); await page.click('[data-act="add-item"]'); await page.waitForTimeout(150);
+  /* D-61 (proposta 5): pauta extra com dono, prazo e ação → item do Canal Base x Bordo */
+  const nDemAntes = await page.evaluate(() => E.demandas.length);
+  await page.selectOption('#i-txt', 'Conformidade'); await page.fill('#i-det', 'Auditoria interna na semana que vem'); await page.fill('#i-dono', '4º GEPLAT'); await page.fill('#i-prazo', '2026-10-14');
+  await page.fill('#i-acao', 'Enviar a lista de evidências da auditoria'); await page.click('#i-esc'); await page.click('[data-act="add-item"]'); await page.waitForTimeout(250);
+  const pe5 = await page.evaluate(n => { const i = itensDe(E, 'GEPLAT', 'pauta_extra').find(x => x.payload.texto === 'Conformidade'), d = E.demandas.find(x => x.payload.pautaExtra === 'Conformidade'); return { dono: i?.payload.dono, prazo: i?.payload.prazo, esc: i?.payload.escalar, lig: i?.payload.demandaId === d?.id, dem: E.demandas.length - n, resp: d?.payload.responsavel, coord: d?.payload.coord, origem: d?.payload.origem }; }, nDemAntes);
+  ok(pe5.dono === '4º GEPLAT' && pe5.prazo === '2026-10-14' && pe5.esc && pe5.lig && pe5.dem === 1 && pe5.resp === '4º GEPLAT' && pe5.coord === 'GEPLAT' && pe5.origem === 'C', `pauta extra com dono e prazo gera demanda no Canal Base x Bordo (${JSON.stringify(pe5)})`);
+  await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => { const t = document.querySelector('.stage .card.col2').textContent; return /4º GEPLAT · até \d\d\/\d\d/.test(t) && /Habitabilidade/.test(t); }), 'abertura: pauta extra mostra dono e prazo');
+  /* D-61 (proposta 7): selo "Escalar" no destaque e ordem (escalar primeiro) */
+  await page.goto(URL + '#/curadoria/COPROD/destaques'); await page.waitForTimeout(150);
+  await page.fill('#d-tit', 'Partida da Injection A depende de liberação da gerência'); await page.click('#d-esc'); await page.click('[data-act="salvar-dst"]'); await page.waitForTimeout(200);
+  const esc7 = await page.evaluate(() => { const ds = destaquesDe(E, 'COPROD'); return { primeiro: ds[0]?.escalar === true && /liberação da gerência/.test(ds[0].titulo), n: escalados(E).length, chip: !!document.querySelector('.chip.esc') }; });
+  ok(esc7.primeiro && esc7.n >= 2 && esc7.chip, `destaque marcado "Escalar" sobe para o topo e aparece na curadoria (${JSON.stringify(esc7)})`);
+  await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => { const d = document.querySelector('.stage .dq.esc'); return !!d && /Escalar/.test(d.textContent) && /liberação da gerência/.test(d.textContent); }), 'bloco COPROD: selo Escalar no destaque');
+  await page.goto(URL + '#/apresentacao/5'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Decisões tomadas nesta REDIA/.test(t) && /a escalar/.test(t) && /Tempo por bloco/.test(t) && /Aprendizados do dia/.test(t) && /fechadas no prazo no mês/.test(t); }), 'fechamento: decisões, itens a escalar, tempo por bloco, aprendizados e taxa no prazo (D-61)');
+  await checarPalco(page, '5 (com escalar)');
   await page.goto(URL + '#/curadoria/GEPLAT/aceite'); await page.waitForTimeout(150); await page.click('[data-act="aceite"]'); await page.waitForTimeout(150);
   ok(await page.evaluate(() => E.aceites.length) === 1, 'aceite do GEPLAT registrado');
 
@@ -430,12 +460,26 @@ async function checarPalco(page, nome) {
   ok(await page.$('[data-act="aprovar"]') === null, 'curadoria bloqueada após congelar');
   await page.goto(URL + '#/ata'); await page.waitForTimeout(150);
   for (const [t, c] of [['Apoio para o retorno da FGRU A e da Injection A', 'COPROD'], ['Contator, disjuntor e PSVs do AC-5252003A', 'COMAN']]) { await page.fill('#d-tit', t); await page.fill('#d-resp', '4º ' + c); await page.selectOption('#d-coord', c); await page.click('[data-act="add-dem"]'); await page.waitForTimeout(150); }
-  ok(await page.evaluate(() => E.demandas.filter(d => d.payload.dataRedia === DIA).length) === 2, 'demandas registradas na reunião');
+  ok(await page.evaluate(() => E.demandas.filter(d => d.payload.dataRedia === DIA).length) === 3, 'demandas registradas na reunião (2 + a ação da pauta extra)');
   await page.click('[data-dst]:has-text("Encerrar")'); await page.waitForTimeout(150);
   ok(await page.evaluate(() => E.demandas.some(d => d.payload.status === 'encerrada')), 'demanda encerrada');
   for (let b = 1; b <= 5; b++) { await page.goto(URL + '#/apresentacao/' + b); await page.waitForTimeout(200); await page.evaluate(() => document.querySelector('#ctrl')?.classList.add('hide')); await checarPalco(page, b + ' (congelada)'); await page.screenshot({ path: path.join(OUT, `cong_${b}.png`) }); }
   await page.goto(URL + '#/imprimir'); await page.waitForTimeout(600);
   ok(await page.evaluate(() => document.querySelectorAll('.printroot .stage').length === 5 && window.__printed >= 1), 'impressão da pauta com 5 páginas');
+  /* D-61 (propostas 25 e 27): decisões e aprendizados registram com a pauta congelada; o cronômetro mede o tempo por bloco */
+  await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(200); await page.click('[data-act="tmr"]'); await page.waitForTimeout(150);
+  await page.evaluate(() => { UI.pres.inicioMs -= 400000; UI.pres.restante = 300 - 400; });   // simula 6:40 de apresentação do bloco 1
+  await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(300);
+  await page.evaluate(() => { UI.pres.inicioMs -= 120000; UI.pres.restante = 180; });   // bloco 2: 2:00
+  await page.goto(URL + '#/ata'); await page.waitForTimeout(400);
+  const tb27 = await page.evaluate(() => { const t = temposBlocos(E); return { medidos: t.medidos, b1: t.linhas[0].segundos, e1: t.linhas[0].estouro, b2: t.linhas[1].segundos, e2: t.linhas[1].estouro, cong: !!E.congelamento }; });
+  ok(tb27.cong && tb27.medidos === 2 && tb27.b1 >= 400 && tb27.b1 <= 405 && tb27.e1 >= 100 && tb27.b2 >= 120 && tb27.b2 <= 125 && tb27.e2 === 0, `tempo por bloco medido pelo cronômetro e gravado com a pauta congelada (${JSON.stringify(tb27)})`);
+  ok(/\+1:4\d/.test(await page.textContent('.wrap')) && /Abertura · GEPLAT/.test(await page.textContent('.wrap')), 'tela Fechamento e ata mostra o estouro do bloco 1');
+  await page.fill('#dc-txt', 'Manter a Injection A parada até a liberação da base'); await page.fill('#dc-por', 'GEOP'); await page.selectOption('#dc-coord', 'COPROD'); await page.click('[data-act="add-decisao"]'); await page.waitForTimeout(200);
+  await page.fill('#ap-txt', 'Confirmar a janela do navio antes de programar o offloading'); await page.click('[data-act="add-aprendizado"]'); await page.waitForTimeout(200);
+  const r25 = await page.evaluate(() => ({ dec: reuniaoDe(E, 'decisao').map(d => [d.payload.texto, d.payload.por, d.payload.coord]), apz: reuniaoDe(E, 'aprendizado').length, cong: !!E.congelamento }));
+  ok(r25.cong && r25.dec.length === 1 && r25.dec[0][1] === 'GEOP' && r25.dec[0][2] === 'COPROD' && r25.apz === 2, `decisão (com quem decidiu) e aprendizado registrados com a pauta congelada (${JSON.stringify(r25)})`);
+  ok(await page.evaluate(() => { const t = taxaPrazo(E, DIA); return t.n >= 1 && t.pct != null && t.porCoord.length >= 1 && t.porSentido.length >= 1; }), 'taxa de ações fechadas no prazo calculada por coordenação e sentido (D-61)');
   await page.goto(URL + '#/ata'); await page.waitForTimeout(200);
   await page.fill('#at-part', 'GEPLAT de bordo\nCOPROD de bordo\n4º COPROD (base)'); await page.fill('#at-obs', 'Priorizar retorno da FGRU A.');
   /* D-55: ata em PDF = relatório (retrato) + print de todas as telas da apresentação (paisagem), capturadas no fechamento */
@@ -448,6 +492,9 @@ r=pypdf.PdfReader(sys.argv[1]); pg=r.pages
 land=[i+1 for i,p in enumerate(pg) if float(p.mediabox.width)>float(p.mediabox.height)]
 print(json.dumps({'n':len(pg),'land':land,'p1':pg[0].extract_text(),'pl':pg[land[0]-1].extract_text() if land else '','imgs':sum(1 for i in land if b' Do' in pg[i-1].get_contents().get_data()),'titulo':r.metadata.title}))`, f]).toString());
     const nTel = await page.evaluate(() => telasDaAta().length);
+    const infoTxt = JSON.parse(execFileSync('python3', ['-c', `import pypdf,json,sys
+r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p in r.pages[:4])))`, f]).toString());
+    ok(/Decisões tomadas na reunião/.test(infoTxt) && /GEOP/.test(infoTxt) && /Aprendizados do dia/.test(infoTxt) && /Tempo por bloco/.test(infoTxt) && /Abertura · GEPLAT/.test(infoTxt) && /fechadas no prazo/.test(infoTxt), 'PDF: relatório traz decisões, aprendizados, taxa no prazo e tempo por bloco (D-61)');
     ok(/Ata de sexta, 09\/10\/2026/.test(info.p1) && /código de integridade [0-9a-f]{8}/.test(info.p1) && /GEPLAT de bordo/.test(info.p1) && /Ata REDIA P-83 09\/10\/2026/.test(info.titulo), 'PDF: relatório com data, pauta congelada e participantes');
     ok(nTel === 26 && info.land.length === nTel && info.imgs === nTel && info.land.every((p, k) => k === 0 || p === info.land[k - 1] + 1) && info.land[info.land.length - 1] === info.n, `PDF: depois do relatório, uma página em paisagem com o print de cada tela (${info.land.length} telas, ${info.n} páginas)`);
     ok(/Bloco 1 · GEPLAT · Abertura/.test(info.pl) && /Dados de referência: REDIA de 09\/10\/2026/.test(info.pl) && /realizado D-1 = 08\/10\/2026/.test(info.pl) && /Pauta congelada às .* código de integridade/.test(info.pl) && /capturada em 09\/10\/2026 às/.test(info.pl), 'PDF: cada tela com os dados de referência da REDIA e a hora da captura');
@@ -461,8 +508,16 @@ print(json.dumps({'n':len(pg),'land':land,'p1':pg[0].extract_text(),'pl':pg[land
   await page.screenshot({ path: path.join(OUT, 'ata_tela.png'), fullPage: true });
   await page.goto(URL + '#/curadoria/COPROD/sugestoes'); await page.waitForTimeout(150); await page.screenshot({ path: path.join(OUT, 'curadoria.png'), fullPage: true });
   await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(150); await page.screenshot({ path: path.join(OUT, 'dados.png') });
-  await page.goto(URL + '#/config'); await page.waitForTimeout(150); await page.fill('#c-tb', '6'); await page.click('[data-act="salvar-cfg"]'); await page.waitForTimeout(150);
+  await page.goto(URL + '#/config'); await page.waitForTimeout(150); await page.fill('#c-tb', '6');
+  /* D-61 (propostas 24 e 13): metas de manutenção e limites das análises configuráveis por UEP */
+  await page.fill('#mm-tab tr:has([data-mm-k][value="ICPMe"]) [data-mm-v]', '92'); await page.fill('[data-ll="lab.COPROD.bsw_oleo"][data-ll-k="max"]', '0.2'); await page.fill('[data-ll="lab.COPROD.h2s_gas"][data-ll-k="max"]', '10');
+  await page.click('[data-act="salvar-cfg"]'); await page.waitForTimeout(150);
   ok(await page.evaluate(() => CFG.timeboxMin) === 6, 'configuração salva');
+  const cfg24 = await page.evaluate(() => { const ind = L(E, 'man.ind').find(i => i.ind === 'ICPMe'); const lab = labDe(E, 'COPROD'); return { meta: metaManutencao(ind), sem: Regras.manutencao(+ind.valor, metaManutencao(ind)), bsw: lab.find(a => a.k === 'bsw_oleo').sem, h2s: lab.find(a => a.k === 'h2s_gas').sem, h2sTxt: lab.find(a => a.k === 'h2s_gas').limTxt, so4: lab.find(a => a.k === 'so4_urs').sem }; });
+  ok(cfg24.meta === 92 && cfg24.sem === 'nok' && cfg24.bsw === 'nok' && cfg24.h2s === 'ok' && cfg24.h2sTxt === '≤ 10' && cfg24.so4 === null, `metas de manutenção e limites das análises vêm da configuração da UEP, com semáforo por faixa (${JSON.stringify(cfg24)})`);
+  await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => !!document.querySelector('.stage .an.an-nok') && /BSW do óleo tratado/.test(document.querySelector('.stage .an.an-nok').textContent)), 'card de análises destaca o resultado fora da especificação');
+  await page.goto(URL + '#/config'); await page.waitForTimeout(150); await page.fill('[data-ll="lab.COPROD.bsw_oleo"][data-ll-k="max"]', '1'); await page.click('[data-act="salvar-cfg"]'); await page.waitForTimeout(150);
   // persistência no navegador (recarregar)
   const antes = await page.evaluate(() => Store.cache.size);
   await page.reload(); await page.waitForTimeout(400);

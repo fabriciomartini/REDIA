@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.6.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.7.0', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -65,6 +65,15 @@ const CFG_PADRAO = {
   },
   pautaExtra: { 1: '[tema de segunda]', 2: '[tema de terça]', 3: '[tema de quarta]', 4: '[tema de quinta]', 5: '[tema de sexta]', 6: '[tema de sábado]', 0: '[tema de domingo]' },
   temasPlataforma: ['Segurança', 'Saúde', 'Habitabilidade', 'Integridade', 'Conformidade', 'Auditorias', 'GDB', 'SL&R'],
+  /* D-61 (proposta 24): metas dos indicadores de manutenção por UEP (linha de base), não fixas no código. Valores iniciais = exemplo (I-05). */
+  metasManutencao: { ICPMe: 90, ICPMeIF6: 97, IARP: 95 },
+  /* D-61 (proposta 13): limites de especificação das análises por parâmetro (vazio = sem semáforo, só a data).
+     PREMISSA: referências públicas a confirmar pela coordenação — BSW/salinidade do óleo (especificação de exportação), TOG da água produzida
+     (CONAMA 393, diário), TOG do slop (MARPOL), cloro e turbidez da água potável (portaria de potabilidade). */
+  limitesLab: {
+    'lab.COPROD.bsw_oleo': { max: 1 }, 'lab.COPROD.sal_oleo': { max: 570 }, 'lab.COPROD.tog_agua': { max: 42 },
+    'lab.COEMB.tog_slop': { max: 15 }, 'lab.COEMB.cl_pot': { min: 0.2, max: 5 }, 'lab.COEMB.turb_pot': { max: 5 },
+  },
 };
 let CFG = JSON.parse(JSON.stringify(CFG_PADRAO));
 function horaMin(s) { const [h, m] = s.split(':').map(Number); return h * 60 + m; }
@@ -116,7 +125,7 @@ function coordDoPapel(p) { if (USUARIO?.coord && p === USUARIO.papel) return USU
    Memória: mesma estrutura lógica, guardada no navegador (demonstração)
    A chave lógica (_arq) mantém o formato do protótipo: dados/AAAA/MM/DD/<ts>_<tipo>_<id>.json
    ====================================================================== */
-const TIPOS_REG = ['sugestao', 'decisao', 'comentario', 'valor', 'lista', 'servico', 'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo', 'ata', 'conclusao', 'notificacao', 'selecao'];
+const TIPOS_REG = ['sugestao', 'decisao', 'comentario', 'valor', 'lista', 'servico', 'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo', 'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao'];
 const Store = {
   modo: null,            // 'nuvem' | 'memoria'
   nomeRaiz: '',
@@ -169,10 +178,10 @@ const Store = {
   salvarMemoria() { if (!LS.set('memoria.registros', [...this.cache.values()])) throw new Error('O armazenamento deste navegador está cheio ou bloqueado: o registro não foi guardado. Exporte os registros e limpe os dados de exemplo.'); },
 
   /* lê os registros do dia da REDIA (inclui as sugestões das passagens das 18:00 e 06:00), as demandas
-     e, dos dias anteriores do mês, só os valores usados nos acumulados (D-43) */
+     e, dos dias anteriores (mês e últimos 7 dias), só os campos usados nos acumulados (D-43) e nas tendências (D-61) */
   async carregar(iso) {
     if (this.modo === 'nuvem') {
-      const o = await Nuvem.carregar(CFG.uep, iso, CAMPOS_MES);
+      const o = await Nuvem.carregar(CFG.uep, iso, CAMPOS_HISTORICO);
       this.cache.clear(); o.registros.forEach(r => this.guardar(r)); this.seq = o.seq || 0;
     }
     this.ultimaLeitura = Date.now();
@@ -241,7 +250,11 @@ const chaveOrdem = r => r.gravadoEm || r.criadoEm;
 function ordem(a, b) { const x = chaveOrdem(a), y = chaveOrdem(b); return x < y ? -1 : x > y ? 1 : (a.seq && b.seq ? a.seq - b.seq : a.id < b.id ? -1 : 1); }
 let ULTIMO_CARIMBO = 0;
 function carimbo() { const t = Math.max(Date.now(), ULTIMO_CARIMBO + 1); ULTIMO_CARIMBO = t; return new Date(t).toISOString(); }
-function mesclarCfg(c) { const base = JSON.parse(JSON.stringify(CFG_PADRAO)); return deepMerge(base, c || {}); }
+function mesclarCfg(c) {
+  const base = JSON.parse(JSON.stringify(CFG_PADRAO)), r = deepMerge(base, c || {});
+  for (const k of ['metasManutencao', 'limitesLab']) if (c && c[k] && typeof c[k] === 'object') r[k] = JSON.parse(JSON.stringify(c[k]));   // D-61: tabelas por UEP substituem o padrão inteiro (remover uma linha vale)
+  return r;
+}
 function deepMerge(a, b) { for (const k of Object.keys(b)) { if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object') deepMerge(a[k], b[k]); else a[k] = b[k]; } return a; }
 
 /* ---------- criação de registros ---------- */

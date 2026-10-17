@@ -107,6 +107,11 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   ok(cfgDb && cfgDb.t === '7' && cfgDb.atualizado_por === 'GP01', 'GEPLAT salva a configuração na base');
   await c.reload(); await c.waitForTimeout(1500);
   ok(await c.$('.apph') !== null && await c.evaluate(() => USUARIO.chave === 'CP01' && CFG.timeboxMin === 7), 'recarregar mantém a sessão da aba e lê a configuração nova');
+  /* D-61: a tendência de 7 dias e as classes de queima vêm da base (redia_carregar traz valores e listas dos dias anteriores) */
+  await c.evaluate(async () => { const r = novoRegistro('valor', { campo: 'oleo.real', valor: 25000, origem: 'M', fonte: 'teste' }); r.data = addDias(DIA, -2); const l = novoRegistro('lista', { campo: 'queima.causas', itens: [{ causa: 'teste', valor: 10, classe: 'Extraordinária' }], origem: 'M' }); l.data = addDias(DIA, -1); await Store.gravarLote([r, l]); });
+  await c.reload(); await c.waitForTimeout(1500);
+  const tend = await c.evaluate(() => ({ oleo: E.tend['oleo.real'].find(p => p.redia === addDias(DIA, -2))?.valor, ext: E.classes['Extraordinária'], mes: E.mes?.n }));
+  ok(tend.oleo === 25000 && tend.ext >= 10000, `tendência de 7 dias e classes de queima recarregadas da base (${JSON.stringify(tend)})`);
   const { c: c3, p: x } = await novo('sem sessão'); await x.goto(URL + '#/inicio'); await x.waitForTimeout(800);
   ok(await x.$('.login .lg-card') !== null, 'outra janela (sem sessão) pede login');
   await c3.close();

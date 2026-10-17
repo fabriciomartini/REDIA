@@ -56,7 +56,7 @@ create table if not exists public.registros (
   escopo             text not null default 'dia' check (escopo in ('dia', 'demandas')),
   tipo               text not null check (tipo in ('sugestao', 'decisao', 'comentario', 'valor', 'lista', 'servico',
                        'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo',
-                       'ata', 'conclusao', 'notificacao', 'selecao')),
+                       'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao')),
   criado_em          timestamptz not null default now(),   -- hora exibida (vem do app)
   gravado_em         timestamptz not null default now(),   -- hora oficial de gravação (carimbada pelo servidor)
   gravado_em_cliente text,                                  -- hora informada pelo app (auditoria / importação)
@@ -69,6 +69,15 @@ create table if not exists public.registros (
 create index if not exists registros_uep_data_idx on public.registros (uep, data);
 create index if not exists registros_uep_escopo_idx on public.registros (uep, escopo) where escopo = 'demandas';
 create index if not exists registros_uep_seq_idx on public.registros (uep, seq);
+-- D-61: tipo 'reuniao' (decisões, aprendizados e tempos medidos da reunião; permitido com a pauta congelada). Base já instalada: recria a restrição com o tipo novo.
+do $$ begin
+  if exists (select 1 from pg_constraint where conname = 'registros_tipo_check' and conrelid = 'public.registros'::regclass)
+     and not exists (select 1 from pg_constraint where conname = 'registros_tipo_check' and conrelid = 'public.registros'::regclass and pg_get_constraintdef(oid) like '%reuniao%') then
+    alter table public.registros drop constraint registros_tipo_check;
+    alter table public.registros add constraint registros_tipo_check check (tipo in ('sugestao', 'decisao', 'comentario', 'valor', 'lista', 'servico',
+      'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo', 'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao'));
+  end if;
+end $$;
 create index if not exists registros_pauta_idx on public.registros (uep, data, gravado_em desc) where tipo in ('congelamento', 'reabertura');
 
 -- Configuração da UEP (horários, limiares, pauta extra). Uma linha por UEP.
@@ -145,11 +154,11 @@ begin
     new.autor := jsonb_build_object('nome', p.nome, 'chave', p.chave, 'papel', p.posto);
   end if;
 
-  -- R-03 no servidor: com a pauta congelada, só passam demanda, anexo, ata, reabertura e notificação.
+  -- R-03 no servidor: com a pauta congelada, só passam demanda, anexo, ata, reabertura, notificação e reunião (D-61).
   -- O bloqueio consultivo serializa congelamento × edição do mesmo dia (sem corrida entre sessões).
   if new.escopo = 'dia' then
     perform pg_advisory_xact_lock(hashtextextended(new.uep || '|' || new.data::text, 0));
-    if new.tipo not in ('demanda', 'anexo', 'ata', 'reabertura', 'notificacao') then
+    if new.tipo not in ('demanda', 'anexo', 'ata', 'reabertura', 'notificacao', 'reuniao') then
       select r.tipo into ult from public.registros r
        where r.uep = new.uep and r.data = new.data and r.escopo = 'dia' and r.tipo in ('congelamento', 'reabertura')
        order by r.gravado_em desc, r.seq desc limit 1;
@@ -185,7 +194,8 @@ language sql volatile security definer set search_path = public as $$
   update public.perfis set trocar_senha = false where user_id = auth.uid()
 $$;
 
--- Registros do dia + demandas + valores do mês usados nos acumulados (D-43).
+-- Registros do dia + demandas + valores e listas dos dias anteriores usados nos acumulados do mês (D-43)
+-- e nas tendências de 7 dias (D-61): só os campos pedidos em p_campos_mes, do início do mês ou de D-7 (o que vier antes).
 create or replace function public.redia_carregar(p_uep text, p_data date, p_campos_mes text[] default '{}') returns jsonb
 language sql stable security invoker set search_path = public as $$
   select jsonb_build_object(
@@ -195,7 +205,7 @@ language sql stable security invoker set search_path = public as $$
       where r.uep = p_uep and (
             (r.escopo = 'dia' and r.data = p_data)
          or  r.escopo = 'demandas'
-         or (r.escopo = 'dia' and r.tipo = 'valor' and r.data >= date_trunc('month', p_data)::date and r.data < p_data
+         or (r.escopo = 'dia' and r.tipo in ('valor', 'lista') and r.data >= least(date_trunc('month', p_data)::date, p_data - 7) and r.data < p_data
              and r.payload ->> 'campo' = any (p_campos_mes)))), '[]'::jsonb),
     'seq', coalesce((select max(seq) from public.registros where uep = p_uep), 0))
 $$;
