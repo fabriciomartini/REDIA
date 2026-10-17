@@ -18,7 +18,7 @@ const FONTES_CAPTURA = {
   PASSAGEM: { nome: 'Passagem de serviço', desc: 'Status dos equipamentos informado pelo operador do posto', pendencia: 'I-13' },
 };
 /* campos que nunca são capturados: correções manuais dos acumulados do mês (D-43) */
-const NAO_CAPTURAR = new Set(['iuga.gas_prod_mes', 'queima.acum_mes']);
+const NAO_CAPTURAR = new Set(['iuga.gas_prod_mes', 'queima.acum_mes', 'iuga.margem']);   // correções manuais e a margem da reserva tática (D-57)
 const CAMPOS_BDO = new Set(['oleo.real', 'iuga.real', 'gas.real', 'gas.ref', 'agua.real', 'agua.urs', 'agua.prod_reinj', 'agua.prod_desc', 'agua.ref', 'queima.ref']);
 const LISTAS_BDO = new Set(['queima.eventos']);
 function fonteDoCampo(id) {

@@ -101,6 +101,14 @@ const pocos = (E, tipo) => L(E, 'pocos').filter(p => p.tipo === tipo).sort((a, b
 const chipsPoco = (E, tipo) => pocos(E, tipo).map(p => chip(p.poco, p.status)).join('');
 function piorSem(...s) { return ['nok', 'at', 'ok'].find(x => s.includes(x)) || 'sd'; }
 
+/* D-57 · reserva tática (IUGA do mês na meta) ou recuperação (abaixo da meta), em duas linhas */
+function linhasTaticas(E, iso) {
+  const t = iugaTatico(E, iso);
+  if (!t.modo) return li('Reserva tática', 'Sem dado', 1);
+  const mil = (v, u = 'mil m³') => fmtN(v / 1000, Math.abs(v) < 100000 ? 1 : 0) + NBSP + u;   // leitura à distância na TV
+  if (t.modo === 'reserva') return `<div class="li tat"><span>Reserva tática</span><span class="v">${t.tatica > 0 ? mil(t.tatica) : 'Esgotada'}</span></div>${li('Por dia', t.taticaDia > 0 ? mil(t.taticaDia, 'mil m³/d') : '—', 1).replace('class="li"', 'class="li tat2"')}`;
+  return `<div class="li tat rec"><span>Máx./dia</span><span class="v">${t.alcancavel ? mil(t.maxDia, 'mil m³/d') : 'Meta perdida'}</span></div>${li('IUGA diário mín.', t.alcancavel ? fmtN(t.iugaDiaNec, 2) + '%' : `até ${fmtN(t.iugaMaxPossivel, 2)}%`, 1).replace('class="li"', 'class="li tat2"')}`;
+}
 /* Offloading na abertura (D-47): previsão de TOP, navio designado para o próximo offloading e tancagem ocupada × livre */
 function cardOffloadingAbertura(E, top, navioOk) {
   const est = VN(E, 'off.estoque'), cap = VN(E, 'off.capacidade'), livre = est != null && cap ? Math.max(0, cap - est) : null, p = est != null && cap ? Math.min(100, est / cap * 100) : null;
@@ -160,7 +168,7 @@ function telaAbertura(E, ctx) {
       <div class="card iuga">
         <div class="col6">${hd('IUGA', pill(iu.sem, semNome(iu.sem)), 'iuga')}
           <div><span class="big">${iuR != null ? fmtN(iuR, 2) : '—'}</span><span class="unit">%</span></div><span class="cap">Meta ${iuM != null ? fmtN(iuM, 0) + '%' : '—'} · ${iu.desvio != null ? (iu.desvio >= 0 ? '+' : '−') + fmtN(Math.abs(iu.desvio), 2) + NBSP + 'p.p.' : ''}</span>
-          <div>${li(esc(CFG.ativo), VN(E, 'iuga.atp') != null ? fmtN(VN(E, 'iuga.atp'), 2) + '%' : 'Sem dado', 1)}${li(esc(CFG.campo), VN(E, 'iuga.buzios') != null ? fmtN(VN(E, 'iuga.buzios'), 2) + '%' : 'Sem dado', 1)}${li('Projetado D', VN(E, 'iuga.proj') != null ? fmtN(VN(E, 'iuga.proj'), 2) + '%' : '—', 1)}</div></div>
+          <div>${li(esc(CFG.ativo), VN(E, 'iuga.atp') != null ? fmtN(VN(E, 'iuga.atp'), 2) + '%' : 'Sem dado', 1)}${li(esc(CFG.campo), VN(E, 'iuga.buzios') != null ? fmtN(VN(E, 'iuga.buzios'), 2) + '%' : 'Sem dado', 1)}${li('Projetado D', VN(E, 'iuga.proj') != null ? fmtN(VN(E, 'iuga.proj'), 2) + '%' : '—', 1)}${linhasTaticas(E, ctx.dia)}</div></div>
         <div class="col6 sep">
           <div class="row-sb"><span class="gh">Últimas 24 h</span>${V(E, 'queima.ref') ? tag(V(E, 'queima.ref')) : ''}</div>
           ${ev.length ? ev.map(e => `<div class="li ev"><span>${T(e.evento)}</span><div class="row-sb"><span class="cap">Flare ${esc(e.flare)}</span><span class="v">${fmtU(e.volume, 1, 'Mm³')}</span></div></div>`).join('') : '<div class="li"><span class="sec">Sem evento relevante</span></div>'}
@@ -280,18 +288,25 @@ function linhasIndicadoresCoprod(E, compacto = false) {
     ${ind(compacto ? 'Inj. gás' : 'Injeção de gás', 'Mm³/d', VN(E, 'gas.meta'), VN(E, 'gas.real'), ga.pct != null ? fmtN(ga.pct, 1) : '—', ga.sem, VN(E, 'gas.proj'), 0, V(E, 'gas.ref') || '')}`;
 }
 function cardQueima(E, b, ctx) {
-  /* D-47: comparação principal na mesma unidade (m³/d): queima projetada D × reserva por dia restante; abaixo, o mês */
-  const r = reservaQueima(E, ctx.dia), iuS = Regras.iuga(r.iugaMes, r.meta);
+  /* D-47: comparação principal na mesma unidade (m³/d): queima projetada D × reserva por dia restante; abaixo, o mês.
+     D-57: o terceiro indicador do mês é a reserva tática (IUGA do mês na meta) ou a queima máxima diária para recuperar a meta;
+     abaixo da meta, a linha sob as barras indica as origens evitáveis a trabalhar. ("Reserva no mês" segue no detalhe.) */
+  const r = reservaQueima(E, ctx.dia), iuS = Regras.iuga(r.iugaMes, r.meta), t = iugaTatico(E, ctx.dia), rec = t.modo === 'recuperar';
   const proj = r.projDia, dia = r.porDia != null ? Math.max(0, r.porDia) : null;
   const esc_ = Math.max(proj || 0, dia || 0) * 1.08 || 1, corP = r.sem === 'nok' ? COR.nok : r.sem === 'at' ? COR.at : COR.ok;
   const dif = proj != null && dia ? (proj / dia - 1) * 100 : null;
   const barra = (rot, v, cor) => `<span class="qb-r">${rot}</span><div class="qb-t"><div style="width:${v != null ? v / esc_ * 100 : 0}%;background:${cor}"></div></div><b class="qb-v">${v != null ? fmtN(v) : '—'}</b>`;
+  const org = t.origens.slice(0, 2).map(o => `${esc(o.causa)} ${fmtN(o.m3d / 1000)}`).join(' · ');
+  const legenda = rec && org ? `<b class="k">Trabalhar:</b> ${org} <span class="sec n">Mm³/d evitáveis</span>` : `m³/d · ${dif != null ? `projetada ${dif >= 0 ? fmtN(dif, 0) + '% acima' : fmtN(-dif, 0) + '% abaixo'} da reserva diária nos ${r.restantes} dias restantes` : 'faltam dados'}`;
+  const terceiro = !t.modo ? `<div class="col"><span class="cap">Reserva tática</span><span class="nw"><b class="big b28">—</b></span></div>`
+    : !rec ? `<div class="col qtat"><span class="cap">Reserva tática</span><span class="nw"><b class="big b28">${t.tatica > 0 ? fmtN(t.tatica) : '0'}</b><span class="unit u16">m³</span></span><span class="cap f16">${t.taticaDia > 0 ? fmtN(t.taticaDia) + NBSP + 'm³/d · ' : ''}≥ ${fmtN(t.metaT, 2)}%</span></div>`
+      : `<div class="col qtat rec"><span class="cap">${glyph('nok', 14)} Máx. p/ recuperar</span><span class="nw"><b class="big b28">${t.alcancavel ? fmtN(t.maxDia) : '0'}</b><span class="unit u16">m³/d</span></span><span class="cap f16">${t.alcancavel ? 'IUGA diário ≥ ' + fmtN(t.iugaDiaNec, 2) + '%' : 'meta perdida no mês'}</span></div>`;
   return `<div class="card col">${hd('Queima projetada', pill(r.sem, r.sem === 'nok' ? 'Sem reserva' : r.sem === 'at' ? 'Acima da reserva diária' : r.sem === 'ok' ? 'Dentro da reserva' : 'Sem dado'), '', lk(b, 'queima'))}
-    <div class="qb">${barra('Projetada D', proj, corP)}${barra('Reserva por dia', dia, '#75787B')}<span></span><span class="cap">m³/d · ${dif != null ? `projetada ${dif >= 0 ? fmtN(dif, 0) + '% acima' : fmtN(-dif, 0) + '% abaixo'} da reserva diária nos ${r.restantes} dias restantes` : 'faltam dados'}</span><span></span></div>
+    <div class="qb">${barra('Projetada D', proj, corP)}${barra(rec ? 'Máx. p/ meta' : 'Reserva por dia', dia, '#75787B')}<span></span><span class="cap">${legenda}</span><span></span></div>
     <div class="qk">
       <div class="col"><span class="cap">Acumulado no mês</span><span class="nw"><b class="big b28">${fmtN(r.Qacc)}</b><span class="unit u16">m³</span></span></div>
       <div class="col"><span class="cap">IUGA parcial do mês</span><span class="row-c nw"><b class="big b28">${r.iugaMes != null ? fmtN(r.iugaMes, 2) : '—'}</b><span class="unit u16">%</span>${glyph(iuS.sem, 16)}</span><span class="cap f16">meta ${r.meta != null ? fmtN(r.meta, 0) + '%' : '—'}</span></div>
-      <div class="col"><span class="cap">Reserva no mês</span><span class="nw"><b class="big b28">${r.reserva != null ? fmtN(Math.max(0, r.reserva)) : '—'}</b><span class="unit u16">m³</span></span></div>
+      ${terceiro}
     </div></div>`;
 }
 function cardPocos(E, b) {

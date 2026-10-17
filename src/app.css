@@ -651,3 +651,18 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 /* D-56 · Esqueci a senha */
 .lg-esq{display:block;margin:8px auto 0;background:none;border:0;padding:6px 4px;font:inherit;font-size:14px;font-weight:700;color:var(--verde);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .lg-esq:hover{color:#00663A}
+/* D-57 · reserva tática e recuperação do IUGA */
+.stage .li.tat .v{font-weight:800}
+.stage .li.tat.rec span:first-child{display:inline-flex;align-items:center;gap:6px}
+.stage .li.tat.rec .v{color:#DA291C}
+.stage .qt{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:baseline;column-gap:12px;padding:8px 12px;margin-top:6px;background:rgba(0,133,66,.08)}
+.stage .qt.rec{background:rgba(218,41,28,.08)}
+.stage .qt b{font-size:22px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stage .qt .qt-r{font-size:16px;font-weight:700;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.stage .qt .cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.stage .tatc.rec{box-shadow:inset 6px 0 0 #DA291C}
+.stage .tatc{box-shadow:inset 6px 0 0 #008542}
+.stage .qtat.rec b.big{color:#DA291C}
+.stage .qtat .cap .gl{vertical-align:-2px}
+.stage .card.iuga .li.tat,.stage .card.iuga .li.tat2{font-size:19px}
+.stage .card.iuga .li.tat span,.stage .card.iuga .li.tat2 span{white-space:nowrap}

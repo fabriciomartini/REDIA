@@ -101,6 +101,28 @@ async function checarPalco(page, nome) {
   ok(capEq.falta === 'eq.gas.co2.b' && capEq.st === 'Indisponível' && capEq.org === 'A' && /Passagem.* posto Gás/.test(capEq.fonte) && capEq.pas, `captura dos compressores pela passagem de serviço (${capEq.fonte}; falta ${capEq.falta})`);
   await page.selectOption('[data-campo="eq.gas.co2.b"]', 'Stand By'); await page.waitForTimeout(300);
   ok(await page.evaluate(() => UI.captura['COPROD|Compressores de gás'].faltando.length === 0 && !document.querySelector('[data-bloco="COPROD|Compressores de gás"] tr.falta') && !document.querySelector('[data-bloco="COPROD|Compressores de gás"] .falta-al') && E.valores['eq.gas.co2.b'].origem === 'M'), 'status digitado no equipamento que faltou: grava, confirma e o alerta some');
+  /* D-57: reserva tática e recuperação do IUGA */
+  const t1 = await page.evaluate(() => { const t = iugaTatico(E, DIA); return { modo: t.modo, metaT: t.metaT, tat: t.tatica, conf: (t.iugaMes - t.metaT) / 100 * t.PtotT, Ptot: t.PtotT, Pacc: t.Pacc, prodDia: t.prodDia, rest: t.restantes }; });
+  ok(t1.modo === 'reserva' && t1.metaT === 97.1 && t1.tat > 0 && Math.abs(t1.tat - t1.conf) < 1 && Math.abs(t1.Ptot - (t1.Pacc + t1.prodDia * t1.rest)) < 1, `reserva tática = (IUGA do mês − meta − margem 0,1) × produção projetada do mês (${Math.round(t1.tat)} m³)`);
+  await page.fill('[data-campo="iuga.margem"]', '0.5'); await page.press('[data-campo="iuga.margem"]', 'Tab'); await page.waitForTimeout(300);
+  const t2 = await page.evaluate(() => { const t = iugaTatico(E, DIA); return { metaT: t.metaT, tat: t.tatica }; });
+  ok(t2.metaT === 97.5 && t2.tat < t1.tat, `margem de segurança ajustável pela curadoria (meta tática ${t2.metaT}%)`);
+  await page.fill('[data-campo="iuga.margem"]', ''); await page.press('[data-campo="iuga.margem"]', 'Tab'); await page.waitForTimeout(300);
+  await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(250);
+  ok(await page.evaluate(() => { const c = document.querySelector('.stage .card.iuga'); return /Reserva tática\s*\d+\s*mil m³/.test(c.textContent) && /Por dia\s*[\d,]+\s*mil m³\/d/.test(c.textContent); }), 'abertura · card IUGA: reserva tática no mês e por dia');
+  await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(250);
+  ok(await page.evaluate(() => /Reserva tática/.test(document.querySelector('.stage .qtat')?.textContent || '') && !/Reserva no mês/.test(document.querySelector('.stage .qk').textContent)), 'COPROD · card Queima projetada: reserva tática no lugar de “Reserva no mês” (que segue no detalhe)');
+  await page.evaluate(async () => { const r = reservaQueima(E, DIA); await registrar('valor', { campo: 'queima.acum_mes', valor: Math.round(r.Pacc * 0.0335), origem: 'M', fonte: 'Manual' }); atualizarEstado(); rerender(); });
+  await page.waitForTimeout(250);
+  const t3 = await page.evaluate(() => { const t = iugaTatico(E, DIA); return { modo: t.modo, maxDia: t.maxDia, conf: ((1 - t.meta / 100) * t.PtotT - t.Qacc) / t.restantes, nec: t.iugaDiaNec, conf2: (1 - t.maxDia / t.prodDia) * 100, org: t.origens.map(o => o.causa), card: document.querySelector('.stage .qtat')?.textContent || '', qb: document.querySelector('.stage .qb').textContent }; });
+  ok(t3.modo === 'recuperar' && Math.abs(t3.maxDia - t3.conf) < 1 && Math.abs(t3.nec - t3.conf2) < 1e-9 && t3.nec > 97, `abaixo da meta: queima máxima diária para recuperar (${Math.round(t3.maxDia)} m³/d) e IUGA diário necessário (${t3.nec.toFixed(2)}%)`);
+  ok(/Máx\. p\/ recuperar/.test(t3.card) && /Trabalhar:\s*Queda do TC-A e da FGRU/.test(t3.qb) && t3.org[0] === 'Queda do TC-A e da FGRU' && t3.org.length === 2, `COPROD: queima máxima e origens evitáveis a trabalhar, maiores primeiro (${t3.org.join(' · ')})`);
+  await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(250);
+  ok(await page.evaluate(() => /Máx\.\/dia\s*\d+\s*mil m³\/d/.test(document.querySelector('.stage .card.iuga').textContent) && /IUGA diário mín\./.test(document.querySelector('.stage .card.iuga').textContent)), 'abertura · card IUGA: abaixo da meta mostra a queima máxima diária e o IUGA diário mínimo');
+  await page.goto(URL + '#/apresentacao/2/queima'); await page.waitForTimeout(250);
+  ok(await page.evaluate(() => { const c = document.querySelector('.stage .tatc.rec'); return c && /Recuperação do IUGA/.test(c.textContent) && /Origens evitáveis a trabalhar/.test(c.textContent) && /reduzir/.test(c.textContent); }), 'detalhe da queima: plano de recuperação com redução necessária e origens evitáveis');
+  await page.evaluate(async () => { await registrar('valor', { campo: 'queima.acum_mes', valor: null, origem: 'M', fonte: 'Manual' }); atualizarEstado(); });
+  await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(250);
   /* D-53: lista na aba Dados automáticos grava ao sair do campo, com linha em branco no fim para incluir */
   const lc = '[data-lista="queima.causas"]';
   const nCausas = await page.evaluate(() => L(E, 'queima.causas').length);
@@ -208,7 +230,7 @@ async function checarPalco(page, nome) {
   ok(await page.$('[data-lista="pocos.operacoes"]') !== null, 'curadoria da COPROD: aba Operações em poços para preenchimento');
   await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Trem A/.test(t) && /Trem B/.test(t) && /Teste/.test(t) && /Próximo teste de vazão/.test(t) && /BUZ-112/.test(t); }), 'card de poços mostra os trens e o próximo teste');
-  ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Acumulado no mês/.test(t) && /IUGA parcial do mês/.test(t) && /Reserva no mês/.test(t) && /Projetada D/.test(t) && /Reserva por dia/.test(t) && !/por causa/.test(t); }), 'card “Queima projetada”: projetada × reserva por dia (m³/d) e o mês (acumulado, IUGA parcial, reserva)');
+  ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Acumulado no mês/.test(t) && /IUGA parcial do mês/.test(t) && /Reserva tática/.test(t) && /Projetada D/.test(t) && /Reserva por dia/.test(t) && !/por causa/.test(t); }), 'card “Queima projetada”: projetada × reserva por dia (m³/d) e o mês (acumulado, IUGA parcial, reserva tática)');
   await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => { const c = [...document.querySelectorAll('.stage .card')].find(x => /Previsão de TOP/.test(x.textContent)); return c && /Offloading · Previsão de TOP/.test(c.textContent) && /Maran Libra/.test(c.querySelector('.b').textContent) && !!c.querySelector('.tq2 > div') && /Ocupado/.test(c.textContent) && /livre/.test(c.textContent); }), 'abertura: offloading com “Previsão de TOP”, navio designado e barra ocupado × livre');
   ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /3,9%/.test(t) && /679\s?m³/.test(t) && /Produzida descartada no mar: 0\s?m³/.test(t); }), 'abertura: água produzida reinjetada = 3,9% e descarte preservado (0 m³)');

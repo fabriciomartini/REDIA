@@ -7,6 +7,20 @@ const TOPICOS = {
   3: [['indicadores', 'Indicadores'], ['utilidades', 'Utilidades'], ['tanques', 'Tanques em atenção'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
   4: [['indicadores', 'Indicadores'], ['geracao', 'Geração principal'], ['legais', 'Órgãos legais e suprimentos'], ['pfceo', 'Equipamentos e Sistemas – PFCEO'], ['ultimas24', 'Últimas 24h'], ['servicos', 'Serviços e canal'], ['analises', 'Análises']],
 };
+/* D-57 · detalhe da queima: reserva tática (na meta) ou plano de recuperação do IUGA (abaixo da meta) */
+function cardTatico(E, iso) {
+  const t = iugaTatico(E, iso), m3 = v => v != null ? fmtU(v, 0, 'm³') : 'Sem dado', m3d = v => v != null ? fmtU(v, 0, 'm³/d') : 'Sem dado';
+  if (!t.modo) return `<div class="card col">${hd('Reserva tática')}<span class="sec">Faltam meta, acumulados ou projeção de produção para o cálculo.</span></div>`;
+  const base = `<span class="cap">Produção do mês projetada ${m3(t.PtotT)} (${esc(t.fonteProj)}: ${m3d(t.prodDia)}) · IUGA do mês ${fmtN(t.iugaMes, 2)}% · meta ${fmtN(t.meta, 2)}% + margem ${fmtN(t.margem, 2)} p.p.</span>`;
+  if (t.modo === 'reserva') return `<div class="card col tatc">${hd('Reserva tática · IUGA do mês ≥ ' + fmtN(t.metaT, 2) + '%', pill(t.tatica > 0 ? 'ok' : 'at', t.tatica > 0 ? 'Com reserva' : 'Esgotada'))}
+    <div class="row-sb"><span class="nw"><b class="big b44">${t.tatica > 0 ? fmtN(t.tatica) : '0'}</b><span class="unit">m³ até o fim do mês</span></span><span class="nw"><b class="big b28">${t.taticaDia > 0 ? fmtN(t.taticaDia) : '0'}</b><span class="unit u16">m³/d</span></span></div>
+    <span class="cap">Volume que ainda pode ser queimado <b class="k">além do ritmo atual</b> (manobras com queima inevitável) fechando o mês com IUGA ≥ ${fmtN(t.metaT, 2)}%. = (IUGA do mês − meta − margem) × produção projetada.</span>${base}</div>`;
+  const rows = t.origens.slice(0, 4).map(o => `<div class="li"><span>${glyph('at', 14)} ${T(o.causa)}</span><span class="v">${fmtN(o.m3d)}${NBSP}m³/d${o.cobre != null ? ` <span class="sec n">· ${fmtN(o.cobre, 0)}% da redução</span>` : ''}</span></div>`).join('');
+  return `<div class="card col tatc rec">${hd('Recuperação do IUGA · meta ' + fmtN(t.meta, 2) + '%', pill(t.alcancavel ? 'at' : 'nok', t.alcancavel ? 'Recuperável' : 'Meta inalcançável no mês'))}
+    <div class="row-sb"><span class="nw"><span class="cap">Queima máxima por dia</span> <b class="big b44">${t.alcancavel ? fmtN(t.maxDia) : '0'}</b><span class="unit">m³/d</span></span><span class="nw"><span class="cap">IUGA diário ≥</span> <b class="big b28">${t.alcancavel ? fmtN(t.iugaDiaNec, 2) : '—'}</b><span class="unit u16">%</span></span></div>
+    <span class="cap">${t.alcancavel ? `Nos ${t.restantes} dias restantes. Hoje: ${m3d(t.queimaDia)} (${esc(t.fonteQueima)}) → reduzir ${m3d(t.reducao)}.` : `Mesmo sem queima até o fim do mês, o IUGA fecha em ${fmtN(t.iugaMaxPossivel, 2)}%. Reduzir a queima ainda melhora o resultado do ${esc(CFG.ativo)} e de ${esc(CFG.campo)}.`}</span>
+    <span class="gh mt6">Origens evitáveis a trabalhar · maiores primeiro</span>${rows || '<div class="li n0"><span class="sec">Nenhuma causa evitável registrada na queima projetada</span></div>'}${base}</div>`;
+}
 const TIT_DET = { servicos: 'Serviços e Canal Base x Bordo', pocos: 'Poços · últimas 24 h', utilidades: 'Utilidades · estoque × mínimo' };
 const PROX_NOME = { 2: 'COEMB', 3: 'COMAN', 4: 'Fechamento' };
 const topicoValido = (b, t) => !!(TOPICOS[b] || []).find(x => x[0] === t);
@@ -142,6 +156,7 @@ const DETALHES = {
     return `<main class="m3 det" style="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)">
       <div class="colg">
         <div class="dtiles">${tile('Queima projetada D', fmtN(VN(E, 'queima.proj')), 'Mm³/d')}${tile('Acumulado no mês', fmtN(r.Qacc), 'm³', r.faltam.length ? 'at' : '', r.faltam.length ? `até D-1 · falta${r.faltam.length > 1 ? 'm' : ''} ${r.faltam.length} dia${r.faltam.length > 1 ? 's' : ''}` : `até D-1 · ${r.dias} dia${r.dias === 1 ? '' : 's'}`)}${tile('IUGA parcial do mês', r.iugaMes != null ? fmtN(r.iugaMes, 2) : '—', '%', iuS.sem, 'meta ' + (r.meta != null ? fmtN(r.meta, 2) + '%' : '—'))}</div>
+        ${cardTatico(E, ctx.dia)}
         <div class="card col">${hd('Queima projetada D · por causa')}
           <div class="bars">${causas.map(c => `<span>${T(c.causa)}</span><div class="track"><div style="width:${(+c.valor || 0) / totQ * 100}%;background:${c.evitavel === 'sim' ? '#ED8B00' : '#75787B'}"></div></div><b>${fmtN(c.valor)}</b>`).join('') || '<span class="sec">Sem causas registradas</span>'}</div>
           <span class="cap lg2"><span><i style="background:#ED8B00"></i>Evitável · falha de equipamento</span><span><i style="background:#75787B"></i>Rotina</span><span>valores em Mm³/d</span></span></div>

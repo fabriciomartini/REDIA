@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.6.0 · D-57 (2026-10-17)
+
+- **Reserva tática do IUGA** (abertura do GEPLAT e tela da COPROD): volume que ainda pode ser queimado, além do ritmo atual, fechando o mês com IUGA ≥ meta + margem. Cálculo: (IUGA do mês − meta − margem) × produção de gás projetada do mês (acumulado até D-1 + produção diária × dias restantes; projeção do SITOP ou média do mês). Margem de segurança padrão de 0,1 p.p., ajustável na curadoria da COPROD (campo "Margem de segurança da reserva tática").
+- **Recuperação do IUGA** quando o mês está abaixo da meta: queima máxima por dia nos dias restantes para fechar na meta, IUGA diário mínimo necessário, redução frente à queima atual e as **origens evitáveis** a trabalhar (maiores primeiro, com quanto cada uma cobre da redução). Se a meta não for mais alcançável, mostra o melhor IUGA possível no mês.
+- Tela da COPROD: no card Queima projetada, o terceiro indicador passa a ser a reserva tática (ou a queima máxima para recuperar); "Reserva no mês" continua no detalhe da queima, que ganha o card de reserva tática/recuperação.
+
 ## 1.5.0 · D-56 (2026-10-16)
 
 - **Contas genéricas de teste**, uma por posto: GEOP (TGEO), GEPLAT (TGPL), COPROD (TCPR), COMAN (TCMN), COEMB (TCEB) e supervisores SUPROD (TSPR), SUEMB (TSEB), SUEIN (TSEI) e SUMEC (TSMC), em `tools/genericos_teste_P83.csv`. São cadastradas pelo administrador com `provisionar_usuarios.py --compartilhado --senha-fixa`: a senha única é digitada na hora e não fica em arquivo nem no repositório. Conta compartilhada não pede troca de senha nem oferece "Alterar senha".

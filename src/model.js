@@ -30,6 +30,7 @@ const CAMPOS = [
   { id: 'queima.real_d1', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Queima D-1 (SITOP)', tipo: 'num', un: 'm³' },
   { id: 'iuga.gas_prod_mes', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Gás produzido no mês · correção manual (substitui a soma diária)', tipo: 'num', un: 'm³' },
   { id: 'queima.acum_mes', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Queima no mês · correção manual (substitui a soma diária)', tipo: 'num', un: 'm³' },
+  { id: 'iuga.margem', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Margem de segurança da reserva tática (p.p. acima da meta; vazio = 0,1)', tipo: 'num', un: 'p.p.', dec: 2 },
   { id: 'iuga.gas_prod_proj', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Gás produzido projetado (dias restantes do mês)', tipo: 'num', un: 'm³/d' },
   { id: 'queima.ref', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Referência dos eventos de queima', tipo: 'texto' },
   { id: 'flare.hp', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Flare HP agora', tipo: 'opcao', opcoes: ['Fechado', 'Aberto'] },
@@ -364,6 +365,37 @@ function reservaQueima(E, iso) {
   r.conservadora = (1 - meta / 100) * Pacc - Qacc;
   r.sem = r.reserva <= 0 ? 'nok' : (projDia != null && r.porDia < projDia) ? 'at' : 'ok';
   return r;
+}
+/* D-57 · IUGA tático: reserva tática e recuperação da meta
+   Produção do mês projetada = gás produzido até D-1 + produção diária × dias restantes (projeção do SITOP ou, sem ela, média do mês).
+   Reserva tática = (IUGA do mês − (meta + margem)) × produção projetada: o volume que ainda pode ser queimado,
+   além do ritmo atual, fechando o mês com IUGA ≥ meta + margem (margem padrão 0,1 p.p., ajustável na curadoria da COPROD).
+   Abaixo da meta: queima máxima diária nos dias restantes para fechar o mês na meta, IUGA diário necessário,
+   redução frente à queima atual e as causas evitáveis que podem ser trabalhadas, maiores primeiro. */
+const IUGA_MARGEM_PADRAO = 0.1;
+function iugaTatico(E, iso) {
+  const r = reservaQueima(E, iso);
+  const margem = VN(E, 'iuga.margem') ?? IUGA_MARGEM_PADRAO;
+  const dec = r.dias || Math.max(0, parseData(iso).getDate() - 1);
+  const prodDia = r.Pproj != null ? r.Pproj : (r.Pacc != null && dec ? r.Pacc / dec : null);
+  const t = { ...r, margem, metaT: r.meta != null ? r.meta + margem : null, prodDia, fonteProj: r.Pproj != null ? 'projeção do SITOP' : 'média do mês', modo: null,
+    PtotT: null, tatica: null, taticaDia: null, maxDia: null, iugaDiaNec: null, queimaDia: null, fonteQueima: null, reducao: null, alcancavel: null, iugaMaxPossivel: null, origens: [] };
+  if (r.meta == null || r.Pacc == null || r.Qacc == null || prodDia == null) return t;
+  t.PtotT = r.Pacc + prodDia * r.restantes;
+  t.modo = r.iugaMes != null && r.iugaMes >= r.meta ? 'reserva' : 'recuperar';
+  t.tatica = r.iugaMes != null ? (r.iugaMes - t.metaT) / 100 * t.PtotT : null;
+  t.taticaDia = t.tatica != null && r.restantes ? t.tatica / r.restantes : null;
+  t.maxDia = r.restantes ? ((1 - r.meta / 100) * t.PtotT - r.Qacc) / r.restantes : null;
+  t.iugaDiaNec = t.maxDia != null && prodDia ? (1 - t.maxDia / prodDia) * 100 : null;
+  t.queimaDia = r.projDia != null ? r.projDia : (dec ? r.Qacc / dec : null);
+  t.fonteQueima = r.projDia != null ? 'queima projetada D' : 'média do mês';
+  t.reducao = t.queimaDia != null && t.maxDia != null ? Math.max(0, t.queimaDia - Math.max(0, t.maxDia)) : null;
+  t.alcancavel = t.maxDia != null ? t.maxDia > 0 : null;
+  t.iugaMaxPossivel = t.PtotT ? (t.PtotT - r.Qacc) / t.PtotT * 100 : null;
+  let acum = 0;
+  t.origens = L(E, 'queima.causas').filter(c => c.evitavel === 'sim' && +c.valor > 0).map(c => ({ causa: c.causa, m3d: +c.valor * 1000 })).sort((a, b) => b.m3d - a.m3d)
+    .map(o => { acum += o.m3d; return { ...o, acum, cobre: t.reducao ? Math.min(100, acum / t.reducao * 100) : null }; });
+  return t;
 }
 function itensDe(E, coord, tipo) { return E.itens.filter(i => i.payload.coord === coord && i.payload.tipo === tipo); }
 function principalAmeaca(E, coord) {
