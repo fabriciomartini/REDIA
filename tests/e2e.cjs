@@ -202,9 +202,9 @@ async function checarPalco(page, nome) {
   ok(rq.r === rq.esp && rq.P === rq.Pesp && rq.iuga === rq.iugaEsp && rq.rest === rq.restEsp && rq.dias === rq.n && rq.fonte === 'soma', `D-43: acumulados = soma diária do SITOP; reserva e IUGA parcial (${JSON.stringify(rq)})`);
   const d43 = await page.evaluate(async () => {
     const ontem = addDias(DIA, -1), antes = E.mes.gas, vOntem = E.mes.dias.find(x => x.redia === ontem).gas;
-    DIA = ontem; await registrar('valor', { campo: 'gas.prod_d1', valor: vOntem + 1000, origem: 'M' }); DIA = '2026-10-09'; atualizarEstado();
+    DIA = ontem; await Store.gravarLote([novoRegistro('valor', { campo: 'gas.prod_d1', valor: vOntem + 1000, origem: 'M' })]); /* D-67: dia anterior encerrado (ata) · correção direta no armazenamento */ DIA = '2026-10-09'; atualizarEstado();
     const corrigido = E.mes.gas - antes;
-    DIA = addDias('2026-10-09', -3); await registrar('valor', { campo: 'queima.real_d1', valor: null, origem: 'M' }); DIA = '2026-10-09'; atualizarEstado();
+    DIA = addDias('2026-10-09', -3); await Store.gravarLote([novoRegistro('valor', { campo: 'queima.real_d1', valor: null, origem: 'M' })]); DIA = '2026-10-09'; atualizarEstado();
     const falta = E.mes.faltam.slice();
     await registrar('valor', { campo: 'iuga.gas_prod_mes', valor: 30000000, origem: 'M' }); atualizarEstado();
     const man = reservaQueima(E, DIA);
@@ -287,10 +287,11 @@ async function checarPalco(page, nome) {
   await page.goto(URL + '#/apresentacao/4/indicadores'); await page.waitForTimeout(300);
   ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Aderência ao plano/.test(t) && /82/.test(t) && /Backlog crítico/.test(t); }), 'detalhe de indicadores da COMAN: aderência ao plano e backlog');
   /* D-63 (proposta 30): histórico pesquisável */
-  await page.goto(URL + '#/historico'); await page.waitForTimeout(300);
-  await page.fill('#hs-q', 'FGRU A'); await page.click('[data-act="buscar"]'); await page.waitForTimeout(400);
-  const hs = await page.evaluate(() => ({ n: UI.histRes.length, antigos: UI.histRes.filter(r => r.data < DIA).length, ordem: UI.histRes.every((r, i, a) => !i || a[i - 1].data >= r.data), linhas: document.querySelectorAll('.tb tbody tr').length, abrir: document.querySelectorAll('[data-dia]').length }));
-  ok(hs.n >= 3 && hs.antigos >= 2 && hs.ordem && hs.linhas === hs.n && hs.abrir === hs.antigos, `histórico: busca por TAG encontra registros de REDIAs anteriores, mais recentes primeiro, com "Abrir REDIA" (${JSON.stringify(hs)})`);
+  await page.goto(URL + '#/arquivo'); await page.waitForTimeout(400);
+  await page.fill('#aq-q', 'FGRU A'); await page.click('[data-act="aq-buscar"]'); await page.waitForTimeout(500);
+  const hs = await page.evaluate(() => ({ n: UI.arqRes.length, antigos: UI.arqRes.filter(r => r.data < DIA).length, ordem: UI.arqRes.every((r, i, a) => !i || a[i - 1].data >= r.data), linhas: document.querySelectorAll('.arq-g tbody tr').length }));
+  ok(hs.n >= 3 && hs.antigos >= 2 && hs.ordem && hs.linhas === hs.n, `busca no Arquivo: TAG encontrada em REDIAs anteriores, mais recentes primeiro (${JSON.stringify(hs)})`);
+  await page.click('[data-act="aq-limpar"]'); await page.waitForTimeout(200);
   await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(300);
   const eqAb = await page.evaluate(() => { const st = document.querySelector('.stage'); const card = t => [...st.querySelectorAll('.card')].find(c => c.querySelector('.hd')?.textContent.includes(t)); return { grupos: st.querySelectorAll('.w.eqg').length, bul: st.querySelectorAll('.w.eqg .eb').length, injA: st.querySelector('.eb[aria-label="Injection A: Indisponível"]')?.className, fgruC: !!st.querySelector('.eb.eq-mn[aria-label="FGRU C: Em manutenção"]'), lim: !!st.querySelector('.eb.eq-lm[aria-label="Principal B: Limitado"]'), sb: !!st.querySelector('.eb.eq-sb[aria-label="VRU B: Stand By"]'), leg: [...st.querySelectorAll('.lge .eb')].map(e => e.textContent).join('|'), gas: card('Injeção de gás')?.querySelectorAll('.eqg').length, agua: card('Injeção de água')?.querySelectorAll('.eqg').length }; });
   ok(eqAb.grupos === 9 && eqAb.bul === 23 && eqAb.gas === 4 && eqAb.agua === 2 && /\beq-in\b/.test(eqAb.injA || '') && eqAb.fgruC && eqAb.lim && eqAb.sb, `abertura: um bullet de status por equipamento nos cards de IUGA, injeção de gás e de água (${eqAb.bul} bullets)`);
@@ -560,31 +561,19 @@ async function checarPalco(page, nome) {
   const r25 = await page.evaluate(() => ({ dec: reuniaoDe(E, 'decisao').map(d => [d.payload.texto, d.payload.por, d.payload.coord]), apz: reuniaoDe(E, 'aprendizado').length, cong: !!E.congelamento }));
   ok(r25.cong && r25.dec.length === 1 && r25.dec[0][1] === 'GEOP' && r25.dec[0][2] === 'COPROD' && r25.apz === 2, `decisão (com quem decidiu) e aprendizado registrados com a pauta congelada (${JSON.stringify(r25)})`);
   ok(await page.evaluate(() => { const t = taxaPrazo(E, DIA); return t.n >= 1 && t.pct != null && t.porCoord.length >= 1 && t.porSentido.length >= 1; }), 'taxa de ações fechadas no prazo calculada por coordenação e sentido (D-61)');
+  /* D-67: de acordo de cada responsável antes de fechar a ata */
   await page.goto(URL + '#/ata'); await page.waitForTimeout(200);
-  await page.fill('#at-part', 'GEPLAT de bordo\nCOPROD de bordo\n4º COPROD (base)'); await page.fill('#at-obs', 'Priorizar retorno da FGRU A.');
-  /* D-55: ata em PDF = relatório (retrato) + print de todas as telas da apresentação (paisagem), capturadas no fechamento */
-  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }).catch(() => null), page.click('[data-act="fechar-ata"]')]);
-  ok(!!dl && /^ata_REDIA_P-83_2026-10-09\.pdf$/.test(dl.suggestedFilename()), `ata gerada em PDF e baixada no modo demonstração (${dl && dl.suggestedFilename()})`);
-  if (dl) {
-    const f = path.join(OUT, 'ata.pdf'); await dl.saveAs(f);
-    const info = JSON.parse(execFileSync('python3', ['-c', `import pypdf,json,sys
-r=pypdf.PdfReader(sys.argv[1]); pg=r.pages
-land=[i+1 for i,p in enumerate(pg) if float(p.mediabox.width)>float(p.mediabox.height)]
-print(json.dumps({'n':len(pg),'land':land,'p1':pg[0].extract_text(),'pl':pg[land[0]-1].extract_text() if land else '','imgs':sum(1 for i in land if b' Do' in pg[i-1].get_contents().get_data()),'titulo':r.metadata.title}))`, f]).toString());
-    const nTel = await page.evaluate(() => telasDaAta().length);
-    const infoTxt = JSON.parse(execFileSync('python3', ['-c', `import pypdf,json,sys
-r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p in r.pages[:4])))`, f]).toString());
-    ok(/Decisões tomadas na reunião/.test(infoTxt) && /GEOP/.test(infoTxt) && /Aprendizados do dia/.test(infoTxt) && /Tempo por bloco/.test(infoTxt) && /Abertura · GEPLAT/.test(infoTxt) && /fechadas no prazo/.test(infoTxt), 'PDF: relatório traz decisões, aprendizados, taxa no prazo e tempo por bloco (D-61)');
-    ok(/Ata de sexta, 09\/10\/2026/.test(info.p1) && /código de integridade [0-9a-f]{8}/.test(info.p1) && /GEPLAT de bordo/.test(info.p1) && /Ata REDIA P-83 09\/10\/2026/.test(info.titulo), 'PDF: relatório com data, pauta congelada e participantes');
-    ok(nTel === 28 && info.land.length === nTel && info.imgs === nTel && info.land.every((p, k) => k === 0 || p === info.land[k - 1] + 1) && info.land[info.land.length - 1] === info.n, `PDF: depois do relatório, uma página em paisagem com o print de cada tela (${info.land.length} telas, ${info.n} páginas)`);
-    ok(/Bloco 1 · GEPLAT · Abertura/.test(info.pl) && /Dados de referência: REDIA de 09\/10\/2026/.test(info.pl) && /realizado D-1 = 08\/10\/2026/.test(info.pl) && /Pauta congelada às .* código de integridade/.test(info.pl) && /capturada em 09\/10\/2026 às/.test(info.pl), 'PDF: cada tela com os dados de referência da REDIA e a hora da captura');
-    ok(await page.evaluate(() => { const a = E.atas.at(-1).payload; return a.formato === 'pdf' && a.telas === 28 && a.paginas > 28; }), 'registro da ata guarda formato, páginas e telas');
-  }
+  const ac0 = await page.evaluate(() => ({ resp: situacaoAcordos().map(x => x.coord + ':' + x.chave), dis: document.querySelector('[data-act="fechar-ata"]').disabled, botoes: document.querySelectorAll('[data-acordo]').length, txt: motivoAtaFechamento() }));
+  ok(ac0.resp.join() === 'GEPLAT:CP01,COPROD:CP01,COEMB:CP01,COMAN:CP01' && ac0.dis && ac0.botoes === 4 && /Aguardando o de acordo de: GEPLAT/.test(ac0.txt), `ata: responsáveis = quem concluiu cada coordenação; fechamento travado até o de acordo de todos (${JSON.stringify(ac0)})`);
+  ok(await page.evaluate(async () => { try { await registrar('ata', { participantes: [] }); return false; } catch (e) { return e.codigo === 'ATA_SEM_ACORDO'; } }), 'regra do servidor (demonstração): ata sem o de acordo é recusada (ATA_SEM_ACORDO)');
+  for (let k = 0; k < 4; k++) { await page.click('[data-acordo]'); await page.waitForTimeout(200); }
+  ok(await page.evaluate(() => situacaoAcordos().every(x => x.acordo) && !document.querySelector('[data-act="fechar-ata"]').disabled && podeFecharAta()), 'com o de acordo dos 4 responsáveis, o botão Fechar ata é liberado');
   const nAtas = await page.evaluate(() => E.atas.length);
   const [dlp] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }).catch(() => null), page.click('[data-act="ver-ata"]')]);
   ok(!!dlp && /_previa\.pdf$/.test(dlp.suggestedFilename()) && await page.evaluate(n => E.atas.length === n, nAtas), 'prévia da ata em PDF baixa sem registrar a ata');
   await page.fill('#mot-re', 'Correção de valor'); await page.click('[data-act="reabrir-pauta"]'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => !E.congelamento), 'pauta reaberta com motivo');
+  ok(await page.evaluate(() => situacaoAcordos().every(x => x.pendente) && !podeFecharAta()), 'reabrir a pauta invalida os de acordo anteriores');
   await page.screenshot({ path: path.join(OUT, 'ata_tela.png'), fullPage: true });
   await page.goto(URL + '#/curadoria/COPROD/sugestoes'); await page.waitForTimeout(150); await page.screenshot({ path: path.join(OUT, 'curadoria.png'), fullPage: true });
   await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(150); await page.screenshot({ path: path.join(OUT, 'dados.png') });
@@ -625,15 +614,96 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   const hst = await page.evaluate(() => { const dias = new Set(), atas = []; for (const r of Store.cache.values()) { if (r.payload?.historico) dias.add(r.data); if (r.tipo === 'ata' && r.payload.historico) atas.push(r.data); } return { dias: dias.size, atas: atas.length, min: [...dias].sort()[0] }; });
   ok(hst.atas === 15 && hst.min === '2026-09-24', `histórico de 15 dias gravado com o exemplo (REDIAs encerradas de 24/09 a 08/10) (${JSON.stringify(hst)})`);
   await page.goto(URL + '#/arquivo'); await page.waitForTimeout(500);
-  const arq = await page.evaluate(() => ({ linhas: document.querySelectorAll('table.arq tbody tr').length, gerar: document.querySelectorAll('[data-arq-gerar]').length, txt: document.querySelector('[data-arq-gerar="2026-10-08"]')?.closest('tr')?.textContent.replace(/\s+/g, ' ') || '' }));
-  ok(arq.linhas >= 15 && arq.gerar >= 15 && /Congelada 08:40/.test(arq.txt) && /Fechada/.test(arq.txt), `Arquivo: uma linha por REDIA encerrada, com pauta congelada, ata e Gerar PDF (${arq.linhas} linhas · ${arq.txt})`);
-  const [dlA] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }).catch(() => null), page.click('[data-arq-gerar="2026-10-08"]')]);
+  const arq = await page.evaluate(() => ({ linhas: document.querySelectorAll('table.arq tbody tr').length, pdf: document.querySelectorAll('table.arq [data-arq-pdf]').length, so: [...document.querySelectorAll('table.arq tbody tr')].every(tr => /REDIA-P83-2026/.test(tr.textContent)), busca: !!document.querySelector('#aq-q'), menuHist: !!document.querySelector('.apph nav a[href="#/historico"]') }));
+  ok(arq.linhas === 15 && arq.pdf === 15 && arq.so && arq.busca && !arq.menuHist, `Arquivo: só as atas fechadas, com o código da REDIA e o PDF; busca no topo; sem a tela Histórico (${JSON.stringify(arq)})`);
+  const [dlA] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }).catch(() => null), page.click('[data-arq-pdf="2026-10-08"]')]);
   await page.waitForTimeout(500);
-  ok(!!dlA && /ata_REDIA_P-83_2026-10-08\.pdf/.test(dlA.suggestedFilename()) && await page.evaluate(() => DIA === '2026-10-09'), `Arquivo: Gerar PDF monta a ata da REDIA arquivada e volta ao dia aberto (${dlA && dlA.suggestedFilename()})`);
+  ok(!!dlA && /ata_REDIA-P83-20261008\.pdf/.test(dlA.suggestedFilename()) && await page.evaluate(() => DIA === '2026-10-09'), `Arquivo: Baixar PDF da ata arquivada e volta ao dia aberto (${dlA && dlA.suggestedFilename()})`);
+  await page.fill('#aq-q', 'FGRU A'); await page.press('#aq-q', 'Enter'); await page.waitForTimeout(600);
+  const abq = await page.evaluate(() => ({ n: UI.arqRes.length, lista: !!document.querySelector('table.arq'), grupos: document.querySelectorAll('.arq-g').length, ordem: UI.arqRes.every((r, i, a) => !i || a[i - 1].data >= r.data), pdf: document.querySelectorAll('.arq-g [data-arq-pdf]').length }));
+  ok(abq.n >= 3 && !abq.lista && abq.grupos >= 2 && abq.ordem && abq.pdf >= 1, `Arquivo: com busca, a lista de atas some e aparecem os resultados por REDIA, mais recentes primeiro (${JSON.stringify(abq)})`);
+  await page.selectOption('#aq-c', 'COMAN'); await page.waitForTimeout(500);
+  ok(await page.evaluate(() => UI.arqRes.every(r => r.payload.coord === 'COMAN')), 'filtro de coordenação restringe os resultados');
+  await page.click('[data-act="aq-limpar"]'); await page.waitForTimeout(400);
+  ok(await page.evaluate(() => document.querySelectorAll('table.arq tbody tr').length === 15 && !document.querySelector('.arq-g') && document.querySelector('#aq-q').value === ''), 'Limpar filtros volta à lista de todas as atas');
+  await page.goto(URL + '#/historico'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => ROTA_ATUAL.id === 'arquivo'), 'endereço antigo da tela Histórico abre o Arquivo');
   await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
   page.once('dialog', d => d.accept());
   await page.click('[data-act="historico15"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(800);
   ok(await page.evaluate(() => [...Store.cache.values()].filter(r => r.tipo === 'ata' && r.payload.historico).length === 15), 'Gerar histórico de novo não duplica: dias já encerrados ficam como estão');
+  /* D-67: fechamento final · congelar, de acordo dos responsáveis, ata em PDF; depois, nada mais é alterado no dia */
+  await page.goto(URL + '#/inicio'); await page.waitForTimeout(200); await page.click('[data-act="congelar-ini"]'); await page.waitForTimeout(250); if (await page.$('.mdl')) { await page.click('.mdl [data-mdl]:last-child'); await page.waitForTimeout(250); }
+  await page.goto(URL + '#/ata'); await page.waitForTimeout(250);
+  while (await page.$('[data-acordo]')) { await page.click('[data-acordo]'); await page.waitForTimeout(200); }
+  await page.goto(URL + '#/ata'); await page.waitForTimeout(200);
+  await page.fill('#at-part', 'GEPLAT de bordo\nCOPROD de bordo\n4º COPROD (base)'); await page.fill('#at-obs', 'Priorizar retorno da FGRU A.');
+  /* D-55: ata em PDF = relatório (retrato) + print de todas as telas da apresentação (paisagem), capturadas no fechamento */
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }).catch(() => null), page.click('[data-act="fechar-ata"]')]);
+  ok(!!dl && /^ata_REDIA-P83-20261009\.pdf$/.test(dl.suggestedFilename()), `ata gerada em PDF e baixada no modo demonstração (${dl && dl.suggestedFilename()})`);
+  if (dl) {
+    const f = path.join(OUT, 'ata.pdf'); await dl.saveAs(f);
+    const info = JSON.parse(execFileSync('python3', ['-c', `import pypdf,json,sys
+r=pypdf.PdfReader(sys.argv[1]); pg=r.pages
+land=[i+1 for i,p in enumerate(pg) if float(p.mediabox.width)>float(p.mediabox.height)]
+print(json.dumps({'n':len(pg),'land':land,'p1':pg[0].extract_text(),'pl':pg[land[0]-1].extract_text() if land else '','imgs':sum(1 for i in land if b' Do' in pg[i-1].get_contents().get_data()),'titulo':r.metadata.title}))`, f]).toString());
+    const nTel = await page.evaluate(() => telasDaAta().length);
+    const infoTxt = JSON.parse(execFileSync('python3', ['-c', `import pypdf,json,sys
+r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p in r.pages[:4])))`, f]).toString());
+    ok(/Decisões tomadas na reunião/.test(infoTxt) && /GEOP/.test(infoTxt) && /Aprendizados do dia/.test(infoTxt) && /Tempo por bloco/.test(infoTxt) && /Abertura · GEPLAT/.test(infoTxt) && /fechadas no prazo/.test(infoTxt), 'PDF: relatório traz decisões, aprendizados, taxa no prazo e tempo por bloco (D-61)');
+    ok(/Ata de sexta, 09\/10\/2026/.test(info.p1) && /código de integridade [0-9a-f]{8}/.test(info.p1) && /GEPLAT de bordo/.test(info.p1) && /Ata REDIA-P83-20261009/.test(info.titulo) && /Código REDIA-P83-20261009/.test(info.p1), 'PDF: relatório com data, pauta congelada e participantes');
+    ok(nTel === 28 && info.land.length === nTel && info.imgs === nTel && info.land.every((p, k) => k === 0 || p === info.land[k - 1] + 1) && info.land[info.land.length - 1] === info.n, `PDF: depois do relatório, uma página em paisagem com o print de cada tela (${info.land.length} telas, ${info.n} páginas)`);
+    ok(/Bloco 1 · GEPLAT · Abertura/.test(info.pl) && /Dados de referência: REDIA de 09\/10\/2026/.test(info.pl) && /realizado D-1 = 08\/10\/2026/.test(info.pl) && /Pauta congelada às .* código de integridade/.test(info.pl) && /capturada em 09\/10\/2026 às/.test(info.pl), 'PDF: cada tela com os dados de referência da REDIA e a hora da captura');
+    ok(await page.evaluate(() => { const a = E.atas.at(-1).payload; return a.formato === 'pdf' && a.telas === 28 && a.paginas > 28; }), 'registro da ata guarda formato, páginas e telas');
+  }
+  const fim = await page.evaluate(async () => { let cod = ''; try { await registrar('item', { coord: 'COPROD', tipo: 'ameaca', texto: 'x', semaforo: 'at' }); } catch (e) { cod = e.codigo; } return { cod, bloq: bloqueado(), btn: !!document.querySelector('[data-act="fechar-ata"]'), codigo: E.atas[0].payload.codigo, acordos: E.atas[0].payload.acordos.length }; });
+  ok(fim.cod === 'ATA_FECHADA' && fim.bloq && !fim.btn && fim.codigo === 'REDIA-P83-20261009' && fim.acordos === 4, `ata fechada: documento final com o código da REDIA e os de acordo; nada mais é gravado no dia (${JSON.stringify(fim)})`);
+  await page.goto(URL + '#/arquivo'); await page.waitForTimeout(500);
+  ok(await page.evaluate(() => document.querySelectorAll('table.arq tbody tr').length === 16 && /REDIA-P83-20261009/.test(document.querySelector('table.arq tbody tr').textContent)), 'Arquivo: a ata fechada hoje entra no topo da lista');
+  /* D-67: REDIA de hoje · só existe depois de "Iniciar elaboração" (código único) · preenchimento fictício (versão de teste) */
+  const hojeR = await page.evaluate(async () => { const h = isoData(Relogio.agora()); await abrirDia(h); return h; });
+  await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(300);
+  const g0 = await page.evaluate(async () => { const ok = await podeEditar('valor'); return { ok, banner: !!document.querySelector('.banner.ini-redia [data-act="iniciar-redia"]'), dis: !!document.querySelector('[data-act="capturar-todos"][disabled]') }; });
+  ok(!g0.ok && g0.banner && g0.dis, `antes de "Iniciar elaboração" a curadoria fica bloqueada, com o botão para iniciar (${JSON.stringify(g0)})`);
+  await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => /Não iniciada/.test(document.querySelector('.ses').textContent) && document.querySelector('.ses').getBoundingClientRect().width > 1000 && document.querySelector('.tst h2').textContent === 'Funções da versão de teste' && !!document.querySelector('.tst [data-act="resetar"]') && !!document.querySelector('.tst [data-act="simular"]') && !document.querySelector('.g-dia [data-act="simular"]')), 'Início: sessão em barra no topo; funções de teste reunidas em "Funções da versão de teste"');
+  ok(await page.evaluate(() => { const t = document.querySelector('.tst').getBoundingClientRect(), d = document.querySelector('.g-dia').getBoundingClientRect(); return t.top > d.bottom && t.right >= d.right - 2 && t.left > d.left + 200; }), 'Funções da versão de teste no canto inferior direito, abaixo de REDIA do dia e Situação das coordenações');
+  await page.click('.g-dia [data-act="iniciar-redia"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(400);
+  const cod = await page.evaluate(() => ({ c: E.redia?.payload.codigo, ses: document.querySelector('.ses').textContent, dup: (() => { try { regrasDemo(novoRegistro('redia', {})); return ''; } catch (e) { return e.codigo; } })() }));
+  ok(cod.c === 'REDIA-P83-' + hojeR.replace(/-/g, '') && cod.ses.includes(cod.c) && cod.dup === 'REDIA_JA_INICIADA', `REDIA iniciada com código único REDIA-<UEP>-<AAAAMMDD>; segunda abertura recusada (${JSON.stringify({ c: cod.c, dup: cod.dup })})`);
+  await page.click('[data-act="preencher"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(800);
+  const pf = await page.evaluate(() => ({ v: Object.keys(E.valores).length, l: Object.keys(E.listas).length, pend: COORDS.reduce((a, c) => a + pendentes(E, c).length, 0), concl: naoConcluidas(E).length, fic: [...Store.cache.values()].filter(r => r.data === DIA && r.payload?.ficticio).length, resp: responsaveisDe(regsDoDia()).map(x => x.coord + ':' + (x.chave || '-')).join() }));
+  ok(pf.v > 80 && pf.l > 20 && pf.pend === 0 && pf.concl === 0 && pf.fic > 100 && pf.resp === 'GEPLAT:-', `preenchimento fictício: valores e listas de todas as coordenações, sugestões aprovadas e coordenações concluídas; marcado como fictício e fora do de acordo (${JSON.stringify(pf)})`);
+  /* D-67: apresentação ao vivo · quem aciona controla; os demais acompanham, só com "Sair" */
+  const p2 = await ctx.newPage(); await p2.goto(URL + '#/inicio'); await p2.waitForTimeout(500);
+  await p2.fill('#lg-chave', 'cm01'); await p2.fill('#lg-senha', '1234'); await p2.click('.lg-btn'); await p2.waitForTimeout(700);
+  await p2.evaluate(async h => { await abrirDia(h); location.hash = '#/curadoria/COMAN'; }, hojeR); await p2.waitForTimeout(500);
+  await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
+  await page.click('.apph [data-act="vivo-iniciar"]'); await page.waitForTimeout(1200);
+  const hc = await page.evaluate(() => location.hash); const v1 = await p2.evaluate(hc => ({ hc, h: location.hash, seg: Vivo.seguindo, ctrl: Vivo.ctrl?.chave, off: document.querySelectorAll('#ctrl .btn.off').length, sair: [...document.querySelectorAll('#ctrl a.btn')].map(a => a.textContent), tip: document.querySelector('#ctrl .btn.off')?.dataset.tip || '' }), hc);
+  ok(v1.h === v1.hc && v1.seg && v1.ctrl === 'CP01' && v1.off >= 10 && v1.sair.join() === 'Sair' && /Controle da reunião/.test(v1.tip) && /Usuário COPROD/.test(v1.tip), `ao vivo: quem estava na curadoria vai para a apresentação; só "Sair" ativo, demais comandos desabilitados com dica (${JSON.stringify({ ...v1, tip: v1.tip.slice(0, 40) })})`);
+  await p2.hover('#ctrl .btn.off'); await p2.waitForTimeout(250);
+  ok(await p2.evaluate(() => !document.querySelector('#dica').hidden && /conduzida por Usuário COPROD/.test(document.querySelector('#dica').textContent)), 'dica ao parar o mouse num comando desabilitado: o controle é de quem acionou o modo ao vivo');
+  await page.click('#ctrl a[href="#/apresentacao/2"]', { force: true }); await page.waitForTimeout(400); await page.evaluate(() => { mostrarCtrl(); }); await page.click('#ctrl [data-act="mais1"]', { force: true }); await page.waitForTimeout(900);
+  const v2 = await p2.evaluate(() => ({ h: location.hash, extra: UI.pres.extra, fichas: document.querySelectorAll('.stage [data-tx] i.on').length, k: (await_ => 0)() }));
+  ok(v2.h === '#/apresentacao/2' && v2.extra === 1 && v2.fichas === 1, `quem assiste acompanha a troca de tela e o cronômetro de quem controla (${JSON.stringify(v2)})`);
+  await p2.keyboard.press('ArrowRight'); await p2.waitForTimeout(300);
+  ok(await p2.evaluate(() => location.hash === '#/apresentacao/2'), 'teclado de quem assiste não muda a tela');
+  await p2.click('#ctrl a[data-act="vivo-sair"]'); await p2.waitForTimeout(400);
+  const v3 = await p2.evaluate(() => ({ h: location.hash, seg: Vivo.seguindo, ativo: Vivo.ativo, b: document.querySelector('.apph [data-act="vivo-assistir"]')?.textContent || '' }));
+  ok(v3.h === '#/inicio' && !v3.seg && v3.ativo && /assistir/.test(v3.b), `"Sair" deixa o modo ao vivo; o botão "Apresentação ao vivo · assistir" fica disponível (${JSON.stringify(v3)})`);
+  await page.click('#ctrl a[href="#/apresentacao/4"]', { force: true }); await page.waitForTimeout(600);
+  ok(await p2.evaluate(() => location.hash === '#/inicio'), 'fora do modo ao vivo, a tela de quem saiu não é mais levada');
+  await p2.click('.apph [data-act="vivo-assistir"]'); await p2.waitForTimeout(500);
+  ok(await p2.evaluate(() => location.hash === '#/apresentacao/4' && Vivo.seguindo), '"Assistir" volta a mostrar a tela de quem controla');
+  await page.evaluate(() => mostrarCtrl()); await page.click('#ctrl [data-act="vivo-fim"]', { force: true }); await page.waitForTimeout(600);
+  ok(await p2.evaluate(() => !Vivo.ativo && !Vivo.seguindo && !!document.querySelector('#ctrl [data-act="tmr"]')), 'encerrar o modo ao vivo devolve os comandos a todos');
+  await p2.close();
+  /* D-67: cabeçalho da apresentação com dia, data e hora atual; fichas de orelhão; cards de ações */
+  await page.goto(URL + '#/apresentacao/semana'); await page.waitForTimeout(400);
+  const hd = await page.evaluate(() => { const dt = document.querySelector('.stage .dt'); const t = document.querySelector('.stage .ac-tx'); const ov = [...document.querySelectorAll('.stage .tile')].map(x => x.scrollWidth <= x.clientWidth + 1 && x.scrollHeight <= x.clientHeight + 1); return { txt: dt.textContent, clk: dt.querySelector('[data-clk]')?.textContent, fn: parseFloat(getComputedStyle(dt.querySelector('.dt-n')).fontSize), sub: /SITOP|Realizado/.test(dt.textContent), tx: t && getComputedStyle(t).backgroundColor, cor: t && getComputedStyle(t).color, ov: ov.every(Boolean), ficha: !!document.querySelector('.stage [data-tx] svg rect') }; });
+  ok(/\d\d\/\d\d\/\d{4}/.test(hd.txt) && /^\d\d:\d\d$/.test(hd.clk) && hd.fn >= 28 && !hd.sub && hd.tx === 'rgb(0, 133, 66)' && hd.cor === 'rgb(255, 255, 255)' && hd.ov && hd.ficha, `cabeçalho com dia, data e hora atual (fonte maior, sem "Realizado D-1 · SITOP"); card no prazo verde com fonte branca e sem estouro; fichas de orelhão (${JSON.stringify(hd)})`);
+  await page.evaluate(async () => { await abrirDia('2026-10-09'); }); await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
   // persistência no navegador (recarregar)
   const antes = await page.evaluate(() => Store.cache.size);
   await page.reload(); await page.waitForTimeout(400);

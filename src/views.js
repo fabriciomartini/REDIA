@@ -36,7 +36,7 @@ function cabecalhoApp(rota) {
   return `<header class="apph">
     <div><span class="kick">REDIA ${esc(CFG.uep)} · ${esc(APP.versao)}</span><div class="tit">${esc(rota.titulo)}</div><span class="dash"></span></div>
     ${E && USUARIO && notificacoesAbertas(E, USUARIO.coord).length ? `<a class="ntf" href="#/curadoria/${USUARIO.coord}" title="Notificação do GEPLAT">Concluir ${esc(USUARIO.coord)}</a>` : ''}
-    <nav aria-label="Seções">${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/arquivo', 'Arquivo', rota.id === 'arquivo')}${item('#/historico', 'Histórico', rota.id === 'historico')}${item('#/config', 'Configuração', rota.id === 'config')}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
+    <nav aria-label="Seções">${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/arquivo', 'Arquivo', rota.id === 'arquivo')}${item('#/config', 'Configuração', rota.id === 'config')}${['inicio', 'curadoria'].includes(rota.id) || Vivo.ativo ? botaoVivo('vivo-h') : ''}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
     <span class="armz">${textoArmaz()}</span>
     <div class="egp-sp"></div>
     <svg class="egp" width="420" height="80" viewBox="0 0 420 80" preserveAspectRatio="none" aria-hidden="true"><path d="M90 -20 L460 -20 L460 120 L64 120 L48 76 Q44 64 48 54 Z" fill="#008542"/><path d="M40 -20 L22 50 Q19 62 24 72 L40 120" fill="none" stroke="#FDC82F" stroke-width="3"/></svg>
@@ -56,8 +56,7 @@ const ROTAS = [
   { re: /^#\/curadoria\/(GEPLAT|COPROD|COEMB|COMAN)(?:\/([\w-]+))?$/, id: 'curadoria', titulo: 'Curadoria', fn: telaCuradoria },
   { re: /^#\/apresentacao\/([1-5])$/, id: 'apresentacao', titulo: 'Apresentação', fn: telaApresentacao },
   { re: /^#\/apresentacao\/(semana)$/, id: 'apresentacao', titulo: 'Apresentação · visão semanal', fn: telaApresentacao },   // D-63 (proposta 28)
-  { re: /^#\/historico$/, id: 'historico', titulo: 'Histórico', fn: telaHistorico },   // D-63 (proposta 30)
-  { re: /^#\/arquivo$/, id: 'arquivo', titulo: 'Arquivo', fn: telaArquivo },   // D-65
+  { re: /^#\/(?:arquivo|historico)$/, id: 'arquivo', titulo: 'Arquivo', fn: telaArquivo },   // D-65
   { re: /^#\/apresentacao\/([2-4])\/(\w+)$/, id: 'apresentacao', titulo: 'Apresentação · detalhe', fn: telaApresentacao },
   { re: /^#\/ata$/, id: 'ata', titulo: 'Fechamento e ata', fn: telaAta },
   { re: /^#\/config$/, id: 'config', titulo: 'Configuração', fn: telaConfig },
@@ -75,6 +74,8 @@ function rotear() {
     const m = r.re.exec(h);
     if (m) {
       if (ROTA_ATUAL?.id === 'apresentacao' && r.id !== 'apresentacao') { registrarTempoBloco(); UI.pres.rodando = false; }   // D-61: fecha o tempo do bloco ao sair
+      if (r.id === 'arquivo' && ROTA_ATUAL?.id !== 'arquivo') UI.arqLido = 0;   // D-67: arquivo relido ao entrar
+      Vivo.aoRotear(r.id, h);   // D-67: apresentação ao vivo (quem controla transmite; quem assiste sai ao trocar de tela)
       ROTA_ATUAL = { ...r, m };
       if (r.id !== 'imprimir') $('.printroot')?.remove();
       r.fn(m); return;
@@ -94,10 +95,17 @@ function rerender() { if (ROTA_ATUAL) ROTA_ATUAL.fn(ROTA_ATUAL.m); }
 const telaEstreita = () => matchMedia('(max-width: 900px)').matches;
 /* R-03: antes de gravar uma alteração da curadoria, sincroniza e confere se outra sessão já congelou a pauta.
    Na nuvem, o servidor também recusa (PAUTA_CONGELADA), mesmo se duas sessões gravarem ao mesmo tempo. */
-const PERMITIDOS_CONGELADA = ['demanda', 'anexo', 'ata', 'reabertura', 'notificacao', 'reuniao'];   // reunião (D-61): decisões, aprendizados e tempos são registrados durante/após a REDIA
+const PERMITIDOS_CONGELADA = ['demanda', 'anexo', 'ata', 'reabertura', 'notificacao', 'reuniao', 'acordo'];   // reunião (D-61): decisões, aprendizados e tempos são registrados durante/após a REDIA
+/* D-67: a REDIA do dia precisa ter sido iniciada ("Iniciar elaboração"); depois da ata fechada, nada mais é gravado no dia */
+const LIVRES_SEM_REDIA = ['redia', 'sugestao', 'notificacao'];
+const ataFechada = () => !!E?.atas?.length;
+const rediaIniciada = () => !!E?.redia;
 async function podeEditar(tipo, extra) {
-  if (PERMITIDOS_CONGELADA.includes(tipo) || extra?.escopo === 'demandas') return true;
+  if (extra?.escopo === 'demandas') return true;
   if (Store.remoto()) { await Store.sincronizar(); atualizarEstado(); }
+  if (ataFechada()) { aviso(`A ata da ${E.atas[0].payload.codigo || 'REDIA'} já foi fechada e arquivada: ela não pode mais ser alterada.`, 'erro'); rerender(); return false; }
+  if (!rediaIniciada() && !LIVRES_SEM_REDIA.includes(tipo)) { aviso('A REDIA deste dia ainda não foi iniciada. Um coordenador ou o GEPLAT inicia em “Iniciar elaboração”.', 'erro'); rerender(); return false; }
+  if (PERMITIDOS_CONGELADA.includes(tipo)) return true;
   if (!congelada()) return true;
   aviso(`A pauta foi congelada às ${hhmm(E.congelamento.criadoEm)} por ${E.congelamento.autor.nome}. A alteração não foi gravada.`, 'erro'); rerender(); return false;
 }
@@ -110,11 +118,24 @@ async function salvarE(tipo, payload, extra, msg) {
 async function tratarErroGravacao(e) {
   aviso('Não foi possível gravar: ' + e.message, 'erro');
   if (e.codigo === 'SESSAO') { setTimeout(() => { location.hash = '#/sair'; }, 1500); return; }
-  if (e.codigo === 'PAUTA_CONGELADA') { try { await Store.sincronizar(); atualizarEstado(); rerender(); } catch { } }
+  if (['PAUTA_CONGELADA', 'ATA_FECHADA', 'REDIA_JA_INICIADA', 'ATA_SEM_ACORDO', 'PAUTA_NAO_CONGELADA'].includes(e.codigo)) { try { if (Store.remoto()) await Store.sincronizar(); atualizarEstado(); rerender(); } catch { } }
 }
 const semChip = s => `<span class="chip ${s}">${(s === 'nok' ? SH.nokW : SH[s] || SH.sd)(13)}${esc(SEM_NOME[s] || s)}</span>`;
 const origemTxt = v => v ? `<span class="orig"><span class="tg0">${esc(v.origem)}</span>${esc(v.fonte || '')} · ${hhmm(v.em)}${v.origem !== 'A' ? ' · ' + esc(v.autor?.nome || '') : ''}</span>` : '<span class="orig">sem registro</span>';
-const bloqueado = () => congelada();
+const bloqueado = () => congelada() || ataFechada() || !rediaIniciada();
+/* D-67 · iniciar a REDIA do dia: cria o objeto único (código atribuído pela base) que todos passam a editar */
+async function iniciarRedia() {
+  if (!podeIniciarRedia()) return aviso('Só um coordenador ou o GEPLAT inicia a REDIA do dia.', 'erro');
+  if (DIA !== isoData(Relogio.agora())) return aviso('A REDIA só pode ser iniciada no próprio dia, a partir da meia-noite.', 'erro');
+  if (Store.remoto()) { await Store.sincronizar(); atualizarEstado(); }
+  if (rediaIniciada()) { aviso(`A ${E.redia.payload.codigo} já foi iniciada por ${E.redia.autor?.nome || 'outro usuário'}.`, 'ok'); return rerender(); }
+  const cod = codigoRedia(CFG.uep, DIA);
+  const r0 = await modal({ titulo: 'Iniciar a elaboração da REDIA?', html: `<p>Cria a REDIA de <b>${diaSemana(DIA).toLowerCase()}, ${ddmmaaaa(DIA)}</b> com o código <b class="mono">${cod}</b>. A partir daí, todos os usuários que entrarem editam esta REDIA, até o fechamento da ata.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Iniciar elaboração', cls: 'pri' }] });
+  if (r0.id !== 'ok') return;
+  try { await registrar('redia', { codigo: cod, coord: USUARIO.coord, iniciadaPor: USUARIO.posto }); atualizarEstado(); aviso(`${cod} iniciada. Bom trabalho!`, 'ok'); rerender(); }
+  catch (e) { await tratarErroGravacao(e); }
+}
+const htmlIniciar = (contexto = '') => rediaIniciada() ? '' : `<div class="banner ini-redia" role="status"><b>A REDIA de ${ddmm(DIA)} ainda não foi iniciada.</b> ${DIA !== isoData(Relogio.agora()) ? 'Só é possível iniciar a REDIA no próprio dia.' : podeIniciarRedia() ? `Ao iniciar, ela recebe o código <b class="mono">${codigoRedia(CFG.uep, DIA)}</b> e todos passam a editar a mesma REDIA.${contexto}` : 'Um coordenador ou o GEPLAT inicia a elaboração.'} ${DIA === isoData(Relogio.agora()) && podeIniciarRedia() ? '<button class="btn sm pri" data-act="iniciar-redia">Iniciar elaboração</button>' : ''}</div>`;
 
 
 /* ---------------- janela de confirmação (sem diálogos do navegador) ---------------- */
@@ -288,6 +309,9 @@ function pararLoginTimers() { if (UI.lgClk) { clearInterval(UI.lgClk); UI.lgClk 
 
 /* abre a sessão de trabalho: base da nuvem (ou demonstração), registros do dia e tempo real */
 async function iniciarSessao(novoLogin) {
+  await iniciarSessao0(novoLogin); Vivo.conectar();   // D-67
+}
+async function iniciarSessao0(novoLogin) {
   if (MODO_NUVEM) {
     if (novoLogin) { DIA = isoData(new Date()); LS.set('dia', DIA); }   // na nuvem, cada login abre a REDIA de hoje
     await Store.usarNuvem();
@@ -342,44 +366,46 @@ async function telaInicio() {
   };
   const ini = 6 * 60, fim = 10 * 60 + 30, pos = m => Math.max(0, Math.min(100, (m - ini) / (fim - ini) * 100));
   const H = CFG.horarios, seg = [['06:00', H.preenchimento, 'Preenchimento'], [H.preenchimento, H.congelamento, 'Pré-REDIA'], [H.congelamento, H.inicio, ''], [H.inicio, H.fim, 'REDIA'], [H.fim, '10:30', 'Ata']];
-  render(cabecalhoApp({ id: 'inicio', titulo: 'Início' }) + `<div class="wrap">
-    <div class="grid2 g-setup">
-      <section class="pn"><h2>${nuvem ? 'Base de dados' : 'Armazenamento'}</h2>
-        <p>${nuvem ? `Gravando na base <b>${esc(Store.nomeRaiz)}</b>. Cada ação vira um registro só de acréscimo, com autoria e hora oficial carimbadas pelo servidor; os demais usuários recebem a atualização ${Store.tempoReal ? 'em tempo real' : 'em até 15 s'}.` : Store.modo === 'memoria' ? 'Modo demonstração: os registros ficam só neste navegador. Use para conhecer o fluxo.' : 'Nenhum armazenamento ativo.'}</p>
-        ${nuvem ? `<p class="note">${Store.online ? `Última sincronização às ${Store.ultimaLeitura ? hhmmss(Store.ultimaLeitura) : '—'} · ${Store.tempoReal ? 'tempo real conectado' : 'leitura periódica'}.` : '<b>Sem conexão com a base.</b> As alterações não são gravadas até a rede voltar.'}</p>` : ''}
-        ${Store.modo ? `<div class="row" style="margin-top:8px">${nuvem ? '<button class="btn sm sec" data-act="sincronizar">Sincronizar agora</button>' : ''}<button class="btn sm" data-act="exportar">Exportar registros (JSON)</button>${!nuvem || podeAdministrar() ? `<label class="btn sm" for="imp">${nuvem ? 'Importar registros (migração)' : 'Importar registros'}</label><input id="imp" type="file" accept=".json" hidden>` : ''}</div>` : ''}
-        ${Store.modo && (!nuvem || USUARIO.admin) ? `<div class="row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--claro)"><button class="btn sm perigo" data-act="resetar">Resetar demonstração</button><span class="note">Apaga os dados inseridos por usuários e testadores${nuvem ? ', para todos' : ' neste navegador'}.</span></div>` : ''}
-        ${Store.modo && EXEMPLO_DISPONIVEL && podeAdministrar() ? `<div class="row" style="margin-top:10px"><button class="btn sm sec" data-act="historico15">Gerar histórico de 15 dias</button><span class="note">Grava REDIAs de exemplo encerradas (dados, curadoria, demandas, reunião, pauta congelada e ata) nos 15 dias anteriores a ${ddmm(DIA)}, para tendências, recorrência, visão semanal e Arquivo. Dias que já têm pauta congelada ou ata não são alterados.</span></div>` : ''}
-        ${nuvem && USUARIO.admin ? '<div class="pdsenha" data-pedidos-senha style="margin-top:14px;padding-top:12px;border-top:1px solid var(--claro)"><b>Pedidos de nova senha</b><p class="note">Carregando…</p></div>' : ''}
-      </section>
-      <section class="pn"><h2>Sessão</h2>
-        <div class="fgrid">
-          <div style="grid-column:1/-1"><span class="lbl">Nome</span><div class="ro">${esc(USUARIO.nome)}</div></div>
-          <div><span class="lbl">Chave</span><div class="ro">${esc(USUARIO.chave)}</div></div>
-          <div><span class="lbl">Posto · coordenação</span><div class="ro">${esc(USUARIO.posto)} · ${esc(USUARIO.coord)}</div></div>
-        </div>
-        <p class="note">${nuvem ? `Nome, chave e posto vêm do perfil cadastrado na base (${esc(CFG.uep)})${USUARIO.admin ? ' · administrador' : ''} e vão em cada registro como autor.` : 'Usuário fictício da demonstração.'} A sessão termina ao fechar o navegador ou em “Sair”.</p>
-        <div class="row end">${nuvem && !USUARIO.compartilhado ? '<button class="btn sec" data-act="senha">Alterar senha</button>' : ''}<a class="btn sec" href="#/curadoria/${USUARIO.coord}">Abrir minha curadoria</a><a class="btn" href="#/sair">Sair</a></div>
-      </section>
-    </div>
-    ${Store.modo ? `<div class="grid2 g-dia" style="margin-top:16px">
+  /* D-67 · Início: sessão em barra no topo; REDIA do dia e situação das coordenações logo abaixo; funções só da versão de teste
+     reunidas no canto inferior direito ("Funções da versão de teste"); administração (pedidos de senha) à esquerda. */
+  const R = E?.redia, ata = E?.atas?.[0], hoje = DIA === isoData(Relogio.agora());
+  const iniU = USUARIO.nome.split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
+  const stBase = nuvem ? `${Store.online ? '<span class="dot ok"></span>Base conectada' : '<span class="dot nok"></span><b>Sem conexão</b>'}<span class="note">${esc(Store.nomeRaiz || '')} · ${Store.online ? `sincronizado ${Store.ultimaLeitura ? hhmmss(Store.ultimaLeitura) : '—'}${Store.tempoReal ? ' · tempo real' : ''}` : 'as alterações não são gravadas até a rede voltar'}</span>` : Store.modo === 'memoria' ? '<span class="dot at"></span>Modo demonstração<span class="note">registros só neste navegador</span>' : 'Sem armazenamento';
+  const testes = [];
+  if (Store.modo && EXEMPLO_DISPONIVEL && podeAdministrar()) testes.push(`<div class="tf"><button class="btn sm pri" data-act="preencher" ${!R || congelada() || ata ? 'disabled' : ''}>Preencher a REDIA aberta (fictício)</button><span class="note">${!R ? 'Inicie a REDIA do dia para usar.' : ata ? 'REDIA encerrada.' : congelada() ? 'Pauta congelada: reabra para preencher.' : 'Gera valores fictícios para todos os campos vazios das 3 coordenações e do GEPLAT, aprova as sugestões pendentes e conclui o preenchimento. Não apaga o que já foi preenchido; marcado como fictício.'}</span></div>`);
+  if (Store.modo && !temDados && podeAdministrar() && EXEMPLO_DISPONIVEL) testes.push(`<div class="tf"><button class="btn sm sec" data-act="exemplo">Carregar dados de exemplo</button><span class="note">Dia sem registros: carrega o exemplo completo (P-75, sem nomes de pessoas)${nuvem ? ', gravado na base marcado como exemplo' : ''}, com 15 dias de histórico.</span></div>`);
+  if (Store.modo && EXEMPLO_DISPONIVEL && podeAdministrar()) testes.push(`<div class="tf"><button class="btn sm sec" data-act="historico15">Gerar histórico de 15 dias</button><span class="note">REDIAs de exemplo encerradas de ${ddmm(addDias(DIA, -15))} a ${ddmm(addDias(DIA, -1))}, para tendências, recorrência, visão semanal e Arquivo. Dias já tratados ficam como estão.</span></div>`);
+  if (Store.modo && (!nuvem || USUARIO.admin || Relogio.simulado())) testes.push(`<div class="tf"><span class="row" style="gap:6px"><label class="lbl" for="sim" style="margin:0">Simular horário</label><input id="sim" type="time" class="in" style="width:auto" value="${hhmm(Relogio.agora())}"><button class="btn sm sec" data-act="simular">Aplicar</button>${Relogio.simulado() ? '<button class="btn sm" data-act="real">Voltar ao horário real</button>' : ''}</span><span class="note">Muda o relógio do app neste navegador para testar as fases do dia.</span></div>`);
+  if (Store.modo) testes.push(`<div class="tf"><span class="row" style="gap:6px"><button class="btn sm sec" data-act="exportar">Exportar registros (JSON)</button>${!nuvem || podeAdministrar() ? `<label class="btn sm sec" for="imp">Importar registros</label><input id="imp" type="file" accept=".json" hidden>` : ''}</span><span class="note">Cópia e migração dos registros entre ambientes de teste.</span></div>`);
+  if (Store.modo && (!nuvem || USUARIO.admin)) testes.push(`<div class="tf"><button class="btn sm perigo" data-act="resetar">Resetar demonstração</button><span class="note">Apaga os dados inseridos por usuários e testadores${nuvem ? ', para todos' : ' neste navegador'}.</span></div>`);
+  render(cabecalhoApp({ id: 'inicio', titulo: 'Início' }) + `<div class="wrap ini">
+    <section class="pn ses" aria-label="Sessão">
+      <div class="ses-u"><span class="av" aria-hidden="true">${esc(iniU || '?')}</span><div><b class="ses-n">${esc(USUARIO.nome)}</b><span class="note">${esc(USUARIO.posto)} · ${esc(USUARIO.coord)} · chave <b>${esc(USUARIO.chave)}</b>${USUARIO.admin && nuvem ? ' · administrador' : ''}</span></div></div>
+      <div class="ses-i"><span class="lbl">REDIA do dia</span>${R ? `<b class="mono">${esc(R.payload.codigo || codigoRedia(CFG.uep, DIA))}</b><span class="note">${ata ? 'encerrada · ata arquivada' : esc(f.nome)}</span>` : `<b>Não iniciada</b><span class="note">${ddmmaaaa(DIA)}</span>`}</div>
+      <div class="ses-i"><span class="lbl">Armazenamento</span><span class="row-c">${stBase}</span></div>
+      <div class="ses-a">${nuvem ? '<button class="btn sm sec" data-act="sincronizar">Sincronizar</button>' : ''}${nuvem && !USUARIO.compartilhado ? '<button class="btn sm sec" data-act="senha">Alterar senha</button>' : ''}<a class="btn sm" href="#/curadoria/${USUARIO.coord}">Abrir minha curadoria</a><a class="btn sm sec" href="#/sair">Sair</a></div>
+    </section>
+    ${Store.modo ? `<div class="grid2 g-dia">
       <section class="pn"><h2>REDIA do dia</h2>
+        ${R ? `<div class="redia-id"><span class="lbl">Código</span><b class="mono">${esc(R.payload.codigo || codigoRedia(CFG.uep, DIA))}</b><span class="note">iniciada por ${esc(R.autor?.nome || '—')} às ${hhmm(R.criadoEm)}${ata ? ` · ata fechada às ${hhmm(ata.criadoEm)}` : ''}</span></div>` : htmlIniciar()}
         <div class="row"><label class="lbl" for="dia" style="margin:0">Data</label><input id="dia" type="date" class="in" style="width:auto" value="${DIA}"><button class="btn sm sec" data-act="dia">Abrir</button>
-          <span class="chip ${f.id === 'congelada' || f.id === 'reuniao' ? 'ok' : f.id === 'congelar' ? 'at' : 'ne'}">${esc(f.nome)}</span></div>
+          <span class="chip ${ata ? 'ok' : f.id === 'congelada' || f.id === 'reuniao' ? 'ok' : f.id === 'congelar' ? 'at' : 'ne'}">${ata ? 'Encerrada' : esc(f.nome)}</span>${!hoje ? '<span class="note">dia anterior · só consulta</span>' : ''}</div>
         <div class="tl" role="img" aria-label="Linha do tempo do dia: agora ${hhmm(Relogio.agora())}">${seg.map(([a, b, n], i) => `<span class="sg s${i}" style="left:${pos(horaMin(a))}%;width:${pos(horaMin(b)) - pos(horaMin(a))}%">${n}</span>`).join('')}<i class="now" style="left:${pos(Relogio.minutos())}%"></i></div>
-        <p class="note">06:00 passagem de turno · até ${H.preenchimento} preenchimento · ${H.preenchimento}–${H.congelamento} pré-REDIA · ${H.congelamento} congelamento · ${H.inicio}–${H.fim} REDIA · depois, ata.</p>
-        ${!nuvem || USUARIO.admin || Relogio.simulado() ? `<div class="row"><label class="lbl" for="sim" style="margin:0">Simular horário</label><input id="sim" type="time" class="in" style="width:auto" value="${hhmm(Relogio.agora())}"><button class="btn sm sec" data-act="simular">Aplicar</button>${Relogio.simulado() ? '<button class="btn sm" data-act="real">Voltar ao horário real</button>' : ''}</div>` : ''}
+        <p class="note">06:00 passagem de turno · até ${H.preenchimento} preenchimento · ${H.preenchimento}–${H.congelamento} pré-REDIA · ${H.congelamento} congelamento · ${H.inicio}–${H.fim} REDIA · depois, de acordo e ata.</p>
         <div class="pauta-st${congelada() ? ' ok' : ''}">
-          <div><b>${congelada() ? 'Pauta congelada' : 'Pauta em edição'}</b><span class="note">${congelada() ? `às ${hhmm(E.congelamento.criadoEm)} por ${esc(E.congelamento.autor.nome)} · código ${esc(E.congelamento.payload.hash)}` : `${COORDS.length - naoConcluidas(E).length} de ${COORDS.length} coordenações concluíram o preenchimento${naoConcluidas(E).length ? ' · falta: ' + naoConcluidas(E).join(', ') : ''}`}</span></div>
-          ${congelada() ? '<button class="btn sec" data-act="descongelar">Descongelar pauta</button>' : '<button class="btn pri" data-act="congelar-ini">Congelar pauta</button>'}
+          <div><b>${ata ? 'Ata fechada e arquivada' : congelada() ? 'Pauta congelada' : 'Pauta em edição'}</b><span class="note">${congelada() ? `às ${hhmm(E.congelamento.criadoEm)} por ${esc(E.congelamento.autor.nome)} · integridade ${esc(E.congelamento.payload.hash)}` : `${COORDS.length - naoConcluidas(E).length} de ${COORDS.length} coordenações concluíram o preenchimento${naoConcluidas(E).length ? ' · falta: ' + naoConcluidas(E).join(', ') : ''}`}</span></div>
+          ${ata ? '' : congelada() ? '<button class="btn sec" data-act="descongelar">Descongelar pauta</button>' : `<button class="btn pri" data-act="congelar-ini" ${R ? '' : 'disabled'}>Congelar pauta</button>`}
         </div>
-        ${!temDados ? `<div class="banner" style="margin-top:12px">Este dia ainda não tem registros. ${podeAdministrar() && EXEMPLO_DISPONIVEL ? `<button class="btn sm pri" data-act="exemplo">Carregar dados de exemplo</button><span class="note">Operação · dados de exemplo da P-75, sem nomes de pessoas${nuvem ? ' · ficam gravados na base marcados como exemplo' : ''}.</span>` : '<span class="note">Os dados chegam com o preenchimento das coordenações.</span>'}</div>` : ''}
       </section>
       <section class="pn"><h2>Situação das coordenações</h2>
         <div class="tbw"><table class="tb"><thead><tr><th>Coordenação</th><th>Preenchimento</th><th>Sugestões</th><th>Destaques</th><th>Na abertura</th><th></th></tr></thead><tbody>${COORDS.map(linhaCoord).join('')}</tbody></table></div>
-        <div class="row" style="margin-top:12px"><a class="btn pri" href="#/apresentacao/1">Abrir a apresentação</a><a class="btn sec" href="#/ata">Fechamento e ata</a></div>
+        <div class="row" style="margin-top:12px"><a class="btn pri" href="#/apresentacao/1">Abrir a apresentação</a>${botaoVivo('btn')}<a class="btn sec" href="#/ata">Fechamento e ata</a></div>
       </section>
     </div>` : ''}
+    <div class="g-fim">
+      ${nuvem && USUARIO.admin ? '<section class="pn adm"><h2>Administração</h2><div class="pdsenha" data-pedidos-senha><b>Pedidos de nova senha</b><p class="note">Carregando…</p></div></section>' : '<span></span>'}
+      ${testes.length ? `<section class="pn tst" aria-label="Funções da versão de teste"><h2>Funções da versão de teste</h2><p class="note">Só para a fase de testes do sistema: saem da versão de operação.</p>${testes.join('')}</section>` : ''}
+    </div>
   </div>`);
   const on = (a, fn) => { const b = $(`[data-act="${a}"]`); if (b) b.onclick = fn; };
   on('dia', async () => { try { await abrirDia($('#dia').value); } catch (e) { aviso(e.message, 'erro'); } });
@@ -401,6 +427,14 @@ async function telaInicio() {
   on('descongelar', () => descongelarPauta());
   on('simular', () => { Relogio.simular($('#sim').value); rerender(); });
   on('real', () => { Relogio.real(); rerender(); });
+  on('preencher', async e => {   // D-67: versão de teste
+    const r0 = await modal({ titulo: 'Preencher a REDIA aberta com dados fictícios?', html: `<p>Preenche ${Store.remoto() ? '<b>na base, para todos</b>,' : 'neste navegador'} os campos e listas vazios das coordenações e do GEPLAT, aprova as sugestões pendentes e conclui o preenchimento de todas as coordenações. O que já foi preenchido fica como está.</p><p class="note">Os registros ficam marcados como fictícios; para apagar, use Resetar demonstração.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Preencher', cls: 'pri' }] });
+    if (r0.id !== 'ok') return;
+    e.target.disabled = true;
+    try { if (Store.remoto()) { await Store.sincronizar(); atualizarEstado(); } const r = await preencherFicticio(DIA, E); atualizarEstado(); aviso(r.n ? `REDIA preenchida: ${r.valores} valores, ${r.listas} listas, ${r.aprovadas} sugestões aprovadas e todas as coordenações concluídas.` : 'Nada a preencher: a REDIA já está completa.', 'ok'); }
+    catch (x) { await tratarErroGravacao(x); }
+    rerender();
+  });
   on('exemplo', async e => { e.target.disabled = true; try { const n = await carregarExemplo(DIA); atualizarEstado(); aviso(`${n} registros de exemplo gravados.`, 'ok'); } catch (x) { aviso('Não foi possível gravar o exemplo: ' + x.message, 'erro'); } rerender(); });
   on('exportar', () => baixar(`REDIA_${CFG.uep}_registros_${DIA}.json`, Store.exportar()));
   const imp = $('#imp'); if (imp) imp.onchange = async () => { try { const r = await Store.importar(await imp.files[0].text()); imp.value = ''; if (r.data && r.data !== DIA) await abrirDia(r.data); atualizarEstado(); aviso(`${r.n} registros importados${r.tipo === 'pacote' ? ' do pacote de ' + ddmm(r.data) : ''}.`, 'ok'); rerender(); } catch (e) { aviso(e.message, 'erro'); } };
@@ -454,7 +488,7 @@ function telaCuradoria(m) {
   const corpo = man ? (c => abaDados(c, man)) : { sugestoes: abaSugestoes, destaques: abaDestaques, pfceo: abaPfceo, dados: abaDados, servicos: abaServicos, itens: abaItens, demandas: abaDemandas, aceite: abaAceite }[aba] || abaDados;
   const r = corpo(coord);
   const nts = notificacoesAbertas(E, coord), cc = concluida(E, coord);
-  const aviso_ = nts.length ? `<div class="banner nt"><b>Notificação do GEPLAT · ${hhmm(nts[nts.length - 1].criadoEm)}</b> ${esc(nts[nts.length - 1].payload.mensagem)} <button class="btn sm pri" data-act="concluir2">Concluir preenchimento</button></div>` : cc && !bloqueado() ? `<div class="banner ok">Preenchimento da ${coord} concluído às ${hhmm(cc.criadoEm)}. Alterações continuam possíveis até o congelamento.</div>` : '';
+  const aviso_ = ataFechada() ? `<div class="banner ok"><b>${esc(E.atas[0].payload.codigo || 'REDIA')} encerrada:</b> ata fechada às ${hhmm(E.atas[0].criadoEm)} e arquivada. Os dados ficam só para consulta.</div>` : !rediaIniciada() ? htmlIniciar() : nts.length ? `<div class="banner nt"><b>Notificação do GEPLAT · ${hhmm(nts[nts.length - 1].criadoEm)}</b> ${esc(nts[nts.length - 1].payload.mensagem)} <button class="btn sm pri" data-act="concluir2">Concluir preenchimento</button></div>` : cc && !bloqueado() ? `<div class="banner ok">Preenchimento da ${coord} concluído às ${hhmm(cc.criadoEm)}. Alterações continuam possíveis até o congelamento.</div>` : '';
   // telas estreitas (tablet em pé, smartphone): seletor de coordenação + abas roláveis no topo e barra de conclusão fixa embaixo
   const abas = [['dados', 'Dados'], ['sugestoes', 'Sugestões', pend], ['destaques', 'Destaques', ap], ...(coord !== 'GEPLAT' ? [['pfceo', 'PFCEO'], ['servicos', 'Serviços']] : []), ['itens', coord === 'GEPLAT' ? 'Pauta extra' : 'Ameaças'], ['demandas', 'Canal'], ...(coord === 'GEPLAT' ? [['aceite', 'Aceite']] : []), ...(MANUAIS[coord] || []).map(([id, rot]) => [id, rot])];
   const mtop = `<div class="mtop">
@@ -1006,6 +1040,82 @@ function abaAceite() {
   return { html, dois: true, bind: () => { const b = $('[data-act="aceite"]'); if (b) b.onclick = () => salvarE('aceite', { nota: $('#ac-nota').value.trim() }, {}, 'Aceite registrado.'); } };
 }
 
+/* ======================= Apresentação ao vivo (D-67) =======================
+   Quem aciona passa a controlar: os demais usuários logados (Início, Curadoria ou Apresentação) vão para a apresentação e acompanham
+   a tela e o cronômetro de quem controla. Quem assiste só tem "Sair" na barra; os demais comandos ficam visíveis e desabilitados.
+   Transmissão por canal (Supabase Realtime na nuvem; BroadcastChannel entre abas do mesmo navegador), sem gravar na base.
+   Quem controla repete o estado a cada 3 s; sem sinal por 15 s, a apresentação ao vivo é dada como encerrada. */
+const SESSAO_ID = uid();
+const Vivo = {
+  ativo: false, ctrl: null, inicio: 0, souCtrl: false, seguindo: false, ult: null, visto: 0, bc: null, hb: null, navegando: false,
+  conectar() {
+    try { this.bc?.close(); this.bc = new BroadcastChannel('redia-vivo-' + CFG.uep); this.bc.onmessage = e => this.receber(e.data); } catch { this.bc = null; }
+    if (Store.remoto()) Nuvem.vivoCanal(CFG.uep, m => this.receber(m));
+    setTimeout(() => this.enviar({ t: 'quem', de: SESSAO_ID }), 300);
+  },
+  eu() { return { id: SESSAO_ID, nome: USUARIO?.nome || '', chave: USUARIO?.chave || '', posto: USUARIO?.posto || '' }; },
+  enviar(m) { try { this.bc?.postMessage(m); } catch { } if (Store.remoto()) Nuvem.vivoEnviar(m); },
+  estado() { const P = UI.pres; return { t: 'estado', ctrl: this.eu(), inicio: this.inicio, dia: DIA, hash: location.hash, pres: { bloco: P.bloco, restante: P.restante, rodando: P.rodando, extra: P.extra || 0, ts: Date.now() } }; },
+  transmitir() { if (this.souCtrl) this.enviar(this.estado()); },
+  async comecar() {
+    if (this.ativo && !this.souCtrl && this.ctrl) {
+      const r0 = await modal({ titulo: 'Apresentação ao vivo em andamento', html: `<p>${esc(this.ctrl.nome)} está conduzindo a apresentação ao vivo. Você pode assistir ou assumir o controle da reunião.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'assistir', txt: 'Assistir' }, { id: 'assumir', txt: 'Assumir o controle', cls: 'pri' }] });
+      if (r0.id === 'assistir') return this.assistir();
+      if (r0.id !== 'assumir') return;
+    }
+    this.souCtrl = true; this.ativo = true; this.seguindo = false; this.inicio = Date.now(); this.ctrl = this.eu();
+    clearInterval(this.hb); this.hb = setInterval(() => this.transmitir(), 3000);
+    if (ROTA_ATUAL?.id !== 'apresentacao') location.hash = '#/apresentacao/' + (UI.pres.bloco || 1); else { this.transmitir(); rerender(); }
+    aviso('Apresentação ao vivo: os demais usuários acompanham a sua tela.', 'ok');
+  },
+  encerrar() {
+    if (!this.souCtrl) return;
+    this.enviar({ t: 'fim', ctrl: this.eu() }); clearInterval(this.hb); this.hb = null;
+    this.souCtrl = false; this.ativo = false; this.ctrl = null;
+    if (ROTA_ATUAL?.id === 'apresentacao') rerender();
+    aviso('Apresentação ao vivo encerrada.', 'ok');
+  },
+  assistir() { if (!this.ativo || this.souCtrl || !this.ult) return aviso('Nenhuma apresentação ao vivo em andamento.', 'erro'); this.seguindo = true; this.aplicar(this.ult, true); },
+  podeSeguirAgora() { return ['inicio', 'curadoria', 'apresentacao'].includes(ROTA_ATUAL?.id) && !$('.mdl'); },
+  receber(m) {
+    if (!m || m.ctrl?.id === SESSAO_ID || m.de === SESSAO_ID) return;
+    if (m.t === 'quem') { this.transmitir(); return; }
+    if (m.t === 'fim') {
+      if (this.ctrl?.id !== m.ctrl?.id) return;
+      const seguia = this.seguindo; this.ativo = false; this.seguindo = false; this.ctrl = null; this.ult = null;
+      aviso(`${m.ctrl.nome} encerrou a apresentação ao vivo.`, 'ok'); if (seguia || ROTA_ATUAL) rerender(); return;
+    }
+    if (m.t !== 'estado' || !USUARIO) return;
+    if (this.souCtrl) { if (m.inicio <= this.inicio) return; clearInterval(this.hb); this.hb = null; this.souCtrl = false; aviso(`${m.ctrl.nome} assumiu o controle da apresentação ao vivo.`, 'ok'); }
+    const novo = !this.ctrl || this.ctrl.id !== m.ctrl.id || this.inicio !== m.inicio;
+    this.ativo = true; this.ctrl = m.ctrl; this.inicio = m.inicio; this.visto = Date.now(); this.ult = m;
+    if (novo) { if (this.podeSeguirAgora()) { this.seguindo = true; aviso(`${m.ctrl.nome} iniciou a apresentação ao vivo.`, 'ok'); this.aplicar(m, true); } else { this.seguindo = false; aviso(`${m.ctrl.nome} iniciou a apresentação ao vivo. Use “Assistir ao vivo” para acompanhar.`, 'ok'); this.atualizarBotoes(); } return; }
+    if (this.seguindo) this.aplicar(m, false);
+  },
+  async aplicar(m, forcar) {
+    if (m.dia && m.dia !== DIA) { try { await abrirDia(m.dia); } catch { } }
+    const P = UI.pres, alvo = /^#\/apresentacao\/(semana|[1-5])/.exec(m.hash || '')?.[1];
+    if (alvo && alvo !== 'semana') P.bloco = +alvo;
+    P.restante = m.pres.restante - (m.pres.rodando ? Math.floor((Date.now() - m.pres.ts) / 1000) : 0); P.rodando = m.pres.rodando; P.extra = m.pres.extra || 0; P.ult = Date.now(); P.inicio = null;
+    if (m.hash && location.hash !== m.hash && /^#\/apresentacao\//.test(m.hash)) { document.activeElement?.blur?.(); this.navegando = true; location.hash = m.hash; }
+    else if (forcar || ROTA_ATUAL?.id !== 'apresentacao') rerender(); else atualizarTimer();
+  },
+  aoRotear(id, h) {
+    if (this.navegando) { this.navegando = false; return; }
+    if (this.souCtrl) { if (id !== 'apresentacao') this.encerrar(); else setTimeout(() => this.transmitir(), 0); return; }
+    if (this.seguindo && h !== this.ult?.hash) this.seguindo = false;   // quem assiste saiu da apresentação ao vivo
+  },
+  vigiar() { if (this.ativo && !this.souCtrl && Date.now() - this.visto > 15000) { const seguia = this.seguindo; this.ativo = false; this.seguindo = false; this.ctrl = null; aviso('A apresentação ao vivo foi encerrada (sem sinal de quem controlava).', 'erro'); if (seguia) rerender(); else this.atualizarBotoes(); } },
+  atualizarBotoes() { $$('[data-vivo-b]').forEach(b => { const n = document.createElement('div'); n.innerHTML = botaoVivo(b.dataset.vivoB); b.replaceWith(n.firstElementChild); }); },
+};
+/* botão da apresentação ao vivo (Início, Curadoria e barra da apresentação): iniciar, assistir ou indicar que você controla */
+function botaoVivo(cls = 'btn') {
+  if (Vivo.souCtrl) return `<button class="${cls} vivo on" data-vivo-b="${cls}" data-act="vivo-ir" title="Você controla a apresentação ao vivo"><i class="vv" aria-hidden="true"></i>Ao vivo · você controla</button>`;
+  if (Vivo.ativo) return `<button class="${cls} vivo" data-vivo-b="${cls}" data-act="vivo-assistir" title="Acompanhar a tela de ${esc(Vivo.ctrl?.nome || '')}"><i class="vv" aria-hidden="true"></i>Apresentação ao vivo · assistir</button>`;
+  return `<button class="${cls} vivo" data-vivo-b="${cls}" data-act="vivo-iniciar" title="Leva todos os usuários para a apresentação, acompanhando a sua tela"><i class="vv" aria-hidden="true"></i>Apresentação ao vivo</button>`;
+}
+const DICA_VIVO = () => ` aria-disabled="true" data-tip="${esc(`Controle da reunião\nA apresentação ao vivo é conduzida por ${Vivo.ctrl?.nome || 'outro usuário'}${Vivo.ctrl?.posto ? ' (' + Vivo.ctrl.posto + ')' : ''}, que acionou o modo ao vivo. A troca de telas e o cronômetro seguem o controle dele.\nPara sair, use “Sair”; para voltar a assistir, “Apresentação ao vivo”.`)}" data-tip-sem="info" tabindex="0"`;
+
 /* ======================= Apresentação ======================= */
 let tickPres = null, ocultarCtrl = null;
 /* D-61 (proposta 27): ao sair de um bloco com o cronômetro usado, grava o tempo medido (início, fim, segundos × timebox) como registro da reunião */
@@ -1026,17 +1136,32 @@ function telaApresentacao(m) {
   const diaSem = parseData(DIA).getDay() === (CFG.diaVisaoSemanal ?? 5);
   const tela = semana ? telaSemana(E, ctx) : top ? telaDetalhe(estadoApresentacao(b), ctx, b, top) : TELAS[b - 1](estadoApresentacao(b), ctx);
   render(`<div class="pres" role="region" aria-label="Apresentação da REDIA"><div class="stw"><div class="stage">${tela}</div></div>${telaTempoEsgotado(b, semana)}</div>
-    <div class="ctrl" id="ctrl"><a class="btn sm" href="#/apresentacao/${Math.max(1, b - 1)}" aria-label="Bloco anterior">◀</a>
-    ${[1, 2, 3, 4, 5].map(i => `<a class="btn sm${i === b ? ' on' : ''}" href="#/apresentacao/${i}">${i}</a>`).join('')}
+    ${ctrlApresentacao(b, semana, diaSem)}`);
+  ajustarPalco(); encaixar($('.stage')); atualizarTimer();
+  if (Vivo.seguindo) {   // D-67: quem assiste não navega nem mexe no cronômetro; os links dos cards também ficam travados
+    $('.stage').addEventListener('click', e => { if (e.target.closest('a')) { e.preventDefault(); e.stopPropagation(); } }, true);
+    $$('#esg [data-act]').forEach(x => { x.disabled = true; x.setAttribute('aria-disabled', 'true'); });
+  } else {
+    $('[data-act="tmr"]').onclick = alternarTimer;
+    $$('[data-act="zera"]').forEach(x => x.onclick = zerarTimer); $$('[data-act="mais1"]').forEach(x => x.onclick = maisUmMinuto);
+    $('[data-act="tela"]').onclick = telaCheia;
+  }
+  mostrarCtrl();
+  if (Vivo.souCtrl) Vivo.transmitir();
+}
+/* barra de comandos da apresentação · D-67: quem assiste ao vivo vê os comandos desabilitados (com a dica de quem controla) e só "Sair" ativo */
+function ctrlApresentacao(b, semana, diaSem) {
+  const P = UI.pres;
+  if (Vivo.seguindo) {
+    const off = t => `<span class="btn sm off"${DICA_VIVO()}>${t}</span>`;
+    return `<div class="ctrl vivo-seg" id="ctrl"><span class="vivo-tag"><i class="vv" aria-hidden="true"></i>Ao vivo · ${esc(Vivo.ctrl?.nome || '')}</span>${off('◀')}${[1, 2, 3, 4, 5].map(i => off(i).replace('btn sm off', `btn sm off${i === b && !semana ? ' on' : ''}`)).join('')}${off('▶')}${off('Semana')}${off((P.rodando ? 'Pausar' : 'Iniciar') + ' cronômetro')}${off('Zerar')}${off('+1 min')}${off('Tela cheia')}<a class="btn sm" href="#/inicio" data-act="vivo-sair">Sair</a></div>`;
+  }
+  return `<div class="ctrl" id="ctrl"><a class="btn sm" href="#/apresentacao/${Math.max(1, b - 1)}" aria-label="Bloco anterior">◀</a>
+    ${[1, 2, 3, 4, 5].map(i => `<a class="btn sm${i === b && !semana ? ' on' : ''}" href="#/apresentacao/${i}">${i}</a>`).join('')}
     <a class="btn sm" href="#/apresentacao/${Math.min(5, b + 1)}" aria-label="Próximo bloco">▶</a><a class="btn sm${semana ? ' on' : ''}${diaSem && !semana ? ' hoje' : ''}" href="#/apresentacao/semana" title="Visão semanal: tendências de 7 e 30 dias, ações vencidas e recorrências${diaSem ? ' · hoje é o dia da visão semanal' : ''}">Semana${diaSem ? ' ●' : ''}</a>
     <button class="btn sm" data-act="tmr">${P.rodando ? 'Pausar' : 'Iniciar'} cronômetro</button><button class="btn sm" data-act="zera">Zerar</button><button class="btn sm" data-act="mais1" ${(P.extra || 0) >= EXTRA_MAX ? 'disabled' : ''} title="Acrescenta 1 minuto ao cronômetro deste bloco (até ${EXTRA_MAX} vezes por tela)">+1 min</button>
-    <button class="btn sm" data-act="tela">Tela cheia</button><a class="btn sm" href="#/inicio">Sair</a>
-    <span class="cl">← → blocos · espaço cronômetro · + 1 minuto · F tela cheia</span></div>`);
-  ajustarPalco(); encaixar($('.stage')); atualizarTimer();
-  $('[data-act="tmr"]').onclick = alternarTimer;
-  $$('[data-act="zera"]').forEach(x => x.onclick = zerarTimer); $$('[data-act="mais1"]').forEach(x => x.onclick = maisUmMinuto);
-  $('[data-act="tela"]').onclick = telaCheia;
-  mostrarCtrl();
+    <button class="btn sm" data-act="tela">Tela cheia</button>${Vivo.souCtrl ? '<button class="btn sm vivo on" data-act="vivo-fim" title="Encerra a apresentação ao vivo para todos"><i class="vv" aria-hidden="true"></i>Ao vivo · encerrar</button>' : botaoVivo('btn sm')}<a class="btn sm" href="#/inicio">Sair</a>
+    <span class="cl">← → blocos · espaço cronômetro · + 1 min · F tela cheia</span></div>`;
 }
 function fmtTimer(s) { const neg = s < 0, a = Math.abs(s); return `${neg ? '+' : ''}${pad(Math.floor(a / 60))}:${pad(a % 60)}`; }
 /* D-66: passou 1 minuto do tempo do bloco → cronômetro pulsa em vermelho (1 s entre o forte e o fraco); passou 2 minutos → tela de tempo esgotado */
@@ -1048,8 +1173,8 @@ function atualizarTimer() {
   const esg = $('#esg'); if (esg) { const on = r < -ESTOURO_TELA; if (esg.hidden === on) { esg.hidden = !on; if (on) $('[data-act="zera"]', esg)?.focus({ preventScroll: true }); } const c = $('[data-esg-t]', esg); if (c) c.textContent = fmtTimer(r); }
   $$('[data-act="mais1"]').forEach(x => x.disabled = (UI.pres.extra || 0) >= EXTRA_MAX);
 }
-function zerarTimer() { const P = UI.pres; P.restante = CFG.timeboxMin * 60; P.rodando = false; P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0; P.extra = 0; rerender(); }
-function maisUmMinuto() { const P = UI.pres; if ((P.extra || 0) >= EXTRA_MAX) return aviso(`Limite de ${EXTRA_MAX} acréscimos de 1 minuto nesta tela.`, 'erro'); P.extra = (P.extra || 0) + 1; P.restante += 60; atualizarTimer(); mostrarCtrl(); }
+function zerarTimer() { if (Vivo.seguindo) return; const P = UI.pres; P.restante = CFG.timeboxMin * 60; P.rodando = false; P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0; P.extra = 0; rerender(); }
+function maisUmMinuto() { if (Vivo.seguindo) return; const P = UI.pres; if ((P.extra || 0) >= EXTRA_MAX) return aviso(`Limite de ${EXTRA_MAX} acréscimos de 1 minuto nesta tela.`, 'erro'); P.extra = (P.extra || 0) + 1; P.restante += 60; atualizarTimer(); mostrarCtrl(); Vivo.transmitir(); }
 /* D-66 · tempo esgotado: tela branca sobre a apresentação, com o aviso, o estouro correndo e as saídas (zerar, +1 min, próximo bloco) */
 function telaTempoEsgotado(b, semana) {
   const nome = semana ? 'Visão semanal' : ['Abertura · GEPLAT', 'COPROD', 'COEMB', 'COMAN', 'Fechamento'][b - 1];
@@ -1063,10 +1188,12 @@ function telaTempoEsgotado(b, semana) {
       <div class="esg-b"><button class="btn pri" data-act="zera">Zerar e voltar à apresentação</button><button class="btn" data-act="mais1" ${(UI.pres.extra || 0) >= EXTRA_MAX ? 'disabled' : ''}>+1 min</button>${!semana && b < 5 ? `<a class="btn" href="#/apresentacao/${b + 1}">Próximo bloco ▶</a>` : ''}</div></div></div>`;
 }
 function alternarTimer() {
+  if (Vivo.seguindo) return;
   const P = UI.pres; P.rodando = !P.rodando; P.ult = Date.now();
   if (P.rodando) { if (!P.inicio) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } else if (P.pausaEm) { P.pausado = (P.pausado || 0) + (Date.now() - P.pausaEm); P.pausaEm = 0; } }
   else P.pausaEm = Date.now();
   const b = $('[data-act="tmr"]'); if (b) b.textContent = (P.rodando ? 'Pausar' : 'Iniciar') + ' cronômetro';
+  Vivo.transmitir();
 }
 function ajustarPalco() {
   const w = $('.stw'); if (!w) return;
@@ -1107,6 +1234,30 @@ function iniciarDicas() {
 function mostrarCtrl() { const c = $('#ctrl'); if (!c) return; c.classList.remove('hide'); clearTimeout(ocultarCtrl); ocultarCtrl = setTimeout(() => c.classList.add('hide'), 3000); }
 
 /* ======================= Fechamento e ata ======================= */
+/* D-67 · "de acordo" de cada responsável (coordenadores e GEPLAT que participaram; supervisor que cobriu o coordenador) antes de fechar a ata */
+const regsDoDia = () => [...Store.cache.values()].filter(r => r.data === DIA && r.escopo !== 'demandas');
+function situacaoAcordos() {
+  const regs = regsDoDia(), falta = faltaAcordo(regs), resp = responsaveisDe(regs), ord = regs.slice().sort(ordem);
+  const pauta = ord.filter(x => x.tipo === 'congelamento' || x.tipo === 'reabertura'), cong = pauta[pauta.length - 1], valeDesde = cong?.tipo === 'congelamento' ? ord.indexOf(cong) : Infinity;
+  return resp.map(rp => ({ ...rp, acordo: ord.slice(valeDesde + 1).filter(a => a.tipo === 'acordo' && a.payload.coord === rp.coord && (!rp.chave || a.autor?.chave === rp.chave)).pop() || null, pendente: falta.some(f => f.coord === rp.coord) }));
+}
+const souResponsavel = rp => rp.chave ? rp.chave === USUARIO?.chave : (USUARIO?.coord === rp.coord || (MODO_NUVEM && USUARIO?.admin));
+const podeFecharAta = () => !ataFechada() && rediaIniciada() && congelada() && situacaoAcordos().every(x => !x.pendente);
+function motivoAtaFechamento() {
+  if (ataFechada()) return 'Ata fechada.';
+  if (!rediaIniciada()) return 'A REDIA do dia ainda não foi iniciada.';
+  if (!congelada()) return 'Congele a pauta para colher o de acordo dos responsáveis e fechar a ata.';
+  const f = situacaoAcordos().filter(x => x.pendente);
+  return f.length ? `Aguardando o de acordo de: ${f.map(x => `${x.coord}${x.nome ? ' (' + x.nome + ')' : ''}`).join(', ')}.` : 'Todos deram o de acordo: a ata pode ser fechada.';
+}
+function acordoHtml() {
+  const sa = situacaoAcordos(), cong = congelada();
+  return `<div class="acd"><h3>De acordo para o fechamento</h3>
+    <p class="note">Cada coordenador e o GEPLAT que participaram do preenchimento (ou o supervisor que cobriu o coordenador) confirma que a REDIA pode ser encerrada. Só então o fechamento da ata é liberado; depois de fechada, a ata vai para a base e não pode mais ser alterada.</p>
+    <div class="tbw"><table class="tb acd-t"><thead><tr><th>Coordenação</th><th>Responsável</th><th>Situação</th><th></th></tr></thead><tbody>
+    ${sa.map(x => `<tr data-acd="${x.coord}"><td><b>${x.coord}</b></td><td>${x.chave ? esc(x.nome) + ` <span class="note">${esc(x.chave)}</span>` : '<span class="note">qualquer usuário do ' + x.coord + '</span>'}</td><td>${x.acordo ? `<span class="chip ok">${SH.ok(13)}De acordo · ${hhmm(x.acordo.criadoEm)}</span>` : '<span class="chip at">Pendente</span>'}</td><td>${!x.acordo && souResponsavel(x) ? `<button class="btn sm pri" data-acordo="${x.coord}" ${cong ? '' : 'disabled title="Congele a pauta primeiro"'}>Dar de acordo</button>` : ''}</td></tr>`).join('')}
+    </tbody></table></div>${cong ? '' : '<p class="note"><b>A pauta não está congelada:</b> o de acordo é colhido depois do congelamento (uma reabertura invalida os de acordo anteriores).</p>'}</div>`;
+}
 function telaAta() {
   const f = fase(), cong = E.congelamento;
   const hoje = E.demandas.filter(d => d.payload.dataRedia === DIA), ant = E.demandas.filter(d => d.payload.dataRedia !== DIA && d.payload.status !== 'encerrada');
@@ -1156,16 +1307,17 @@ function telaAta() {
         <label class="btn sec" for="trans">Anexar transcrição</label><input id="trans" type="file" accept=".docx,.vtt,.txt,.pdf" hidden>
         ${!Store.remoto() ? '<p class="note">No modo demonstração só o nome do arquivo é registrado.</p>' : '<p class="note">Limite de 25 MB por arquivo.</p>'}
       </section>
-      <section class="pn"><h2>Ata</h2>
-        ${ata ? `<div class="banner ok">Ata fechada por ${esc(ata.autor.nome)} às ${hhmm(ata.criadoEm)}${ata.payload.paginas ? ` · PDF com ${ata.payload.paginas} páginas (${ata.payload.telas} telas)` : ''}.${ata.payload.caminho ? ` <button class="btn sm sec" data-arq="${esc(ata.payload.caminho)}">Baixar arquivo da ata</button>` : ''}</div>` : ''}
-        <label class="lbl" for="at-part">Participantes (um por linha)</label><textarea id="at-part" class="in" rows="4">${esc((ata?.payload.participantes || []).join('\n'))}</textarea>
-        <label class="lbl" for="at-obs">Decisões e observações</label><textarea id="at-obs" class="in" rows="4">${esc(ata?.payload.observacoes || '')}</textarea>
+      <section class="pn"><h2>Ata ${E.redia ? `<span class="mono note">${esc(E.redia.payload.codigo || '')}</span>` : ''}</h2>
+        ${ata ? `<div class="banner ok"><b>Ata fechada e arquivada</b> por ${esc(ata.autor.nome)} às ${hhmm(ata.criadoEm)} · ${esc(ata.payload.codigo || '')}${ata.payload.paginas ? ` · PDF com ${ata.payload.paginas} páginas (${ata.payload.telas} telas)` : ''}. O documento é final: não pode mais ser alterado. ${ata.payload.caminho ? `<button class="btn sm sec" data-arq="${esc(ata.payload.caminho)}">Baixar PDF da ata</button>` : ''}</div>` : acordoHtml()}
+        <label class="lbl" for="at-part">Participantes (um por linha)</label><textarea id="at-part" class="in" rows="4" ${ata ? 'readonly' : ''}>${esc((ata?.payload.participantes || []).join('\n'))}</textarea>
+        <label class="lbl" for="at-obs">Decisões e observações</label><textarea id="at-obs" class="in" rows="4" ${ata ? 'readonly' : ''}>${esc(ata?.payload.observacoes || '')}</textarea>
         <p class="note">A ata sai em <b>PDF</b>: o relatório e, em seguida, o print de todas as telas da apresentação (blocos e detalhes), capturadas no momento do fechamento, uma por página em paisagem, com os dados de referência da REDIA. ${E.congelamento ? 'As telas vêm da pauta congelada.' : 'A pauta não está congelada: as telas vêm da versão em edição.'}</p>
-        <div class="row end" style="margin-top:8px"><button class="btn sec" data-act="ver-ata">Baixar prévia em PDF</button><button class="btn pri" data-act="fechar-ata">${ata ? 'Atualizar ata (PDF)' : 'Fechar ata e gerar PDF'}</button></div>
+        ${ata ? '' : `<div class="row end" style="margin-top:8px"><button class="btn sec" data-act="ver-ata">Baixar prévia em PDF</button><button class="btn pri" data-act="fechar-ata" ${podeFecharAta() ? '' : 'disabled'} title="${esc(podeFecharAta() ? 'Gera o PDF final, grava na base e encerra a REDIA' : motivoAtaFechamento())}">Fechar ata e gerar PDF</button></div><p class="note">${esc(motivoAtaFechamento())}</p>`}
       </section></div>
   </div><iframe id="ifr-ata" title="Ata para impressão" style="position:absolute;width:0;height:0;border:0"></iframe>`);
   bindDemandas();
   const on = (a, fn) => { const b = $(`[data-act="${a}"]`); if (b) b.onclick = fn; };
+  $$('[data-acordo]').forEach(b => b.onclick = () => salvarE('acordo', { coord: b.dataset.acordo, codigo: E.redia?.payload.codigo || codigoRedia(CFG.uep, DIA) }, {}, `De acordo registrado (${b.dataset.acordo}).`));
   on('add-decisao', () => { const t = $('#dc-txt').value.trim(); if (!t) return aviso('Descreva a decisão.', 'erro'); salvarE('reuniao', { tipo: 'decisao', texto: t, por: $('#dc-por').value.trim() || USUARIO?.nome || '', coord: $('#dc-coord').value }, {}, 'Decisão registrada.'); });
   on('add-aprendizado', () => { const t = $('#ap-txt').value.trim(); if (!t) return aviso('Descreva o aprendizado.', 'erro'); salvarE('reuniao', { tipo: 'aprendizado', texto: t }, {}, 'Aprendizado registrado.'); });
   $$('[data-rm-reu]').forEach(b => b.onclick = () => salvarE('remove', { alvo: b.dataset.rmReu }, {}, 'Registro removido.'));
@@ -1197,9 +1349,11 @@ function telaAta() {
   on('fechar-ata', async () => {
     gerando(true);
     try {
-      const d = dadosAta(), r = await gerarAtaPdf(d), nome = `ata_REDIA_${CFG.uep}_${DIA}.pdf`;
+      if (Store.remoto()) { await Store.sincronizar(); atualizarEstado(); }
+      if (!podeFecharAta()) { gerando(false); aviso(motivoAtaFechamento(), 'erro'); return rerender(); }
+      const d = dadosAta(), cod = E.redia?.payload.codigo || codigoRedia(CFG.uep, DIA), r = await gerarAtaPdf({ ...d, codigo: cod }), nome = `ata_${cod}.pdf`;
       const caminho = await Store.gravarArquivo(DIA, nome, r.blob, 'application/pdf');
-      await registrar('ata', { ...d, caminho, formato: 'pdf', paginas: r.paginas, telas: r.telas });
+      await registrar('ata', { ...d, codigo: cod, caminho, formato: 'pdf', paginas: r.paginas, telas: r.telas, acordos: situacaoAcordos().map(x => ({ coord: x.coord, nome: x.acordo?.autor?.nome || '', chave: x.acordo?.autor?.chave || '', em: x.acordo?.criadoEm || null })) });
       if (!caminho) baixar(nome, r.blob, 'application/pdf');
       atualizarEstado(); aviso(caminho ? `Ata em PDF gravada nos arquivos da REDIA (${r.paginas} páginas).` : `Ata em PDF gerada e baixada (${r.paginas} páginas).`, 'ok'); rerender();
     } catch (e) { $('.ata-prog')?.remove(); gerando(false); await tratarErroGravacao(e); }
@@ -1252,47 +1406,7 @@ function telaImprimir() {
 /* ======================= Arquivo das REDIAs (D-65) =======================
    Uma linha por REDIA com pauta congelada ou ata: quem congelou e quando (código de integridade), reaberturas,
    ata (quem fechou, páginas) e o PDF — o arquivado nos arquivos da REDIA (Storage) ou gerado na hora a partir da pauta congelada daquele dia. */
-async function telaArquivo() {
-  render(cabecalhoApp({ id: 'arquivo', titulo: 'Arquivo das REDIAs' }) + `<div class="wrap"><section class="pn"><h2>Relatórios arquivados</h2><p class="note">Carregando o arquivo…</p></section></div>`);
-  let lista = [];
-  try { lista = await Store.arquivo(); } catch (e) { aviso('Não foi possível ler o arquivo: ' + e.message, 'erro'); }
-  if (ROTA_ATUAL?.id !== 'arquivo') return;
-  const dias = {};
-  for (const r of lista.slice().reverse()) {   // em ordem de gravação: o último estado vale
-    const d = (dias[r.data] ||= { dia: r.data, cong: null, reab: 0, ata: null, estado: 'edicao' });
-    if (r.tipo === 'congelamento') { d.cong = r; d.estado = 'congelada'; } else if (r.tipo === 'reabertura') { d.reab++; d.estado = 'reaberta'; } else if (r.tipo === 'ata') d.ata = r;
-  }
-  const meses = [...new Set(Object.keys(dias).map(d => d.slice(0, 7)))].sort().reverse(), mes = UI.arqMes && meses.includes(UI.arqMes) ? UI.arqMes : 'todos';
-  const linhas = Object.values(dias).filter(d => mes === 'todos' || d.dia.startsWith(mes)).sort((a, b) => b.dia.localeCompare(a.dia));
-  const nomeMes = m => { const [y, mm] = m.split('-'); return ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][+mm - 1] + ' de ' + y; };
-  render(cabecalhoApp({ id: 'arquivo', titulo: 'Arquivo das REDIAs' }) + `<div class="wrap">
-    <section class="pn"><div class="pn-h"><h2>Relatórios arquivados · ${esc(CFG.uep)}</h2><span style="flex:1"></span><label class="lbl" for="arq-mes" style="margin:0">Mês</label><select id="arq-mes" class="in" style="width:auto"><option value="todos">Todos</option>${meses.map(m => `<option value="${m}" ${m === mes ? 'selected' : ''}>${nomeMes(m)}</option>`).join('')}</select></div>
-      <p class="note">Cada REDIA encerrada fica aqui com a pauta congelada (código de integridade) e a ata. <b>Baixar PDF arquivado</b> traz o arquivo gravado no fechamento; <b>Gerar PDF</b> monta o relatório na hora a partir da pauta congelada daquele dia (relatório + todas as telas). ${Store.remoto() ? 'Arquivo lido da base de dados da UEP.' : 'Modo demonstração: arquivo deste navegador.'}</p>
-      <div class="tbw"><table class="tb arq"><thead><tr><th>REDIA</th><th>Pauta</th><th>Ata</th><th>Arquivo</th><th></th></tr></thead><tbody>
-      ${linhas.map(d => { const a = d.ata?.payload, c = d.cong;
-        return `<tr><td class="nw"><b>${ddmmaaaa(d.dia)}</b><br><span class="note">${diaSemana(d.dia)}${d.dia === DIA ? ' · aberta agora' : ''}</span></td>
-          <td>${d.estado === 'congelada' ? `<span class="chip ok">Congelada ${hhmm(c.criadoEm)}</span><br><span class="note">${esc(c.autor?.nome || '')} · código ${esc(c.payload.hash || '—')}${d.reab ? ` · ${d.reab} reabertura(s)` : ''}</span>` : d.estado === 'reaberta' ? `<span class="chip at">Reaberta</span><br><span class="note">${d.reab} reabertura(s) · sem novo congelamento</span>` : '<span class="chip ne">Em edição</span>'}</td>
-          <td>${a ? `<span class="chip ok">Fechada ${hhmm(d.ata.criadoEm)}</span><br><span class="note">${esc(d.ata.autor?.nome || '')}${a.paginas ? ` · ${a.paginas} páginas (${a.telas} telas)` : ''}${(a.participantes || []).length ? ` · ${a.participantes.length} participantes` : ''}</span>${a.observacoes ? `<br><span class="note">${esc(String(a.observacoes).slice(0, 120))}</span>` : ''}` : '<span class="chip ne">Não fechada</span>'}</td>
-          <td class="nw">${a?.caminho ? '<span class="chip ok">PDF arquivado</span>' : a ? `<span class="chip ne">${a.historico ? 'Histórico · PDF sob demanda' : 'Sem PDF gravado'}</span>` : '—'}</td>
-          <td class="nw">${a?.caminho ? `<button class="btn sm pri" data-arq-pdf="${esc(a.caminho)}">Baixar PDF arquivado</button> ` : ''}${c || a ? `<button class="btn sm sec" data-arq-gerar="${d.dia}">Gerar PDF</button> ` : ''}<button class="btn sm lnk" data-arq-abrir="${d.dia}">Abrir REDIA</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="note">Nenhuma REDIA encerrada ainda. Ao congelar a pauta e fechar a ata, a REDIA entra no arquivo.</td></tr>'}
-      </tbody></table></div>
-      <p class="note">${linhas.length} REDIA(s) ${mes === 'todos' ? 'no arquivo' : 'em ' + nomeMes(mes)}.</p></section></div>`);
-  $('#arq-mes').onchange = e => { UI.arqMes = e.target.value; telaArquivo(); };
-  $$('[data-arq-pdf]').forEach(b => b.onclick = async () => { const c = b.dataset.arqPdf; b.disabled = true; try { baixar(c.split('/').pop(), await Nuvem.baixarArquivo(c), 'application/pdf'); } catch (e) { aviso(e.message, 'erro'); } b.disabled = false; });
-  $$('[data-arq-abrir]').forEach(b => b.onclick = async () => { await abrirDia(b.dataset.arqAbrir); location.hash = '#/apresentacao/1'; });
-  $$('[data-arq-gerar]').forEach(b => b.onclick = async () => {
-    const dia = b.dataset.arqGerar, atual = DIA, a = dias[dia]?.ata?.payload || {};
-    $$('[data-arq-gerar],[data-arq-pdf]').forEach(x => x.disabled = true);
-    try {
-      DIA = dia; await Store.carregar(dia); atualizarEstado();
-      const r = await gerarAtaPdf({ participantes: a.participantes || [], observacoes: a.observacoes || '' });
-      baixar(`ata_REDIA_${CFG.uep}_${dia}.pdf`, r.blob, 'application/pdf'); aviso(`PDF da REDIA de ${ddmm(dia)} gerado (${r.paginas} páginas).`, 'ok');
-    } catch (e) { $('.ata-prog')?.remove(); aviso('Não foi possível gerar o PDF: ' + e.message, 'erro'); }
-    finally { DIA = atual; try { await Store.carregar(atual); } catch { } atualizarEstado(); $$('[data-arq-gerar],[data-arq-pdf]').forEach(x => x.disabled = false); }
-  });
-}
-
-/* ======================= Histórico pesquisável (D-63, proposta 30) ======================= */
+/* ======================= Arquivo das atas + busca (D-65, D-67; substitui a tela Histórico da D-63) ======================= */
 const TIPO_NOME = { sugestao: 'Sugestão (passagem)', item: 'Item da coordenação', demanda: 'Demanda · Canal Base x Bordo', servico: 'Serviço do dia', reuniao: 'Reunião', decisao: 'Decisão da curadoria', valor: 'Dado', lista: 'Lista' };
 function textoRegistro(r) {
   const p = r.payload || {};
@@ -1302,25 +1416,76 @@ function textoRegistro(r) {
   if (r.tipo === 'decisao') return `${{ aprovar: 'Aprovada', recusar: 'Recusada', adiar: 'Adiada', mesclar: 'Mesclada', reabrir: 'Reaberta' }[p.acao] || p.acao}: ${p.titulo || p.motivo || ''}`;
   return p.titulo || p.texto || '';
 }
-function telaHistorico() {
-  const q = UI.histQ || '', res = UI.histRes || null;
-  render(cabecalhoApp({ id: 'historico', titulo: 'Histórico pesquisável' }) + `<div class="wrap">
-    <section class="pn"><h2>Buscar nas REDIAs anteriores</h2>
-      <p class="note">Procura por TAG, poço, equipamento ou tema em todas as REDIAs da ${esc(CFG.uep)} ${Store.remoto() ? 'gravadas na base' : 'guardadas neste navegador (demonstração)'}: sugestões, destaques, demandas, serviços, decisões e dados. Mais recentes primeiro; até 200 resultados.</p>
-      <div class="row"><input id="hs-q" class="in" style="flex:1;max-width:520px" placeholder="ex.: FGRU A, BUZ-112, eletrocloradora" value="${esc(q)}" autocomplete="off"><button class="btn pri" data-act="buscar">Buscar</button></div>
-      ${res ? `<p class="note" style="margin-top:10px">${res.length} resultado${res.length === 1 ? '' : 's'} para “${esc(q)}”${res.length >= 200 ? ' (limite; refine a busca)' : ''}.</p>
-      <div class="tbw"><table class="tb"><thead><tr><th>REDIA</th><th>Tipo</th><th>Coordenação</th><th>Conteúdo</th><th>Por</th><th></th></tr></thead><tbody>
-      ${res.map(r => `<tr><td class="nw">${ddmmaaaa(r.data)}</td><td class="nw">${esc(TIPO_NOME[r.tipo] || r.tipo)}</td><td>${esc(r.payload.coord || CAMPO[r.payload.campo]?.coord || LISTA[r.payload.campo]?.coord || '—')}</td><td><b>${esc(textoRegistro(r))}</b>${r.payload.tag ? `<br><span class="note">${esc(r.payload.tag)}</span>` : ''}${r.payload.textoOriginal ? `<br><span class="note">${esc(String(r.payload.textoOriginal).slice(0, 160))}</span>` : ''}</td><td class="note nw">${esc(r.autor?.nome || '')}</td><td class="nw">${r.data !== DIA ? `<button class="btn sm sec" data-dia="${r.data}">Abrir REDIA</button>` : '<span class="note">hoje</span>'}</td></tr>`).join('') || '<tr><td colspan="6" class="note">Nada encontrado.</td></tr>'}
-      </tbody></table></div>` : ''}
-    </section></div>`);
+const ARQ_TIPOS = { '': ['Todo o conteúdo', null], dados: ['Dados e listas', ['valor', 'lista']], destaques: ['Sugestões e destaques', ['sugestao', 'decisao']], itens: ['Ameaças, oportunidades e pauta extra', ['item']], canal: ['Canal Base x Bordo', ['demanda']], servicos: ['Serviços do dia', ['servico']], reuniao: ['Decisões e aprendizados da reunião', ['reuniao']] };
+const filtrosArq = () => UI.arq || (UI.arq = { q: '', de: '', ate: '', coord: '', tipo: '' });
+const arqAtivo = f => !!(f.q.trim().length >= 2 || f.de || f.ate || f.coord || f.tipo);
+/* o PDF da ata: o arquivo gravado no fechamento ou, sem ele (histórico de exemplo, demonstração), o mesmo relatório montado da REDIA arquivada */
+async function baixarPdfAta(ata, botao) {
+  const p = ata.payload || {}, dia = ata.data, cod = p.codigo || codigoRedia(CFG.uep, dia);
+  $$('[data-arq-pdf]').forEach(x => x.disabled = true);
+  try {
+    if (p.caminho && Store.remoto()) { baixar(`ata_${cod}.pdf`, await Nuvem.baixarArquivo(p.caminho), 'application/pdf'); return; }
+    const atual = DIA;
+    try { DIA = dia; await Store.carregar(dia); atualizarEstado(); const r = await gerarAtaPdf({ participantes: p.participantes || [], observacoes: p.observacoes || '', codigo: cod, acordos: p.acordos }); baixar(`ata_${cod}.pdf`, r.blob, 'application/pdf'); aviso(`PDF da ata ${cod} (${r.paginas} páginas).`, 'ok'); }
+    finally { DIA = atual; try { await Store.carregar(atual); } catch { } atualizarEstado(); }
+  } catch (e) { $('.ata-prog')?.remove(); aviso('Não foi possível obter o PDF: ' + e.message, 'erro'); }
+  finally { $$('[data-arq-pdf]').forEach(x => x.disabled = false); }
+}
+async function telaArquivo() {
+  const f = filtrosArq(), ativo = arqAtivo(f);
+  if (!UI.arqLista || !UI.arqLido || Date.now() - UI.arqLido > 15000) {
+    render(cabecalhoApp({ id: 'arquivo', titulo: 'Arquivo das atas' }) + `<div class="wrap"><section class="pn"><h2>Atas arquivadas</h2><p class="note">Carregando o arquivo…</p></section></div>`);
+    try { UI.arqLista = await Store.arquivo(); UI.arqLido = Date.now(); } catch (e) { UI.arqLista = []; aviso('Não foi possível ler o arquivo: ' + e.message, 'erro'); }
+    if (ROTA_ATUAL?.id !== 'arquivo') return;
+  }
+  const atas = UI.arqLista.filter(r => r.tipo === 'ata').sort((a, b) => b.data.localeCompare(a.data)), ataDe = Object.fromEntries(atas.map(a => [a.data, a]));
+  const codDe = Object.fromEntries(UI.arqLista.filter(r => r.tipo === 'redia').map(r => [r.data, r.payload.codigo]));
+  const res = ativo ? (UI.arqRes || []) : null;
+  const grupos = res ? Object.entries(res.reduce((g, r) => ((g[r.data] ||= []).push(r), g), {})).sort((a, b) => b[0].localeCompare(a[0])) : [];
+  const btnPdf = a => `<button class="btn sm pri" data-arq-pdf="${a.data}">Baixar PDF da ata</button>`;
+  const opt = (v, t, sel) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(t)}</option>`;
+  render(cabecalhoApp({ id: 'arquivo', titulo: 'Arquivo das atas' }) + `<div class="wrap arqw">
+    <section class="pn arq-b" role="search"><h2>Buscar no arquivo</h2>
+      <div class="arq-f">
+        <label class="arq-q"><span class="lbl">Texto</span><input id="aq-q" class="in" placeholder="TAG, poço, equipamento ou tema · ex.: FGRU A, BUZ-112" value="${esc(f.q)}" autocomplete="off"></label>
+        <label><span class="lbl">De</span><input id="aq-de" type="date" class="in" value="${f.de}"></label>
+        <label><span class="lbl">Até</span><input id="aq-ate" type="date" class="in" value="${f.ate}"></label>
+        <label><span class="lbl">Coordenação</span><select id="aq-c" class="in">${opt('', 'Todas', f.coord)}${COORDS.map(c => opt(c, c, f.coord)).join('')}</select></label>
+        <label><span class="lbl">Conteúdo</span><select id="aq-t" class="in">${Object.entries(ARQ_TIPOS).map(([k, [t]]) => opt(k, t, f.tipo)).join('')}</select></label>
+        <div class="arq-bt"><button class="btn pri" data-act="aq-buscar">Buscar</button><button class="btn sec" data-act="aq-limpar" ${ativo ? '' : 'disabled'}>Limpar filtros</button></div>
+      </div>
+      <p class="note">Procura no conteúdo de todas as REDIAs da ${esc(CFG.uep)} (sugestões, destaques, ameaças, demandas, serviços, decisões e dados). Com busca ou filtro, a lista de atas dá lugar aos resultados; <b>Limpar filtros</b> volta à lista.</p>
+    </section>
+    ${res ? `<section class="pn arq-r"><div class="pn-h"><h2>Resultados</h2><span class="note">${res.length} registro${res.length === 1 ? '' : 's'} em ${grupos.length} REDIA${grupos.length === 1 ? '' : 's'}${res.length >= 300 ? ' · limite de 300: refine a busca' : ''}</span></div>
+      ${grupos.map(([dia, rs]) => `<div class="arq-g"><div class="arq-gh"><b class="mono">${esc(ataDe[dia]?.payload.codigo || codDe[dia] || codigoRedia(CFG.uep, dia))}</b><span>${diaSemana(dia)}, ${ddmmaaaa(dia)}</span><span style="flex:1"></span>${ataDe[dia] ? btnPdf(ataDe[dia]) : '<span class="chip ne">Sem ata arquivada</span>'}</div>
+        <div class="tbw"><table class="tb"><thead><tr><th>Conteúdo</th><th>Tipo</th><th>Coordenação</th><th>Por</th></tr></thead><tbody>
+        ${rs.map(r => `<tr><td><b>${esc(textoRegistro(r))}</b>${r.payload.tag ? `<br><span class="note">${esc(r.payload.tag)}</span>` : ''}${r.payload.textoOriginal ? `<br><span class="note">${esc(String(r.payload.textoOriginal).slice(0, 160))}</span>` : ''}</td><td class="nw">${esc(TIPO_NOME[r.tipo] || r.tipo)}</td><td>${esc(r.payload.coord || CAMPO[r.payload.campo]?.coord || LISTA[r.payload.campo]?.coord || '—')}</td><td class="note nw">${esc(r.autor?.nome || '')}</td></tr>`).join('')}
+        </tbody></table></div></div>`).join('') || '<p class="note">Nada encontrado com estes filtros.</p>'}</section>`
+    : `<section class="pn arq-l"><div class="pn-h"><h2>Atas arquivadas · ${esc(CFG.uep)}</h2><span class="note">${atas.length} ata${atas.length === 1 ? '' : 's'}</span></div>
+      <p class="note">Só entram no arquivo as atas fechadas: o documento final da REDIA, gerado depois do de acordo de todos os responsáveis e que não pode mais ser alterado. ${Store.remoto() ? 'Lidas da base de dados da UEP.' : 'Modo demonstração: atas deste navegador.'}</p>
+      <div class="tbw"><table class="tb arq"><thead><tr><th>Ata</th><th>REDIA</th><th>Fechada</th><th>De acordo</th><th>Participantes</th><th></th></tr></thead><tbody>
+      ${atas.map(a => { const p = a.payload || {}; return `<tr><td class="nw"><span class="pdf-ic" aria-hidden="true">PDF</span><b class="mono">${esc(p.codigo || codDe[a.data] || codigoRedia(CFG.uep, a.data))}</b>${p.paginas ? `<br><span class="note">${p.paginas} páginas · ${p.telas} telas</span>` : ''}</td>
+        <td class="nw"><b>${ddmmaaaa(a.data)}</b><br><span class="note">${diaSemana(a.data)}</span></td>
+        <td class="nw">${hhmm(a.criadoEm)}<br><span class="note">${esc(a.autor?.nome || '')}</span></td>
+        <td>${(p.acordos || []).length ? p.acordos.map(x => `<span class="chip ok">${esc(x.coord)}</span>`).join(' ') : '<span class="note">—</span>'}</td>
+        <td class="note">${(p.participantes || []).length ? esc(p.participantes.slice(0, 4).join(', ')) + (p.participantes.length > 4 ? ` +${p.participantes.length - 4}` : '') : '—'}</td>
+        <td class="nw">${btnPdf(a)}</td></tr>`; }).join('') || '<tr><td colspan="6" class="note">Nenhuma ata arquivada ainda. Depois da REDIA, com a pauta congelada e o de acordo dos responsáveis, a ata é fechada e entra aqui.</td></tr>'}
+      </tbody></table></div></section>`}
+  </div>`);
+  const ler = () => ({ q: $('#aq-q').value, de: $('#aq-de').value, ate: $('#aq-ate').value, coord: $('#aq-c').value, tipo: $('#aq-t').value });
   const buscar = async () => {
-    const t = $('#hs-q').value.trim(); if (t.length < 2) return aviso('Digite ao menos 2 caracteres.', 'erro');
-    UI.histQ = t; const b = $('[data-act="buscar"]'); b.disabled = true;
-    try { UI.histRes = await Store.buscar(t, 200); } catch (e) { aviso('Não foi possível buscar: ' + e.message, 'erro'); UI.histRes = []; }
-    rerender();
+    const nf = ler(); UI.arq = nf;
+    if (nf.q.trim().length === 1 && !(nf.de || nf.ate || nf.coord || nf.tipo)) return aviso('Digite ao menos 2 caracteres.', 'erro');
+    if (!arqAtivo(nf)) { UI.arqRes = null; return telaArquivo(); }
+    try { UI.arqRes = await Store.buscar(nf.q, 300, { de: nf.de || null, ate: nf.ate || null, coord: nf.coord || null, tipos: ARQ_TIPOS[nf.tipo]?.[1] || null }); } catch (e) { aviso('Não foi possível buscar: ' + e.message, 'erro'); UI.arqRes = []; }
+    await telaArquivo(); const q = $('#aq-q'); if (document.activeElement !== q && UI.arqFocoQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   };
-  $('[data-act="buscar"]').onclick = buscar; $('#hs-q').onkeydown = e => { if (e.key === 'Enter') buscar(); };
-  $$('[data-dia]').forEach(b => b.onclick = async () => { await abrirDia(b.dataset.dia); location.hash = '#/inicio'; });
+  $('[data-act="aq-buscar"]').onclick = buscar;
+  $('[data-act="aq-limpar"]').onclick = () => { UI.arq = { q: '', de: '', ate: '', coord: '', tipo: '' }; UI.arqRes = null; telaArquivo(); };
+  $('#aq-q').onkeydown = e => { if (e.key === 'Enter') { UI.arqFocoQ = true; buscar(); } };
+  let tq = null; $('#aq-q').oninput = () => { clearTimeout(tq); const v = $('#aq-q').value.trim(); if (v.length === 1) return; tq = setTimeout(() => { UI.arqFocoQ = true; buscar(); }, 450); };
+  ['#aq-de', '#aq-ate', '#aq-c', '#aq-t'].forEach(id => $(id).onchange = () => { UI.arqFocoQ = false; buscar(); });
+  $$('[data-arq-pdf]').forEach(b => b.onclick = () => baixarPdfAta(ataDe[b.dataset.arqPdf], b));
 }
 
 /* ======================= Configuração ======================= */
@@ -1427,8 +1592,20 @@ async function iniciar() {
   matchMedia('(max-width: 900px)').addEventListener?.('change', () => { if (ROTA_ATUAL && ROTA_ATUAL.id !== 'apresentacao' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) rerender(); });
   document.addEventListener('mousemove', () => { if (ROTA_ATUAL?.id === 'apresentacao') mostrarCtrl(); });
   iniciarDicas();
+  document.addEventListener('click', e => {   // D-67
+    const t = e.target.closest?.('[data-act]'); if (!t) return;
+    const a = t.dataset.act;
+    if (a === 'iniciar-redia') { e.preventDefault(); iniciarRedia(); }
+    else if (a === 'vivo-iniciar') { e.preventDefault(); Vivo.comecar(); }
+    else if (a === 'vivo-assistir') { e.preventDefault(); Vivo.assistir(); }
+    else if (a === 'vivo-ir') { e.preventDefault(); if (ROTA_ATUAL?.id !== 'apresentacao') location.hash = '#/apresentacao/' + (UI.pres.bloco || 1); }
+    else if (a === 'vivo-fim') { e.preventDefault(); Vivo.encerrar(); }
+  });
+  setInterval(() => Vivo.vigiar(), 5000);
+  addEventListener('beforeunload', () => { if (Vivo.souCtrl) Vivo.enviar({ t: 'fim', ctrl: Vivo.eu() }); });
   document.addEventListener('keydown', e => {
     if (ROTA_ATUAL?.id !== 'apresentacao' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || (e.key === ' ' && /BUTTON|A/.test(e.target.tagName))) return;
+    if (Vivo.seguindo && !['Escape', 'f', 'F'].includes(e.key)) { e.preventDefault(); return; }   // D-67: quem assiste ao vivo não comanda
     const b = UI.pres.bloco, det = !!ROTA_ATUAL.m?.[2];
     if (det && ['ArrowLeft', 'PageUp', 'Escape', 'Backspace'].includes(e.key) && !(e.key === 'Escape' && document.fullscreenElement)) { e.preventDefault(); location.hash = '#/apresentacao/' + b; return; }
     if (['ArrowRight', 'PageDown'].includes(e.key)) { e.preventDefault(); location.hash = '#/apresentacao/' + Math.min(5, b + 1); }
@@ -1442,7 +1619,7 @@ async function iniciar() {
   setInterval(() => {
     const P = UI.pres;
     if (P.rodando) { const agora = Date.now(); if (agora - P.ult >= 1000) { P.restante -= Math.floor((agora - P.ult) / 1000); P.ult = agora - ((agora - P.ult) % 1000); atualizarTimer(); } }
-    const c = $('[data-clk]'); if (c) c.textContent = hhmm(Relogio.agora());
+    $$('[data-clk]').forEach(c => { const t = hhmm(Relogio.agora()); if (c.textContent !== t) c.textContent = t; });
   }, 250);
   // leitura periódica da base: a cada 15 s sem tempo real; a cada 60 s com tempo real (rede de segurança)
   let tique = 0;

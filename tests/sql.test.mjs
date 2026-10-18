@@ -109,8 +109,31 @@ ok((await como(U.cp, `select public.redia_buscar('P-83', 'f', 50) as r`)).rows[0
 ok((await como(U.outra, `select public.redia_buscar('P-83', 'fgru', 50) as r`)).rows[0].r.length === 0, 'redia_buscar de outra UEP não vê os registros (RLS)');
 // D-65: arquivo das REDIAs (atas e congelamentos de todos os dias, sem o retrato da pauta)
 const arq = (await como(U.cp, `select public.redia_arquivo('P-83', 100) as r`)).rows[0].r;
-ok(Array.isArray(arq) && arq.length >= 2 && arq.every(r => ['ata', 'congelamento', 'reabertura'].includes(r.tipo)) && arq.every(r => !('snapshot' in r.payload)) && arq.every((r, i) => !i || arq[i - 1].data >= r.data), 'redia_arquivo lista congelamentos/reaberturas/atas por data, sem o retrato da pauta');
+ok(Array.isArray(arq) && arq.length >= 2 && arq.every(r => ['ata', 'redia', 'congelamento', 'reabertura'].includes(r.tipo)) && arq.every(r => !('snapshot' in r.payload)) && arq.every((r, i) => !i || arq[i - 1].data >= r.data), 'redia_arquivo lista congelamentos/reaberturas/atas por data, sem o retrato da pauta');
 ok((await como(U.outra, `select public.redia_arquivo('P-83', 100) as r`)).rows[0].r.length === 0, 'redia_arquivo de outra UEP não vê nada (RLS)');
+// D-67: REDIA com código único, de acordo dos responsáveis e ata imutável (dia 2026-10-20)
+const D = { data: '2026-10-20' };
+const rd = await gravar(U.gp, [reg('redia', { codigo: 'FORJADO', coord: 'GEPLAT' }, D)]);
+ok(rd[0].payload.codigo === 'REDIA-P83-20261020', 'REDIA iniciada recebe o código do servidor (REDIA-<UEP>-<AAAAMMDD>), não o enviado pelo app');
+ok(/REDIA_JA_INICIADA/.test(await falha(U.cp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('redia', {}, D)])]) || ''), 'segunda REDIA no mesmo dia é recusada');
+await gravar(U.cp, [reg('conclusao', { coord: 'COPROD', concluido: true }, D), reg('item', { coord: 'COEMB', tipo: 'ameaca', texto: 'x' }, D)]);
+await gravar(U.em, [reg('decisao', { coord: 'COEMB', alvo: 'x', acao: 'aprovar' }, D), reg('valor', { coord: 'COMAN', campo: 'man.x', valor: 1, exemplo: true }, D)]);
+const resp = (await como(U.gp, `select public.redia_responsaveis('P-83', '2026-10-20') as r`)).rows[0].r;
+ok(JSON.stringify(resp.map(x => x.coord + ':' + (x.chave || '-'))) === JSON.stringify(['GEPLAT:-', 'COPROD:CP01', 'COEMB:CE01']), `responsáveis pelo de acordo: quem concluiu (COPROD), a última alteração (COEMB, supervisor); exemplo não conta; GEPLAT sempre (${JSON.stringify(resp)})`);
+ok(/PAUTA_NAO_CONGELADA/.test(await falha(U.cp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('acordo', { coord: 'COPROD' }, D)])]) || ''), 'de acordo antes do congelamento é recusado');
+await gravar(U.gp, [reg('congelamento', { snapshot: {}, hash: 'h' }, D)]);
+await gravar(U.cp, [reg('acordo', { coord: 'COPROD' }, D)]);
+await gravar(U.gp, [reg('acordo', { coord: 'GEPLAT' }, D), reg('acordo', { coord: 'COEMB' }, D)]);   // de acordo da COEMB dado por outra pessoa não vale
+ok(/ATA_SEM_ACORDO/.test(await falha(U.gp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('ata', { participantes: [] }, D)])]) || ''), 'ata sem o de acordo do responsável da COEMB (de acordo dado por outro usuário não vale) é recusada');
+await gravar(U.em, [reg('acordo', { coord: 'COEMB' }, D)]);
+const at = await gravar(U.gp, [reg('ata', { participantes: ['a'] }, D)]);
+ok(at.length === 1 && at[0].payload.codigo === 'REDIA-P83-20261020', 'com o de acordo de todos, a ata fecha com o código da REDIA');
+ok(/ATA_FECHADA/.test(await falha(U.gp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('ata', { participantes: [] }, D)])]) || '') && /ATA_FECHADA/.test(await falha(U.cp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('reuniao', { tipo: 'decisao', texto: 'x' }, D)])]) || '') && /ATA_FECHADA/.test(await falha(U.gp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('reabertura', { motivo: 'x' }, D)])]) || ''), 'ata fechada: nada mais entra no dia (nova ata, reunião, reabertura)');
+ok((await gravar(U.cp, [reg('demanda', { titulo: 'depois da ata', status: 'aberta' }, { ...D, escopo: 'demandas' })])).length === 1, 'demandas (escopo próprio) seguem liberadas depois da ata');
+const bf = (await como(U.cp, `select public.redia_buscar('P-83', '', 50, '2026-10-20', '2026-10-20', 'COEMB', array['item']) as r`)).rows[0].r;
+ok(bf.length === 1 && bf[0].tipo === 'item' && bf[0].payload.coord === 'COEMB', 'redia_buscar com filtros de período, coordenação e tipo, sem texto (D-67)');
+const arq2 = (await como(U.cp, `select public.redia_arquivo('P-83', 100) as r`)).rows[0].r;
+ok(arq2.some(r => r.tipo === 'ata' && r.payload.codigo === 'REDIA-P83-20261020') && arq2.some(r => r.tipo === 'redia'), 'redia_arquivo traz a ata (com o código) e a abertura da REDIA');
 
 // configuração
 ok(/SEM_PERMISSAO/.test(await falha(U.cp, `select public.redia_config_salvar('P-83', '{"timeboxMin":6}'::jsonb)`) || ''), 'COPROD não altera a configuração da UEP');

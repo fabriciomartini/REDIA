@@ -7,6 +7,10 @@
    - Storage: bucket privado "redia" para pauta congelada, ata e transcrição */
 const ERROS_NUVEM = {
   PAUTA_CONGELADA: 'A pauta deste dia foi congelada por outra sessão. A alteração não foi gravada.',
+  ATA_FECHADA: 'A ata desta REDIA já foi fechada e arquivada: ela não pode mais ser alterada.',
+  REDIA_JA_INICIADA: 'A REDIA deste dia já foi iniciada por outro usuário.',
+  PAUTA_NAO_CONGELADA: 'Congele a pauta antes do de acordo e do fechamento da ata.',
+  ATA_SEM_ACORDO: 'Falta o de acordo de um ou mais responsáveis: a ata não foi fechada.',
   SEM_PERFIL: 'Sua chave não tem perfil ativo na REDIA. Procure o administrador.',
   UEP_NAO_PERMITIDA: 'Registro de outra UEP: não gravado.',
   SEM_PERMISSAO_RESET: 'Só o administrador da UEP pode resetar a demonstração.',
@@ -86,7 +90,7 @@ const Nuvem = {
     return corpo.mensagem || 'Pedido registrado.';
   },
   async pedidosSenha(uep) { try { return await this.rpc('redia_pedidos_senha', { p_uep: uep }); } catch { return []; } },
-  async sair() { this.pararTempoReal(); try { await this.cli?.auth.signOut({ scope: 'local' }); } catch { } },
+  async sair() { this.pararTempoReal(); this.vivoParar(); try { await this.cli?.auth.signOut({ scope: 'local' }); } catch { } },
 
   async rpc(fn, args) {
     let r;
@@ -100,7 +104,7 @@ const Nuvem = {
   gravar(regs) { return this.rpc('redia_gravar', { p_regs: regs.map(r => { const x = { ...r }; delete x._arq; delete x.seq; return x; }) }); },
   resetar(uep) { return this.rpc('redia_resetar', { p_uep: uep }); },
   arquivo(uep, limite = 400) { return this.rpc('redia_arquivo', { p_uep: uep, p_limite: limite }); },   // D-65: atas e congelamentos de todos os dias
-  buscar(uep, texto, limite = 100) { return this.rpc('redia_buscar', { p_uep: uep, p_texto: texto, p_limite: limite }); },   // D-63: histórico pesquisável
+  buscar(uep, texto, limite = 100, f = {}) { const a = { p_uep: uep, p_texto: texto, p_limite: limite }; if (f.de) a.p_de = f.de; if (f.ate) a.p_ate = f.ate; if (f.coord) a.p_coord = f.coord; if (f.tipos?.length) a.p_tipos = f.tipos; return this.rpc('redia_buscar', a); },   // só os filtros usados (os demais ficam no padrão da função)   // D-63: histórico pesquisável
   configLer(uep) { return this.rpc('redia_config_ler', { p_uep: uep }); },
   configSalvar(uep, cfg) { return this.rpc('redia_config_salvar', { p_uep: uep, p_config: cfg }); },
 
@@ -128,5 +132,13 @@ const Nuvem = {
         .subscribe(st => { Store.tempoReal = st === 'SUBSCRIBED'; });
     } catch (e) { Store.tempoReal = false; Store.erros.push('tempo real: ' + e.message); }
   },
+  /* D-67 · apresentação ao vivo: canal de transmissão (broadcast) da UEP, sem gravar nada na base */
+  vivoCanal(uep, aoReceber) {
+    this.vivoParar(); if (NUVEM.tempoReal === false) return;
+    try { this.cv = this.cliente().channel('redia-vivo-' + uep, { config: { broadcast: { self: false } } }).on('broadcast', { event: 'vivo' }, m => aoReceber(m.payload)).subscribe(); }
+    catch (e) { Store.erros.push('ao vivo: ' + e.message); }
+  },
+  vivoEnviar(msg) { try { this.cv?.send({ type: 'broadcast', event: 'vivo', payload: msg }); } catch { } },
+  vivoParar() { if (this.cv) { try { this.cli.removeChannel(this.cv); } catch { } this.cv = null; } },
   pararTempoReal() { if (this.canal) { try { this.cli.removeChannel(this.canal); } catch { } this.canal = null; } Store.tempoReal = false; },
 };

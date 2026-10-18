@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 1.12.0 · D-67 (2026-10-18)
+
+- **REDIA do dia como objeto único e rastreável:** a REDIA só existe depois de **Iniciar elaboração**, clicado por um coordenador ou pelo GEPLAT no próprio dia (a partir da meia-noite). Ela recebe o código **REDIA-‹UEP›-‹AAAAMMDD›** (ex.: REDIA-P83-20261018), atribuído pela base; uma por UEP e dia. Todos os usuários passam a editar a REDIA aberta; antes disso, a curadoria fica bloqueada (as sugestões das passagens continuam chegando). O código aparece no Início, na ata, no PDF e no Arquivo.
+- **De acordo para o fechamento da ata:** cada coordenador e o GEPLAT que participaram do preenchimento dão o de acordo depois do congelamento da pauta (responsável = quem concluiu o preenchimento da coordenação ou, sem conclusão, quem fez a última alteração de curadoria — o supervisor que cobriu o coordenador entra aqui). O botão **Fechar ata e gerar PDF** só é liberado com todos os de acordo; uma reabertura da pauta invalida os anteriores. A ata fechada vai para a base e **não pode mais ser alterada**: nada mais entra no dia (a base recusa).
+- **Arquivo:** lista só as atas fechadas (código, data, de acordo, participantes, **Baixar PDF da ata**). A tela **Histórico** saiu: a busca agora fica no topo do Arquivo (texto, período, coordenação e tipo de conteúdo); com busca ou filtro, a lista de atas dá lugar aos resultados agrupados por REDIA, e **Limpar filtros** volta à lista.
+- **Início reorganizado:** sessão numa barra no topo (usuário, REDIA do dia com o código, armazenamento e ações); REDIA do dia e Situação das coordenações logo abaixo; **Funções da versão de teste** no canto inferior direito, com tudo o que é só de teste (carregar exemplo, histórico de 15 dias, simular horário, exportar/importar, resetar) e o novo **Preencher a REDIA aberta (fictício)**, que gera valores para todos os campos vazios das coordenações e do GEPLAT, aprova as sugestões pendentes e conclui o preenchimento.
+- **Apresentação ao vivo:** quem aciona passa a controlar; os demais usuários logados (Início, Curadoria ou Apresentação) vão para a apresentação e acompanham a troca de telas e o cronômetro. Quem assiste tem só **Sair** ativo; os demais comandos ficam visíveis e desabilitados, com dica de quem tem o controle. **Apresentação ao vivo · assistir** volta a acompanhar; quem controla pode encerrar, e outro usuário pode assumir o controle.
+- **Fichas de orelhão** no lugar dos ícones de +1 minuto (15% maiores).
+- **Cabeçalho da apresentação:** dia, data e **hora atual** em fonte maior, no lugar de "Realizado D-1 · SITOP".
+- **Cards de ações (visão semanal e fechamento):** número em cima e rótulo embaixo (o "43% no prazo" não cabia lado a lado). Vencidas em vermelho, vencem hoje em amarelo, no prazo em verde com fonte branca; com zero, o card de alerta fica neutro; a taxa no prazo mostra o selo "abaixo de 80%" quando for o caso.
+- Base: **reaplicar `supabase/00_instalar_tudo.sql`**.
+
 ## 1.11.0 · D-66 (2026-10-17)
 
 - **Capturar todos os dados:** botão no topo da aba Dados automáticos de cada coordenação, que roda a captura de todos os blocos da página em sequência (progresso geral, resultado em cada bloco e resumo no topo). O botão de cada bloco continua.

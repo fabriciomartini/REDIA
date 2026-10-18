@@ -131,6 +131,18 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | 11.5 | Deixar passar 2 min além do tempo | Tela branca "Tempo esgotado"; **Zerar** volta à apresentação |
 | 11.6 | **+1 min** (ou tecla +) três vezes | Cronômetro +3 min; três ícones preenchidos; botão desabilita; novo bloco recomeça sem acréscimos |
 
+## 12. REDIA única, de acordo, Arquivo e apresentação ao vivo (v1.12)
+
+| # | Passo | Esperado |
+|---|---|---|
+| 12.1 | Coordenador ou GEPLAT, no dia: Início › **Iniciar elaboração** | REDIA criada com o código REDIA-P83-AAAAMMDD; antes disso a curadoria fica bloqueada; segunda tentativa avisa que já foi iniciada |
+| 12.2 | Funções da versão de teste › **Preencher a REDIA aberta (fictício)** | Campos e listas vazios preenchidos, sugestões aprovadas, coordenações concluídas |
+| 12.3 | Congelar a pauta › Fechamento e ata | Lista dos responsáveis; cada um clica **Dar de acordo** na própria sessão; Fechar ata só habilita com todos |
+| 12.4 | Fechar a ata | PDF gravado; nenhuma alteração do dia é aceita depois; a ata aparece no topo do Arquivo |
+| 12.5 | Arquivo › buscar uma TAG / filtrar | Lista de atas some e aparecem os resultados por REDIA; **Limpar filtros** volta à lista |
+| 12.6 | Dois usuários: um aciona **Apresentação ao vivo** | O outro vai para a apresentação e acompanha telas e cronômetro; só "Sair" ativo; dica nos botões desabilitados |
+| 12.7 | Quem assiste clica **Sair** e depois **Apresentação ao vivo · assistir** | Sai do modo ao vivo e volta a acompanhar a tela de quem controla |
+
 ## Registro do resultado
 
 | Coordenação | Testador (chave) | Dispositivos | Data | Resultado | Issues |

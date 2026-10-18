@@ -44,6 +44,8 @@ const jpg = (png, nome, w = 1600, h = 900) => execFileSync('python3', ['-c', `fr
   await c.goto(U + '#/ata'); await c.waitForTimeout(300);
   await c.fill('#d-tit', 'Apoio para o retorno da FGRU A e da Injection A'); await c.fill('#d-resp', '4º COPROD'); await c.selectOption('#d-coord', 'COPROD'); await c.click('[data-act="add-dem"]'); await c.waitForTimeout(300);
   await c.fill('#at-part', 'GEPLAT de bordo\nCOPROD de bordo\nCOEMB de bordo\nCOMAN de bordo\n4º COPROD (base)'); await c.fill('#at-obs', 'Priorizar o retorno da FGRU A e da Injection A.');
+  while (await c.$('[data-acordo]')) { await c.click('[data-acordo]'); await c.waitForTimeout(250); }   // D-67: de acordo dos responsáveis
+  await c.evaluate(async () => { for (const x of situacaoAcordos().filter(y => y.pendente)) await registrar('acordo', { coord: x.coord }); atualizarEstado(); rerender(); }); await c.waitForTimeout(300);   // responsável sem usuário nesta sessão (ex.: GEPLAT)
   /* ata em PDF (D-55): progresso da geração e páginas do PDF */
   await c.evaluate(() => document.querySelector('[data-act="fechar-ata"]').scrollIntoView({ block: 'center' }));
   const [dl] = await Promise.all([c.waitForEvent('download', { timeout: 120000 }), (async () => { await c.click('[data-act="fechar-ata"]'); await c.waitForFunction(() => /tela (8|9|1\d) de/.test(document.querySelector('.ata-prog')?.textContent || ''), null, { timeout: 60000 }); const f = path.join(TMP, 'ata_gerando.png'); await c.screenshot({ path: f }); jpg(f, 'ata_gerando.jpg'); console.log('ok ata_gerando.jpg'); })()]);

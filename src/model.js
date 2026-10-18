@@ -322,7 +322,7 @@ const Regras = {
 function construirEstado(regs, demRegs, hojeIso) {
   const E = {
     valores: {}, listas: {}, sugestoes: [], servicos: [], servicosOcultos: [], itens: [], demandas: [], comentarios: {},
-    congelamento: null, reaberturas: [], atas: [], aceites: [], anexos: [], hist: {}, ultimaAlteracao: null, conclusoes: {}, notificacoes: [], selecoes: {}, reuniao: [],
+    congelamento: null, reaberturas: [], atas: [], aceites: [], redia: null, acordos: [], anexos: [], hist: {}, ultimaAlteracao: null, conclusoes: {}, notificacoes: [], selecoes: {}, reuniao: [],
   };
   const porId = new Map(), removidos = new Set(), atualizacoes = [], decisoes = [];
   const todos = [...regs, ...demRegs].sort(ordem);
@@ -338,6 +338,8 @@ function construirEstado(regs, demRegs, hojeIso) {
       case 'reabertura': E.reaberturas.push(r); E.congelamento = null; break;   // registros já vêm em ordem de gravação (R-01)
       case 'ata': E.atas.push(r); break;
       case 'aceite': E.aceites.push(r); break;
+      case 'redia': if (!E.redia) E.redia = r; break;   // D-67: a primeira vale (a base garante uma por dia)
+      case 'acordo': E.acordos.push(r); break;
       case 'conclusao': E.conclusoes[r.payload.coord] = r; break;
       case 'notificacao': E.notificacoes.push(r); break;
       case 'selecao': E.selecoes[r.payload.campo + ':' + r.payload.coord] = r; break;
@@ -362,6 +364,22 @@ function construirEstado(regs, demRegs, hojeIso) {
   E.servicos.sort((a, b) => (a.payload.ordem ?? 0) - (b.payload.ordem ?? 0) || ordem(a, b));
   E.itens.sort((a, b) => (a.payload.ordem ?? 0) - (b.payload.ordem ?? 0) || ordem(a, b));
   return E;
+}
+/* D-67 · responsáveis pelo "de acordo" da ata (mesma regra da função redia_responsaveis da base): por coordenação, quem concluiu o
+   preenchimento ou, sem conclusão, a última alteração de curadoria da coordenação no dia; registros de exemplo não contam.
+   Coordenação sem participação não precisa dar o de acordo; o GEPLAT, sempre (sem participante: qualquer usuário do GEPLAT). */
+const TIPOS_CURADORIA = ['conclusao', 'decisao', 'item', 'selecao', 'servico', 'valor', 'lista', 'remove'];
+function responsaveisDe(regsDia) {
+  const regs = regsDia.filter(r => r.escopo !== 'demandas' && TIPOS_CURADORIA.includes(r.tipo) && r.payload?.coord && !r.payload.exemplo).sort(ordem);
+  return COORDS.map(coord => {
+    const c = regs.filter(r => r.payload.coord === coord), conc = c.filter(r => r.tipo === 'conclusao' && r.payload.concluido), x = conc[conc.length - 1] || c[c.length - 1];
+    return x ? { coord, chave: x.autor?.chave || null, nome: x.autor?.nome || '' } : coord === 'GEPLAT' ? { coord, chave: null, nome: '' } : null;
+  }).filter(Boolean);
+}
+function faltaAcordo(regsDia) {
+  const ord = regsDia.slice().sort(ordem), pauta = ord.filter(x => x.tipo === 'congelamento' || x.tipo === 'reabertura'), cong = pauta[pauta.length - 1];
+  const depois = cong && cong.tipo === 'congelamento' ? ord.slice(ord.indexOf(cong) + 1) : [];
+  return responsaveisDe(ord).filter(rp => !depois.some(a => a.tipo === 'acordo' && a.payload.coord === rp.coord && (!rp.chave || a.autor?.chave === rp.chave)));
 }
 /* getters */
 function V(E, campo) { const v = E.valores[campo]; return v ? v.valor : null; }
@@ -985,6 +1003,7 @@ function montarHistorico(iso, dias = 15) {
   const mk = (tipo, dia, hora, payload, extra = {}) => ({ v: 1, id: uid(), tipo, data: dia, uep: CFG.uep, criadoEm: `${dia}T${hora}:00.000Z`, gravadoEm: carimbo(), autor: autor(payload.coord), payload: { ...payload, exemplo: true, historico: true }, ...extra });
   for (let k = dias; k >= 1; k--) {
     const dia = addDias(iso, -k), n = numDia(dia), f = `BDO D-1 · REDIA ${ddmm(dia)}`, sit = `SITOP ${ddmm(dia)} 00:37`;
+    regs.push(mk('redia', dia, '09:02', { coord: 'GEPLAT', codigo: codigoRedia(CFG.uep, dia), iniciadaPor: 'GEPLAT' }));   // D-67: abertura da REDIA com o código único
     // dados e listas (mesmos números do exemplo para a mesma data)
     for (const [campo, valor] of Object.entries(valoresTendDia(dia))) regs.push(mk('valor', dia, '06:41', { campo, valor, origem: 'A', fonte: f }));
     for (const [campo, valor] of Object.entries(gasQueimaDia(dia))) regs.push(mk('valor', dia, '06:42', { campo, valor, origem: 'A', fonte: sit }));
@@ -1016,15 +1035,16 @@ function montarHistorico(iso, dias = 15) {
     if (n % 3 === 0) regs.push(mk('reuniao', dia, '12:41', { tipo: 'aprendizado', texto: HIST_APZ[n % HIST_APZ.length] }));
     // pauta congelada às 08:40 e ata fechada (PDF gerado sob demanda na área Arquivo)
     regs.push(mk('congelamento', dia, '11:40', { coord: 'GEPLAT', snapshot: {}, hash: hash(dia + CFG.uep), semConclusao: [] }));
-    regs.push(mk('ata', dia, '13:05', { coord: 'GEPLAT', participantes: ['GEPLAT de bordo', 'COPROD de bordo', 'COEMB de bordo', 'COMAN de bordo', 'GEOP (base)', '4º COPROD (base)'], observacoes: dec + '.', formato: 'pdf', paginas: null, telas: null }));
+    regs.push(mk('acordo', dia, '13:00', { coord: 'GEPLAT', codigo: codigoRedia(CFG.uep, dia) }));   // D-67: de acordo para o fechamento
+    regs.push(mk('ata', dia, '13:05', { coord: 'GEPLAT', codigo: codigoRedia(CFG.uep, dia), participantes: ['GEPLAT de bordo', 'COPROD de bordo', 'COEMB de bordo', 'COMAN de bordo', 'GEOP (base)', '4º COPROD (base)'], observacoes: dec + '.', formato: 'pdf', paginas: null, telas: null }));
   }
   return regs;
 }
 /* dias já encerrados ou congelados na base: o histórico não grava neles (não sobrescreve REDIA real nem duplica um histórico já gravado) */
 async function diasFechados() {
   const arq = await Store.arquivo(), por = {};
-  for (const r of arq.slice().reverse()) { const d = (por[r.data] ||= { ata: false, cong: false }); if (r.tipo === 'ata') d.ata = true; else d.cong = r.tipo === 'congelamento'; }
-  return new Set(Object.entries(por).filter(([, d]) => d.ata || d.cong).map(([dia]) => dia));
+  for (const r of arq.slice().reverse()) { const d = (por[r.data] ||= { ata: false, cong: false, redia: false }); if (r.tipo === 'ata') d.ata = true; else if (r.tipo === 'redia') d.redia = true; else d.cong = r.tipo === 'congelamento'; }
+  return new Set(Object.entries(por).filter(([, d]) => d.ata || d.cong || d.redia).map(([dia]) => dia));
 }
 function filtrarDias(regs, fechados) {
   const diaDe = r => r.escopo === 'demandas' ? (r.payload.dataRedia || r.data) : r.data, encerra = r => r.tipo === 'atualiza' && r.escopo === 'demandas';
@@ -1038,11 +1058,36 @@ async function gravarHistorico(iso, dias = 15) {
 }
 async function carregarExemplo(iso) {
   const ex = montarExemplo(iso), hist = montarHistorico(iso, 15);
+  if (![...Store.cache.values()].some(r => r.data === iso && r.tipo === 'redia')) ex.unshift({ ...ex[0], id: uid(), tipo: 'redia', escopo: undefined, payload: { coord: 'GEPLAT', codigo: codigoRedia(CFG.uep, iso), iniciadaPor: 'GEPLAT', exemplo: true } });   // D-67: o exemplo abre a REDIA do dia
   const chave = r => (r.tipo === 'valor' || r.tipo === 'lista') ? r.data + '|' + r.tipo + '|' + r.payload.campo : null;
   const vistos = new Set(ex.map(chave).filter(Boolean));
-  const fechados = await diasFechados();
+  const fechados = await diasFechados(); fechados.delete(iso);   // o dia aberto recebe o exemplo mesmo com a REDIA já iniciada
   const regs = filtrarDias([...ex, ...hist.filter(r => { const k = chave(r); return !k || !vistos.has(k); })], fechados);
   await Store.gravarLote(regs);   // na nuvem: em lotes, numa ida só por lote
   return regs.length;
+}
+/* D-67 · versão de teste: preenche a REDIA aberta com valores fictícios para todas as coordenações e o GEPLAT, sem apagar o que já foi
+   preenchido: campos e listas vazios, sugestões (se o dia não tem), itens e serviços das coordenações sem registro, aprovação das sugestões
+   pendentes e conclusão do preenchimento. Tudo marcado como exemplo/fictício (não conta para o de acordo da ata). */
+async function preencherFicticio(iso, E) {
+  const ex = montarExemplo(iso), novos = [], marca = r => ({ ...r, payload: { ...r.payload, exemplo: true, ficticio: true } });
+  const temItem = c => E.itens.some(i => i.payload.coord === c), temServ = c => E.servicos.some(i => i.payload.coord === c);
+  for (const r of ex) {
+    if (r.escopo === 'demandas' || r.tipo === 'redia') continue;
+    if (r.tipo === 'valor' && (E.valores[r.payload.campo]?.valor ?? '') !== '') continue;
+    if (r.tipo === 'lista' && (E.listas[r.payload.campo]?.itens || []).length) continue;
+    if (r.tipo === 'sugestao' && E.sugestoes.length) continue;
+    if (r.tipo === 'item' && temItem(r.payload.coord)) continue;
+    if (r.tipo === 'servico' && temServ(r.payload.coord)) continue;
+    if (r.tipo === 'conclusao' || r.tipo === 'congelamento' || r.tipo === 'ata' || r.tipo === 'reabertura') continue;
+    novos.push(marca(r));
+  }
+  const suges = [...E.sugestoes.filter(s => !s.payload.somenteLeitura && (!s.decisao || s.decisao.payload.acao === 'reabrir')), ...novos.filter(r => r.tipo === 'sugestao')];
+  let t = Date.now();
+  const mk = (tipo, payload) => ({ v: 1, id: uid(), tipo, data: iso, uep: CFG.uep, criadoEm: new Date(t += 1000).toISOString(), gravadoEm: carimbo(), autor: { nome: 'Preenchimento fictício', chave: '', papel: 'sistema' }, payload: { ...payload, exemplo: true, ficticio: true } });
+  suges.forEach((s, k) => { const p = s.payload; novos.push(mk('decisao', { coord: p.coord, alvo: s.id, acao: 'aprovar', titulo: p.titulo, tag: p.tag || '', status: p.status || 'Atenção', impacto: p.impacto || '', semaforo: k % 5 === 0 ? 'nok' : 'at', abertura: k % 3 === 0 })); });
+  for (const c of COORDS) if (!E.conclusoes[c]?.payload.concluido) novos.push(mk('conclusao', { coord: c, concluido: true, pendentes: 0 }));
+  if (novos.length) await Store.gravarLote(novos);
+  return { n: novos.length, valores: novos.filter(r => r.tipo === 'valor').length, listas: novos.filter(r => r.tipo === 'lista').length, aprovadas: suges.length };
 }
 /* EXEMPLO-FIM */

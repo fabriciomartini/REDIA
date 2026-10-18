@@ -13,6 +13,7 @@ const SH = {
   sd: s => SVG(s, '<circle cx="10" cy="10" r="9" fill="#75787B"/><path d="M6 10h8" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>'),
 };
 SH.atF = SH.at;
+SH.info = s => SVG(s, '<circle cx="10" cy="10" r="9" fill="#008542"/><rect x="9" y="8.6" width="2" height="6.2" rx="1" fill="#fff"/><circle cx="10" cy="5.9" r="1.25" fill="#fff"/>');   // D-67: dica informativa (apresentação ao vivo)
 const COR = { ok: '#008542', at: '#FDC82F', nok: '#DA291C', sd: '#75787B' };
 /* D-66 · dica do semáforo diferente de OK: data-tip leva o estado e as linhas com os dados que levaram a ele; o app mostra a dica ao parar o
    mouse (ou ao focar com o teclado). Sem texto específico, a dica usa o contexto da linha (data-sem). Semáforo OK não tem dica. */
@@ -148,8 +149,11 @@ function marcaImg() {
 /* D-66 · acréscimos de 1 minuto no bloco (até 3): só ícones, preenchidos os usados e vazados os disponíveis */
 const EXTRA_MAX = 3;
 function iconesExtra(n) {
-  const ic = on => `<svg class="ic" width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">${on ? '<circle cx="10" cy="10" r="8.6" fill="#FDC82F"/><path d="M10 5.6v8.8M5.6 10h8.8" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>' : '<circle cx="10" cy="10" r="7.8" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.6"/><path d="M10 6.6v6.8M6.6 10h6.8" stroke="rgba(255,255,255,.55)" stroke-width="1.6" stroke-linecap="round"/>'}</svg>`;
-  return Array.from({ length: EXTRA_MAX }, (_, k) => `<i class="${k < n ? 'on' : ''}">${ic(k < n)}</i>`).join('');
+  /* D-67: ficha telefônica de orelhão (anos 80): disco de latão com borda e as duas ranhuras paralelas; usada = dourada, disponível = vazada */
+  const ficha = on => `<svg class="ic" width="21" height="21" viewBox="0 0 20 20" aria-hidden="true">${on
+    ? '<defs><radialGradient id="fch" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#FCE9A0"/><stop offset=".55" stop-color="#D9A93A"/><stop offset="1" stop-color="#9C7116"/></radialGradient></defs><circle cx="10" cy="10" r="9.2" fill="url(#fch)" stroke="#7A5508" stroke-width=".8"/><circle cx="10" cy="10" r="7.3" fill="none" stroke="#8C6512" stroke-width=".6" opacity=".7"/><rect x="4.3" y="6.9" width="11.4" height="1.9" rx=".95" fill="#6E4D0A"/><rect x="4.3" y="11.2" width="11.4" height="1.9" rx=".95" fill="#6E4D0A"/><rect x="4.6" y="8.6" width="10.8" height=".5" rx=".25" fill="#FFF3C4" opacity=".8"/><rect x="4.6" y="12.9" width="10.8" height=".5" rx=".25" fill="#FFF3C4" opacity=".8"/>'
+    : '<circle cx="10" cy="10" r="8.6" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="1.3"/><rect x="4.6" y="7.1" width="10.8" height="1.6" rx=".8" fill="rgba(255,255,255,.45)"/><rect x="4.6" y="11.3" width="10.8" height="1.6" rx=".8" fill="rgba(255,255,255,.45)"/>'}</svg>`;
+  return Array.from({ length: EXTRA_MAX }, (_, k) => `<i class="${k < n ? 'on' : ''}">${ficha(k < n)}</i>`).join('');
 }
 function cabecalho(ctx, bloco, titulo, subtitulo) {
   const dots = [1, 2, 3, 4, 5].map(i => `<span class="pd${i === bloco ? ' on' : ''}"></span>`).join('');
@@ -161,7 +165,7 @@ function cabecalho(ctx, bloco, titulo, subtitulo) {
     ${marcaImg()}
     <div style="width:540px;flex:none"></div>
     <svg class="egp" width="630" height="104" viewBox="0 0 630 104" aria-hidden="true"><path d="M118 -20 L670 -20 L670 130 L96 130 L74 96 Q66 84 70 70 Z" fill="#008542"/><path d="M62 -20 L40 62 Q36 76 44 88 L72 130" fill="none" stroke="#FDC82F" stroke-width="4"/></svg>
-    <div class="sh-dir"><div class="dt"><b>${diaSemana(ctx.dia)}, ${ddmmaaaa(ctx.dia)}</b><span>${esc(ctx.subData || '')}</span></div>
+    <div class="sh-dir"><div class="dt"><span class="dt-d">${diaSemana(ctx.dia)}</span><b class="dt-n">${ddmmaaaa(ctx.dia)}</b><span class="dt-h" aria-label="Hora atual"><svg class="ic" width="22" height="22" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.2" fill="none" stroke="#fff" stroke-width="1.8"/><path d="M10 5.4V10l3.2 2" fill="none" stroke="#FDC82F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><b data-clk>${hhmm(Relogio.agora())}</b></span></div>
       <div class="tmx"><span class="tx" data-tx aria-label="${ctx.extra || 0} de 3 acréscimos de 1 minuto usados">${iconesExtra(ctx.extra || 0)}</span><div class="tm"><span class="tmr" data-tmr>${ctx.timer || '05:00'}</span><span class="pds" aria-label="Bloco ${bloco} de 5">${dots}</span></div></div></div>
   </header>`;
 }
@@ -596,7 +600,7 @@ function telaFechamento(E, ctx) {
         ${hoje.slice(0, 6).map((d, i) => `<span class="td l fb">${i + 1}</span><span class="td l fb">${T(d.payload.titulo)}</span><span class="td l nw">${esc(d.payload.sentido)}</span><span class="td l nw">${T(d.payload.responsavel)}</span><span class="td l">${d.payload.prazo ? ddmm(d.payload.prazo) : '—'}</span><span class="td l nw">${tag(d.payload.origem)} ${esc(d.payload.coord)}</span>`).join('') || '<span class="td l"></span><span class="td l sec">Nenhuma demanda registrada ainda</span><span class="td"></span><span class="td"></span><span class="td"></span><span class="td"></span>'}
         </div></div>
       <div class="card col fill">${hd('Demandas de reuniões anteriores')}
-        <div class="tiles t4"><div class="tile v1"><b class="big b48">${n('vencida')}</b><span>vencidas</span></div><div class="tile v2"><b class="big b48">${n('vence24')}</b><span>vencem hoje</span></div><div class="tile v3"><b class="big b48">${n('prazo') + n('ok')}</b><span>no prazo</span></div><div class="tile ${tx.pct == null ? 'v0' : tx.pct >= 80 ? 'v3' : tx.pct >= 50 ? 'v2' : 'v1'}"><b class="big b48">${tx.pct != null ? fmtN(tx.pct, 0) + '%' : '—'}</b><span>fechadas no prazo no mês${tx.n ? ` · ${tx.ok} de ${tx.n}` : ''}</span></div></div>
+        <div class="tiles t4">${tileVencidas(n('vencida'))}${tileHoje(n('vence24'))}<div class="tile ac-ok"><b class="big b48">${n('prazo') + n('ok')}</b><span>no prazo</span></div>${tileTaxa(tx, 'fechadas no prazo no mês')}</div>
         <div class="row-sb mt4"><span class="gh">Vencidas · lidas hoje</span><span class="cap">As demais ficam na área de cada coordenação</span></div>
         <div class="tbl vc"><span class="th l">Demanda</span><span class="th l">Responsável</span><span class="th l">Prazo</span><span class="th">Atraso</span>
         ${venc.map(d => `<span class="td l">${T(d.payload.titulo)}</span><span class="td l nw">${T(d.payload.responsavel)}</span><span class="td l">${ddmm(d.payload.prazo)}</span><span class="td fb">${-diffDias(d.payload.prazo, ctx.dia)}${NBSP}d</span>`).join('') || '<span class="td l sec">Nenhuma demanda vencida</span><span class="td"></span><span class="td"></span><span class="td"></span>'}
@@ -637,7 +641,7 @@ function telaSemana(E, ctx) {
       <span class="cap mt-auto">Pontos = valores gravados nas REDIAs anteriores; dias sem REDIA ficam sem ponto.</span></div>
     <div class="colg">
       <div class="card col">${hd('Canal Base x Bordo · ações', pill(venc.length ? 'nok' : hoje24.length ? 'at' : 'ok', venc.length ? `${venc.length} vencida${venc.length === 1 ? '' : 's'}` : 'Sem vencidas', true, TIP.demandas(venc, hoje24)))}
-        <div class="tiles"><div class="tile v1"><b class="big b48">${venc.length}</b><span>vencidas</span></div><div class="tile v2"><b class="big b48">${hoje24.length}</b><span>vencem hoje</span></div><div class="tile ${tx.pct == null ? 'v0' : tx.pct >= 80 ? 'v3' : tx.pct >= 50 ? 'v2' : 'v1'}"><b class="big b48">${tx.pct != null ? fmtN(tx.pct, 0) + '%' : '—'}</b><span>no prazo</span></div></div>
+        <div class="tiles">${tileVencidas(venc.length)}${tileHoje(hoje24.length)}${tileTaxa(tx)}</div>
         ${venc.slice(0, 6).map(d => `<div class="li"><span class="col"><b>${T(d.payload.titulo)}</b><span class="cap">${esc(d.payload.coord)} · ${esc(d.payload.sentido)} · ${T(d.payload.responsavel)}</span></span><span class="v nw">${-diffDias(d.payload.prazo, ctx.dia)}${NBSP}d</span></div>`).join('') || '<div class="li n0"><span class="sec">Nenhuma ação vencida</span></div>'}</div>
       <div class="card col fill">${hd('Itens a escalar', `<span class="cap">${escl.length}</span>`)}
         ${escl.slice(0, 5).map(d => `<div class="li"><span class="col"><span>${tagEsc} ${T(d.titulo)}</span><span class="cap">${esc(d.coord)}${d.tag ? ' · ' + T(d.tag) : ''}</span></span>${pill(d.semaforo, semNome(d.semaforo), true, TIP.curado(d))}</div>`).join('') || '<div class="li n0"><span class="sec">Nenhum item marcado para escalar</span></div>'}</div>
@@ -647,6 +651,13 @@ function telaSemana(E, ctx) {
       <span class="cap mt-auto">Sugestões e destaques pela TAG; causas evitáveis e equipamentos da queima projetada. Recorrente pede plano de solução, não só registro diário.</span></div>
   </main>${rodapeSelo()}</div>`;
 }
+/* D-67 · cards de ações do Canal Base x Bordo: vermelho = não conformidade (vencidas), amarelo = atenção (vencem hoje), verde com fonte branca
+   = conformidade (no prazo); com zero, o card de alerta fica neutro (não chama atenção para o que está em ordem). A taxa no prazo é verde
+   (conceito de conformidade) e mostra, em selo, a referência de 80% quando está abaixo dela. */
+const TAXA_REF = 80;
+const tileVencidas = n => `<div class="tile ${n ? 'ac-nok' : 'ac-zero'}"><b class="big b48">${n}</b><span>vencida${n === 1 ? '' : 's'}</span></div>`;
+const tileHoje = n => `<div class="tile ${n ? 'ac-at' : 'ac-zero'}"><b class="big b48">${n}</b><span>vence${n === 1 ? '' : 'm'} hoje</span></div>`;
+const tileTaxa = (tx, rot = 'no prazo') => `<div class="tile ac-ok ac-tx"${tx.pct != null && tx.pct < TAXA_REF ? dTip('at', [`Ações do mês fechadas no prazo: ${tx.ok} de ${tx.n} (${fmtN(tx.pct, 0)}%)`, `Referência: ${TAXA_REF}% no prazo`]) : ''}><b class="big b48">${tx.pct != null ? fmtN(tx.pct, 0) + '%' : '—'}</b><span>${rot}${tx.n && rot !== 'no prazo' ? ` · ${tx.ok} de ${tx.n}` : ''}</span>${tx.pct != null && tx.pct < TAXA_REF ? `<em class="ref">abaixo de ${TAXA_REF}%</em>` : ''}</div>`;
 const tagRecN = n => `<span class="o recr">×${n}</span>`;
 const TELAS = [telaAbertura, telaCoprod, telaCoemb, telaComan, telaFechamento];
 

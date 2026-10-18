@@ -53,7 +53,7 @@ create table if not exists public.registros (
   escopo             text not null default 'dia' check (escopo in ('dia', 'demandas')),
   tipo               text not null check (tipo in ('sugestao', 'decisao', 'comentario', 'valor', 'lista', 'servico',
                        'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo',
-                       'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao')),
+                       'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao', 'redia', 'acordo')),
   criado_em          timestamptz not null default now(),   -- hora exibida (vem do app)
   gravado_em         timestamptz not null default now(),   -- hora oficial de gravação (carimbada pelo servidor)
   gravado_em_cliente text,                                  -- hora informada pelo app (auditoria / importação)
@@ -69,13 +69,21 @@ create index if not exists registros_uep_seq_idx on public.registros (uep, seq);
 -- D-61: tipo 'reuniao' (decisões, aprendizados e tempos medidos da reunião; permitido com a pauta congelada). Base já instalada: recria a restrição com o tipo novo.
 do $$ begin
   if exists (select 1 from pg_constraint where conname = 'registros_tipo_check' and conrelid = 'public.registros'::regclass)
-     and not exists (select 1 from pg_constraint where conname = 'registros_tipo_check' and conrelid = 'public.registros'::regclass and pg_get_constraintdef(oid) like '%reuniao%') then
+     and not exists (select 1 from pg_constraint where conname = 'registros_tipo_check' and conrelid = 'public.registros'::regclass and pg_get_constraintdef(oid) like '%acordo%') then
     alter table public.registros drop constraint registros_tipo_check;
     alter table public.registros add constraint registros_tipo_check check (tipo in ('sugestao', 'decisao', 'comentario', 'valor', 'lista', 'servico',
-      'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo', 'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao'));
+      'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo', 'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao', 'redia', 'acordo'));
   end if;
 end $$;
 create index if not exists registros_pauta_idx on public.registros (uep, data, gravado_em desc) where tipo in ('congelamento', 'reabertura');
+-- D-67: uma REDIA por UEP e dia (registro 'redia' com o código único) e uma ata por dia (documento final, imutável)
+-- (se a base já tiver mais de uma ata no mesmo dia, de versões anteriores, o índice da ata fica de fora; o gatilho segue barrando a 2ª ata)
+create unique index if not exists registros_redia_unica on public.registros (uep, data) where tipo = 'redia' and escopo = 'dia';
+do $$ begin
+  if not exists (select 1 from public.registros where tipo = 'ata' and escopo = 'dia' group by uep, data having count(*) > 1) then
+    create unique index if not exists registros_ata_unica on public.registros (uep, data) where tipo = 'ata' and escopo = 'dia';
+  end if;
+end $$;
 
 -- Configuração da UEP (horários, limiares, pauta extra). Uma linha por UEP.
 create table if not exists public.uep_config (
@@ -124,6 +132,28 @@ language sql stable set search_path = public as $$
     'autor', r.autor, 'payload', r.payload, 'escopo', r.escopo, 'seq', r.seq) as o) x
 $$;
 
+-- D-67: código único da REDIA · REDIA-<UEP sem separadores>-<AAAAMMDD> (ISO 8601 básico), ex.: REDIA-P83-20261018
+create or replace function public.redia_codigo(p_uep text, p_data date) returns text
+language sql immutable set search_path = public as $$
+  select 'REDIA-' || upper(regexp_replace(p_uep, '[^A-Za-z0-9]', '', 'g')) || '-' || to_char(p_data, 'YYYYMMDD')
+$$;
+
+-- D-67: responsáveis pelo "de acordo" da ata · por coordenação, quem concluiu o preenchimento (última conclusão)
+-- ou, sem conclusão, quem fez a última alteração de curadoria da coordenação no dia (supervisor cobrindo o coordenador entra aqui).
+-- Registros de exemplo não contam. Coordenação sem participação não precisa dar o de acordo (o GEPLAT, sempre).
+create or replace function public.redia_responsaveis(p_uep text, p_data date) returns jsonb
+language sql stable security invoker set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('coord', c.coord, 'chave', x.autor_chave, 'nome', x.autor ->> 'nome') order by c.ord), '[]'::jsonb)
+  from (values ('GEPLAT', 1), ('COPROD', 2), ('COEMB', 3), ('COMAN', 4)) c(coord, ord)
+  left join lateral (
+    select r.autor_chave, r.autor from public.registros r
+     where r.uep = p_uep and r.data = p_data and r.escopo = 'dia' and r.payload ->> 'coord' = c.coord
+       and coalesce(r.payload ->> 'exemplo', 'false') <> 'true'
+       and r.tipo in ('conclusao', 'decisao', 'item', 'selecao', 'servico', 'valor', 'lista', 'remove')
+     order by (r.tipo = 'conclusao' and r.payload ->> 'concluido' = 'true') desc, r.seq desc limit 1) x on true
+  where x.autor_chave is not null or c.coord = 'GEPLAT'
+$$;
+
 -- ---------------------------------------------------------------------
 -- 3. Gatilho de gravação: autoria, hora oficial e pauta congelada
 -- ---------------------------------------------------------------------
@@ -132,6 +162,8 @@ language plpgsql security definer set search_path = public as $$
 declare
   p public.perfis;
   ult text;
+  seq_cong bigint;
+  falta text;
 begin
   select * into p from public.perfis where user_id = auth.uid() and ativo;
   if not found then
@@ -155,7 +187,38 @@ begin
   -- O bloqueio consultivo serializa congelamento × edição do mesmo dia (sem corrida entre sessões).
   if new.escopo = 'dia' then
     perform pg_advisory_xact_lock(hashtextextended(new.uep || '|' || new.data::text, 0));
-    if new.tipo not in ('demanda', 'anexo', 'ata', 'reabertura', 'notificacao', 'reuniao') then
+    -- D-67: ata fechada = REDIA encerrada; nada mais entra no dia
+    if exists (select 1 from public.registros r where r.uep = new.uep and r.data = new.data and r.escopo = 'dia' and r.tipo = 'ata') then
+      raise exception 'ATA_FECHADA' using errcode = 'P0001', hint = 'A ata desta REDIA já foi fechada e arquivada; ela não pode mais ser alterada.';
+    end if;
+    -- D-67: a REDIA do dia nasce uma vez, com o código atribuído pelo servidor
+    if new.tipo = 'redia' then
+      if exists (select 1 from public.registros r where r.uep = new.uep and r.data = new.data and r.escopo = 'dia' and r.tipo = 'redia') then
+        raise exception 'REDIA_JA_INICIADA' using errcode = 'P0001', hint = 'A REDIA deste dia já foi iniciada por outro usuário.';
+      end if;
+      new.payload := new.payload || jsonb_build_object('codigo', public.redia_codigo(new.uep, new.data));
+    end if;
+    -- D-67: "de acordo" só com a pauta congelada; a ata só fecha com o de acordo de todos os responsáveis, depois do último congelamento
+    if new.tipo in ('acordo', 'ata') then
+      select r.seq into seq_cong from public.registros r
+       where r.uep = new.uep and r.data = new.data and r.escopo = 'dia' and r.tipo in ('congelamento', 'reabertura')
+       order by r.gravado_em desc, r.seq desc limit 1;
+      if seq_cong is null or not exists (select 1 from public.registros r where r.seq = seq_cong and r.tipo = 'congelamento') then
+        raise exception 'PAUTA_NAO_CONGELADA' using errcode = 'P0001', hint = 'Congele a pauta antes do de acordo e do fechamento da ata.';
+      end if;
+      if new.tipo = 'ata' then
+        select string_agg(x ->> 'coord', ', ') into falta
+          from jsonb_array_elements(public.redia_responsaveis(new.uep, new.data)) x
+         where not exists (select 1 from public.registros a where a.uep = new.uep and a.data = new.data and a.escopo = 'dia' and a.tipo = 'acordo'
+                             and a.seq > seq_cong and a.payload ->> 'coord' = x ->> 'coord'
+                             and (x ->> 'chave' is null or a.autor_chave = x ->> 'chave'));
+        if falta is not null then
+          raise exception 'ATA_SEM_ACORDO' using errcode = 'P0001', hint = 'Falta o de acordo de: ' || falta || '.';
+        end if;
+        new.payload := new.payload || jsonb_build_object('codigo', public.redia_codigo(new.uep, new.data));
+      end if;
+    end if;
+    if new.tipo not in ('demanda', 'anexo', 'ata', 'reabertura', 'notificacao', 'reuniao', 'acordo') then
       select r.tipo into ult from public.registros r
        where r.uep = new.uep and r.data = new.data and r.escopo = 'dia' and r.tipo in ('congelamento', 'reabertura')
        order by r.gravado_em desc, r.seq desc limit 1;
@@ -212,22 +275,29 @@ $$;
 -- D-63 (proposta 30): histórico pesquisável · busca por TAG, poço ou tema em todas as REDIAs anteriores da UEP.
 -- Procura o texto nos registros de conteúdo (sugestões, itens, demandas, serviços, decisões da reunião e valores de texto),
 -- mais recentes primeiro, até p_limite (máx. 300). Só leitura, com as mesmas políticas de acesso (RLS por UEP).
-create or replace function public.redia_buscar(p_uep text, p_texto text, p_limite integer default 100) returns jsonb
+-- D-67: busca na área Arquivo, com filtros de período, coordenação e tipos; texto vazio vale quando há outro filtro.
+drop function if exists public.redia_buscar(text, text, integer);
+create or replace function public.redia_buscar(p_uep text, p_texto text, p_limite integer default 100, p_de date default null, p_ate date default null,
+  p_coord text default null, p_tipos text[] default null) returns jsonb
 language sql stable security invoker set search_path = public as $$
   select coalesce((
     select jsonb_agg(public.redia_json(x) order by x.data desc, x.seq desc)
     from (
       select r.* from public.registros r
-      where r.uep = p_uep and length(trim(p_texto)) >= 2
+      where r.uep = p_uep
+        and (length(trim(coalesce(p_texto, ''))) >= 2 or p_de is not null or p_ate is not null or p_coord is not null or p_tipos is not null)
+        and r.tipo = any (coalesce(p_tipos, array['sugestao', 'item', 'demanda', 'servico', 'reuniao', 'decisao', 'valor', 'lista']))
         and r.tipo in ('sugestao', 'item', 'demanda', 'servico', 'reuniao', 'decisao', 'valor', 'lista')
-        and r.payload::text ilike '%' || replace(replace(trim(p_texto), '%', '\%'), '_', '\_') || '%'
+        and (p_de is null or r.data >= p_de) and (p_ate is null or r.data <= p_ate)
+        and (p_coord is null or r.payload ->> 'coord' = p_coord)
+        and (length(trim(coalesce(p_texto, ''))) < 2 or r.payload::text ilike '%' || replace(replace(trim(p_texto), '%', '\%'), '_', '\_') || '%')
       order by r.data desc, r.seq desc
       limit greatest(1, least(coalesce(p_limite, 100), 300))
     ) x), '[]'::jsonb)
 $$;
 
--- D-65: arquivo das REDIAs · congelamentos, reaberturas e atas de todos os dias da UEP (sem o retrato da pauta, que é grande),
--- mais recentes primeiro. Base da área "Arquivo" do app.
+-- D-65/D-67: arquivo das REDIAs · atas (o que a área Arquivo lista), aberturas (código) e congelamentos/reaberturas (para o histórico
+-- de exemplo não gravar em dia já tratado), sem o retrato da pauta, mais recentes primeiro.
 create or replace function public.redia_arquivo(p_uep text, p_limite integer default 400) returns jsonb
 language sql stable security invoker set search_path = public as $$
   select coalesce((
@@ -235,7 +305,7 @@ language sql stable security invoker set search_path = public as $$
     from (
       select r.data, r.seq, (public.redia_json(r) - 'payload') || jsonb_build_object('payload', r.payload - 'snapshot') as j
       from public.registros r
-      where r.uep = p_uep and r.escopo = 'dia' and r.tipo in ('ata', 'congelamento', 'reabertura')
+      where r.uep = p_uep and r.escopo = 'dia' and r.tipo in ('ata', 'redia', 'congelamento', 'reabertura')
       order by r.data desc, r.seq desc
       limit greatest(1, least(coalesce(p_limite, 400), 2000))
     ) x), '[]'::jsonb)
@@ -371,13 +441,13 @@ revoke execute on function
   public.redia_registros_antes_inserir(), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
-  public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer), public.redia_arquivo(text, integer)
+  public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer, date, date, text, text[]), public.redia_arquivo(text, integer), public.redia_codigo(text, date), public.redia_responsaveis(text, date)
   from public, anon, authenticated;
 grant execute on function
   public.redia_uep_atual(), public.redia_json(public.registros), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
-  public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer), public.redia_arquivo(text, integer)
+  public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer, date, date, text, text[]), public.redia_arquivo(text, integer), public.redia_codigo(text, date), public.redia_responsaveis(text, date)
   to authenticated;
 
 -- ---------------------------------------------------------------------

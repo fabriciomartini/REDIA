@@ -10,7 +10,7 @@ import { randomUUID, randomBytes } from 'node:crypto';
 const P = path.dirname(fileURLToPath(import.meta.url));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webm': 'video/webm', '.txt': 'text/plain' };
 export const CHAVE_SERVICO_TESTE = 'service-teste';
-const TIPOS_ARG = { p_regs: 'jsonb', p_config: 'jsonb', p_campos_mes: 'text[]', p_seq: 'bigint', p_data: 'date', p_uep: 'text', p_texto: 'text', p_limite: 'integer' };
+const TIPOS_ARG = { p_regs: 'jsonb', p_config: 'jsonb', p_campos_mes: 'text[]', p_seq: 'bigint', p_data: 'date', p_uep: 'text', p_texto: 'text', p_limite: 'integer', p_de: 'date', p_ate: 'date', p_coord: 'text', p_tipos: 'text[]' };
 
 export async function iniciarServidor({ estatico, porta = 0, supabase = false, emailAdmin = 'admin@exemplo.test' } = {}) {
   let db = null;

@@ -52,7 +52,7 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   ok(await g.$('.apph') !== null && pf.trocar_senha === false && pf.senha === 'Nova2026a', 'senha trocada no Auth e marcada no perfil; entra na REDIA');
   const ug = await g.evaluate(() => USUARIO);
   ok(ug.chave === 'GP01' && ug.coord === 'GEPLAT' && ug.admin === true && ug.nome === 'Usuário GEPLAT Teste', 'usuário vem do perfil da base (nome, coordenação, administrador)');
-  ok(/Base de dados/.test(await g.textContent('.g-setup')) && /Supabase/.test(await g.textContent('.g-setup')) && /Nuvem · sincronizado/.test(await g.textContent('.apph .armz')), 'Início e cabeçalho mostram a base Supabase');
+  ok(/Base conectada/.test(await g.textContent('.ses')) && /Supabase/.test(await g.textContent('.ses')) && /Nuvem · sincronizado/.test(await g.textContent('.apph .armz')), 'Início e cabeçalho mostram a base Supabase');
   ok(await g.evaluate(() => DIA === isoData(new Date())), 'na nuvem, o login abre a REDIA de hoje');
   await g.screenshot({ path: path.join(OUT, 'inicio_nuvem.png'), fullPage: true });
 
@@ -120,20 +120,16 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   /* D-63 (proposta 30): histórico pesquisável consulta a base (redia_buscar) */
   const bus = await c.evaluate(async () => { const r = await Store.buscar('teste', 50); return { n: r.length, tipos: [...new Set(r.map(x => x.tipo))].sort(), ant: r.some(x => x.data < DIA) }; });
   ok(bus.n >= 2 && bus.ant && bus.tipos.includes('valor'), `histórico: Store.buscar consulta a base e encontra registros de dias anteriores (${JSON.stringify(bus)})`);
-  await c.goto(URL + '#/historico'); await c.waitForTimeout(300); await c.fill('#hs-q', 'teste'); await c.click('[data-act="buscar"]'); await c.waitForTimeout(600);
-  ok(await c.evaluate(() => document.querySelectorAll('.tb tbody tr').length >= 2 && /gravadas na base/.test(document.querySelector('.pn').textContent)), 'tela Histórico lista os resultados vindos da base');
+  await c.goto(URL + '#/arquivo'); await c.waitForTimeout(800); await c.fill('#aq-q', 'teste'); await c.click('[data-act="aq-buscar"]'); await c.waitForTimeout(800);
+  ok(await c.evaluate(() => document.querySelectorAll('.arq-g tbody tr').length >= 2 && !document.querySelector('table.arq')), 'Arquivo: a busca lista os resultados vindos da base no lugar das atas');
+  const fil = await c.evaluate(async () => (await Store.buscar('', 50, { de: addDias(DIA, -3), ate: addDias(DIA, -1), coord: 'COPROD', tipos: ['sugestao'] })).map(r => r.tipo + ':' + r.payload.coord + ':' + (r.data >= addDias(DIA, -3) && r.data < DIA)));
+  ok(fil.length >= 1 && fil.every(x => x === 'sugestao:COPROD:true'), `busca com filtros de período, coordenação e tipo na base (${fil.length})`);
   const { c: c3, p: x } = await novo('sem sessão'); await x.goto(URL + '#/inicio'); await x.waitForTimeout(800);
   ok(await x.$('.login .lg-card') !== null, 'outra janela (sem sessão) pede login');
   await c3.close();
 
-  /* ---- ata e transcrição no Storage ---- */
+  /* ---- transcrição no Storage (antes da ata: depois dela, nada mais entra no dia) ---- */
   await g.goto(URL + '#/ata'); await g.waitForTimeout(300);
-  await g.fill('#at-part', 'Participante 1\nParticipante 2'); await g.click('[data-act="fechar-ata"]');
-  await g.waitForFunction(() => E.atas.length > 0 && !document.querySelector('.ata-prog'), null, { timeout: 90000 }).catch(() => null); await g.waitForTimeout(500);
-  const kAta = [...srv.arquivos.keys()].find(k => /ata_REDIA_P-83_.*_\d{6}\.pdf$/.test(k));
-  ok(!!kAta && srv.arquivos.get(kAta).dados.includes('%PDF-') && srv.arquivos.get(kAta).dados.length > 200000, 'ata em PDF (relatório + telas) gravada no Storage');
-  const [dl] = await Promise.all([g.waitForEvent('download', { timeout: 4000 }).catch(() => null), g.click('button:has-text("Baixar arquivo da ata")')]);
-  ok(!!dl && /^ata_REDIA_P-83_/.test(dl.suggestedFilename()), `ata baixada do Storage (${dl && dl.suggestedFilename()})`);
   const tf = path.join(OUT, 'transcricao_teste.vtt'); fs.writeFileSync(tf, 'WEBVTT\n\n00:00.000 --> 00:01.000\nteste\n');
   await g.setInputFiles('#trans', tf); await g.waitForTimeout(1000);
   ok([...srv.arquivos.keys()].some(k => /transcricao_transcricao_teste_\d{6}\.vtt$/.test(k)) && await g.evaluate(() => E.anexos.length === 1), 'transcrição enviada ao Storage e anexada');
@@ -151,6 +147,29 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   const imp2 = await g.evaluate(async () => { const r = novoRegistro('valor', { campo: 'man.sensores', valor: 9, origem: 'M' }); r.autor = { nome: 'Pessoa do protótipo', chave: 'AB12', papel: 'COMAN' }; return (await Store.importar(JSON.stringify({ registros: [r] }))).n; });
   const orig = (await srv.sql(`select payload->'autorOriginal'->>'nome' n, autor->>'nome' a from public.registros where payload->>'campo' = 'man.sensores' and payload->>'valor' = '9'`)).rows[0];
   ok(imp2 === 1 && orig.n === 'Pessoa do protótipo' && orig.a === 'Usuário GEPLAT Teste', 'importação grava quem importou e guarda o autor original no registro');
+
+  /* ---- D-67: de acordo dos responsáveis, ata em PDF no Storage e dia encerrado ---- */
+  await g.goto(URL + '#/inicio'); await g.waitForTimeout(400); await g.click('[data-act="congelar-ini"]'); await g.waitForTimeout(400);
+  if (await g.$('.mdl')) { await g.click('[data-mdl="congelar"]'); await g.waitForTimeout(1200); }
+  await g.goto(URL + '#/ata'); await g.waitForTimeout(500);
+  const resp = await g.evaluate(() => situacaoAcordos().map(x => x.coord + ':' + (x.chave || '-')));
+  ok(resp.includes('GEPLAT:-') && resp.includes('COPROD:CP01'), `responsáveis pelo de acordo vindos da base (${resp.join(', ')})`);
+  ok(await g.evaluate(async () => { try { await Nuvem.gravar([novoRegistro('ata', { participantes: [] })]); return 'gravou'; } catch (e) { return e.codigo; } }) === 'ATA_SEM_ACORDO', 'servidor recusa a ata sem o de acordo (ATA_SEM_ACORDO)');
+  while (await g.$('[data-acordo]')) { await g.click('[data-acordo]'); await g.waitForTimeout(800); }   // GEPLAT e a coordenação em que o GP01 alterou dados (COMAN, pela importação)
+  await c.goto(URL + '#/ata'); await c.waitForTimeout(800); await c.click('[data-acordo="COPROD"]'); await c.waitForTimeout(800);
+  await g.evaluate(async () => { await Store.sincronizar(); atualizarEstado(); rerender(); }); await g.waitForTimeout(400);
+  ok(await g.evaluate(() => podeFecharAta()), 'com o de acordo de todos os responsáveis (COPROD em outra sessão), o fechamento é liberado');
+  await g.fill('#at-part', 'Participante 1\nParticipante 2'); await g.click('[data-act="fechar-ata"]');
+  await g.waitForFunction(() => E.atas.length > 0 && !document.querySelector('.ata-prog'), null, { timeout: 90000 }).catch(() => null); await g.waitForTimeout(500);
+  const kAta = [...srv.arquivos.keys()].find(k => /ata_REDIA-P83-\d{8}_\d{6}\.pdf$/.test(k));
+  ok(!!kAta && srv.arquivos.get(kAta).dados.includes('%PDF-') && srv.arquivos.get(kAta).dados.length > 200000, `ata em PDF (relatório + telas) gravada no Storage com o código da REDIA (${kAta})`);
+  const [dl] = await Promise.all([g.waitForEvent('download', { timeout: 4000 }).catch(() => null), g.click('button:has-text("Baixar PDF da ata")')]);
+  ok(!!dl && /^ata_REDIA-P83-\d{8}/.test(dl.suggestedFilename()), `ata baixada do Storage (${dl && dl.suggestedFilename()})`);
+  ok(await c.evaluate(async () => { try { await Nuvem.gravar([novoRegistro('item', { coord: 'COPROD', tipo: 'ameaca', texto: 'x' })]); return 'gravou'; } catch (e) { return e.codigo; } }) === 'ATA_FECHADA', 'depois da ata, o servidor recusa qualquer alteração no dia (ATA_FECHADA)');
+  const arqP = await g.evaluate(async () => { UI.arqLido = 0; location.hash = '#/arquivo'; await new Promise(r => setTimeout(r, 900)); return { n: document.querySelectorAll('table.arq tbody tr').length, top: document.querySelector('table.arq tbody tr')?.textContent || '' }; });
+  ok(arqP.n === 16 && /REDIA-P83-\d{8}/.test(arqP.top), `Arquivo na nuvem: a ata fechada entra no topo da lista (${arqP.n})`);
+  const [dl2] = await Promise.all([g.waitForEvent('download', { timeout: 6000 }).catch(() => null), g.click('table.arq tbody tr:first-child [data-arq-pdf]')]);
+  ok(!!dl2 && /^ata_REDIA-P83-/.test(dl2.suggestedFilename()), 'Arquivo: Baixar PDF da ata traz o arquivo gravado no Storage');
 
   /* ---- D-52: resetar a demonstração na base ---- */
   await c.goto(URL + '#/inicio'); await c.waitForTimeout(300);

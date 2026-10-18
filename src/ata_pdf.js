@@ -64,7 +64,7 @@ async function gerarAtaPdf(d) {
   const VERDE = [0, 133, 66], CINZA = [117, 120, 123], AMARELO = [253, 200, 47];
   const ref = cong ? `Pauta congelada às ${hhmm(cong.criadoEm)} por ${cong.autor.nome} · código de integridade ${cong.payload.hash}` : 'Pauta não congelada · telas da versão em edição no momento do fechamento';
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-  doc.setProperties({ title: tx(`Ata REDIA ${CFG.uep} ${ddmmaaaa(DIA)}`), subject: 'Reunião diária bordo × base', author: tx(quem), creator: tx(`REDIA ${CFG.uep} v${APP.versao}`), keywords: 'REDIA, ata, INTERNA' });
+  doc.setProperties({ title: tx(`Ata ${d.codigo || E.redia?.payload.codigo || codigoRedia(CFG.uep, DIA)}`), subject: 'Reunião diária bordo × base', author: tx(quem), creator: tx(`REDIA ${CFG.uep} v${APP.versao}`), keywords: 'REDIA, ata, INTERNA' });
 
   /* ---------- 1) relatório (retrato) ---------- */
   pdfProgresso(0, total, 'Montando o relatório');
@@ -86,6 +86,8 @@ async function gerarAtaPdf(d) {
 
   par(`REDIA ${CFG.uep} · Reunião diária bordo × base`, { tam: 9.5, cor: VERDE, neg: true, esp: 0.5 });
   par(`Ata de ${diaSemana(DIA).toLowerCase()}, ${ddmmaaaa(DIA)}`, { tam: 20, neg: true, esp: 0.5 });
+  const codRedia = d.codigo || E.redia?.payload.codigo || codigoRedia(CFG.uep, DIA);   // D-67: documento identificado pelo código único da REDIA
+  par(`Código ${codRedia}`, { tam: 11, neg: true, esp: 0.8 });
   doc.setFillColor(...AMARELO); doc.rect(M, y, 10, 1.1, 'F'); y += 5;
   doc.setFillColor(...VERDE); doc.circle(M + 2.2, y + 1.6, 2.2, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text('I', M + 2.2, y + 2.6, { align: 'center' });
   doc.setTextColor(...CINZA); doc.setFontSize(9); doc.text('INTERNA', M + 6, y + 2.8); y += 8;
@@ -93,6 +95,8 @@ async function gerarAtaPdf(d) {
   par(`Ata gerada em ${ddmmaaaa(DIA)} às ${hhmm(agora)} por ${quem}. Versão do sistema: REDIA ${CFG.uep} v${APP.versao}.`, { cor: CINZA, tam: 9.5 });
 
   tit('Participantes'); lista(d.participantes);
+  const acds = d.acordos || (typeof situacaoAcordos === 'function' ? situacaoAcordos().map(x => ({ coord: x.coord, nome: x.acordo?.autor?.nome || '', chave: x.acordo?.autor?.chave || '', em: x.acordo?.criadoEm || null })) : []);
+  if (acds.length) { tit('De acordo para o fechamento'); lista(acds.map(a => `${a.coord} · ${a.nome || '—'}${a.chave ? ' (' + a.chave + ')' : ''} · ${a.em ? 'de acordo às ' + hhmm(a.em) : 'pendente'}`)); }
   tit('Situação da unidade');
   par(`[${SEM_NOME[V(S, 'geplat.situacao_sem')] || '—'}] ${V(S, 'geplat.situacao') || '—'}`);
   const linhaV = (rot, campo, dec, un) => [rot, fmtU(VN(S, campo), dec, un), `${S.valores[campo]?.origem || ''} ${S.valores[campo]?.fonte || ''}`.trim() || '—'];

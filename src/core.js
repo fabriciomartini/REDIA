@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.11.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.12.0', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -130,6 +130,10 @@ function definirUsuario(p) {
 }
 function sair() { USUARIO = null; SS.del('sessao'); if (MODO_NUVEM) Nuvem.sair(); Store.encerrar(); }
 /* pode alterar a configuração da UEP e carregar dados de exemplo na base */
+/* D-67: a REDIA do dia é iniciada por coordenador ou GEPLAT (ou administrador na base) · código único por UEP e dia */
+const POSTOS_COORDENADOR = ['GEOP', 'GEPLAT', 'GESTÃO', 'COPROD', 'COEMB', 'COMAN'];
+const podeIniciarRedia = () => !!USUARIO && (POSTOS_COORDENADOR.includes(USUARIO.posto) || (MODO_NUVEM && !!USUARIO.admin));
+const codigoRedia = (uep, iso) => 'REDIA-' + String(uep).replace(/[^A-Za-z0-9]/g, '').toUpperCase() + '-' + String(iso).replace(/-/g, '');
 const podeAdministrar = () => !MODO_NUVEM || !!USUARIO?.admin || USUARIO?.coord === 'GEPLAT';
 function coordDoPapel(p) { if (USUARIO?.coord && p === USUARIO.papel) return USUARIO.coord; const m = /(COPROD|COEMB|COMAN|GEPLAT)/.exec(p || ''); return m ? m[1] : (POSTO_COORD[p] || null); }
 
@@ -140,7 +144,7 @@ function coordDoPapel(p) { if (USUARIO?.coord && p === USUARIO.papel) return USU
    Memória: mesma estrutura lógica, guardada no navegador (demonstração)
    A chave lógica (_arq) mantém o formato do protótipo: dados/AAAA/MM/DD/<ts>_<tipo>_<id>.json
    ====================================================================== */
-const TIPOS_REG = ['sugestao', 'decisao', 'comentario', 'valor', 'lista', 'servico', 'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo', 'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao'];
+const TIPOS_REG = ['sugestao', 'decisao', 'comentario', 'valor', 'lista', 'servico', 'item', 'demanda', 'atualiza', 'remove', 'aceite', 'congelamento', 'reabertura', 'anexo', 'ata', 'conclusao', 'notificacao', 'selecao', 'reuniao', 'redia', 'acordo'];
 const Store = {
   modo: null,            // 'nuvem' | 'memoria'
   nomeRaiz: '',
@@ -178,6 +182,7 @@ const Store = {
       if (s.seq === this.seq + 1) this.seq = s.seq;    // sem lacuna: ninguém gravou no meio
       return this.guardar(s);
     }
+    regrasDemo(r);   // D-67: mesmas regras do gatilho da base (REDIA única, ata fechada, de acordo)
     const k = this.chaveDe(r), tinha = this.cache.get(k);
     this.guardar(r);
     try { this.salvarMemoria(); } catch (e) { if (tinha) this.cache.set(k, tinha); else this.cache.delete(k); throw e; }   // R-02
@@ -185,7 +190,7 @@ const Store = {
   },
   /* vários registros de uma vez (dados de exemplo, importação): na nuvem, em lotes de 500 */
   async gravarLote(regs) {
-    if (this.modo !== 'nuvem') { for (const r of regs) this.guardar(r); this.salvarMemoria(); return regs.length; }
+    if (this.modo !== 'nuvem') { for (const r of regs) { if (r.tipo === 'redia' || r.tipo === 'ata') r.payload = { ...r.payload, codigo: codigoRedia(r.uep, r.data) }; this.guardar(r); } this.salvarMemoria(); return regs.length; }
     let n = 0;
     for (let i = 0; i < regs.length; i += 500) { const out = await Nuvem.gravar(regs.slice(i, i + 500)); out.forEach(x => this.guardar(x)); n += out.length; }
     return n;
@@ -217,11 +222,13 @@ const Store = {
     return n;
   },
   /* D-63 (proposta 30): histórico pesquisável · na nuvem consulta a base (todas as REDIAs da UEP); na demonstração, o que está no navegador */
-  async buscar(texto, limite = 100) {
-    const t = String(texto || '').trim().toLowerCase(); if (t.length < 2) return [];
-    if (this.modo === 'nuvem') return Nuvem.buscar(CFG.uep, t, limite);
-    const tipos = new Set(['sugestao', 'item', 'demanda', 'servico', 'reuniao', 'decisao', 'valor', 'lista']);
-    return [...this.cache.values()].filter(r => tipos.has(r.tipo) && JSON.stringify(r.payload).toLowerCase().includes(t)).sort((a, b) => String(b.data).localeCompare(String(a.data)) || ordem(b, a)).slice(0, limite);
+  async buscar(texto, limite = 100, f = {}) {   // D-67: filtros de período, coordenação e tipos (área Arquivo)
+    const t = String(texto || '').trim().toLowerCase(), temFiltro = !!(f.de || f.ate || f.coord || f.tipos?.length);
+    if (t.length < 2 && !temFiltro) return [];
+    if (this.modo === 'nuvem') return Nuvem.buscar(CFG.uep, t, limite, f);
+    const base = ['sugestao', 'item', 'demanda', 'servico', 'reuniao', 'decisao', 'valor', 'lista'], tipos = new Set(f.tipos?.length ? f.tipos.filter(x => base.includes(x)) : base);
+    return [...this.cache.values()].filter(r => tipos.has(r.tipo) && (!f.de || r.data >= f.de) && (!f.ate || r.data <= f.ate) && (!f.coord || r.payload?.coord === f.coord) && (t.length < 2 || JSON.stringify(r.payload).toLowerCase().includes(t)))
+      .sort((a, b) => String(b.data).localeCompare(String(a.data)) || ordem(b, a)).slice(0, limite);
   },
   /* D-65: arquivo · atas, congelamentos e reaberturas de todos os dias (sem o retrato da pauta) */
   async arquivo() {
@@ -289,6 +296,9 @@ function deepMerge(a, b) { for (const k of Object.keys(b)) { if (b[k] && typeof 
 /* ---------- criação de registros ---------- */
 let DIA = LS.get('dia', isoData(new Date()));
 function novoRegistro(tipo, payload, extra = {}) {
+  /* D-67: valor e lista levam a coordenação do campo (base do responsável pelo "de acordo" da ata) */
+  if ((tipo === 'decisao' || tipo === 'remove') && payload && !payload.coord && payload.alvo && typeof E !== 'undefined' && E) { const a = [...E.sugestoes, ...E.itens, ...E.servicos, ...E.reuniao].find(x => x.id === payload.alvo); if (a?.payload.coord) payload = { ...payload, coord: a.payload.coord }; }
+  if ((tipo === 'valor' || tipo === 'lista') && payload && !payload.coord && payload.campo) { const c = (typeof CAMPO !== 'undefined' && CAMPO[payload.campo]?.coord) || (typeof LISTA !== 'undefined' && LISTA[payload.campo]?.coord); if (c) payload = { ...payload, coord: c }; }
   return { v: 1, id: uid(), tipo, data: DIA, uep: CFG.uep, criadoEm: Relogio.agora().toISOString(), gravadoEm: carimbo(), autor: { nome: USUARIO?.nome || '(sem nome)', chave: USUARIO?.chave || '', papel: USUARIO?.papel || '' }, payload, ...extra };
 }
 async function registrar(tipo, payload, extra) { return Store.gravar(novoRegistro(tipo, payload, extra)); }   // na nuvem devolve o registro carimbado pelo servidor
@@ -310,4 +320,21 @@ function aviso(msg, tipo = 'info') {
 function baixar(nome, conteudo, mime = 'application/json') {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([conteudo], { type: mime })); a.download = nome;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+/* D-67 · no modo demonstração, as regras que o gatilho da base aplica (mesmos códigos de erro) */
+function erroRegra(codigo, msg) { const e = new Error(msg); e.codigo = codigo; return e; }
+function regrasDemo(r) {
+  if (r.escopo === 'demandas') return;
+  const doDia = [...Store.cache.values()].filter(x => x.data === r.data && x.escopo !== 'demandas' && x.uep === r.uep).sort(ordem);
+  if (doDia.some(x => x.tipo === 'ata')) throw erroRegra('ATA_FECHADA', 'A ata desta REDIA já foi fechada e arquivada; ela não pode mais ser alterada.');
+  if (r.tipo === 'redia') { if (doDia.some(x => x.tipo === 'redia')) throw erroRegra('REDIA_JA_INICIADA', 'A REDIA deste dia já foi iniciada por outro usuário.'); r.payload = { ...r.payload, codigo: codigoRedia(r.uep, r.data) }; }
+  if (r.tipo === 'acordo' || r.tipo === 'ata') {
+    const pauta = doDia.filter(x => x.tipo === 'congelamento' || x.tipo === 'reabertura'), ult = pauta[pauta.length - 1];
+    if (!ult || ult.tipo !== 'congelamento') throw erroRegra('PAUTA_NAO_CONGELADA', 'Congele a pauta antes do de acordo e do fechamento da ata.');
+    if (r.tipo === 'ata') {
+      const falta = faltaAcordo(doDia).map(x => x.coord);
+      if (falta.length) throw erroRegra('ATA_SEM_ACORDO', 'Falta o de acordo de: ' + falta.join(', ') + '.');
+      r.payload = { ...r.payload, codigo: codigoRedia(r.uep, r.data) };
+    }
+  }
 }
