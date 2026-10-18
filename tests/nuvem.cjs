@@ -69,7 +69,8 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   await c.goto(URL); await c.waitForTimeout(800);
   await login(c, 'cp01', 'Senha2026');
   ok(await c.$('.mdl') === null && await c.evaluate(() => USUARIO.coord === 'COPROD' && USUARIO.posto === 'SUPROD'), 'SUPROD entra sem troca de senha e cai na COPROD');
-  ok(await c.evaluate(() => E.sugestoes.length === 28 && Store.cache.size) === await g.evaluate(() => Store.cache.size), 'COPROD lê exatamente os mesmos registros');
+  const doDia = () => E.sugestoes.length === 28 && [...Store.cache.values()].filter(r => r.data === DIA && r.escopo === 'dia').length;   // D-65: a sessão que gravou o exemplo guarda também o histórico completo no cache
+  ok(await c.evaluate(doDia) === await g.evaluate(doDia), 'COPROD lê exatamente os mesmos registros do dia');
   ok(await c.$('[data-act="exemplo"]') === null && await c.$('#sim') === null, 'COPROD não carrega exemplo nem simula horário na base');
   const dec = await c.evaluate(async () => { const s = pendentes(E, 'COPROD')[0]; await salvarE('decisao', { alvo: s.id, acao: 'aprovar', titulo: s.payload.titulo, semaforo: 'at' }); return s.id; });
   const linha = (await srv.sql(`select autor, autor_chave from public.registros where tipo = 'decisao' and payload->>'alvo' = $1`, [dec])).rows[0];
@@ -95,6 +96,8 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   await g.click('[data-act="descongelar"]'); await g.waitForTimeout(300); await g.fill('[data-mdl-in="motivo"]', 'teste nuvem'); await g.click('[data-mdl="ok"]'); await g.waitForTimeout(800);
   await c.evaluate(() => salvarE('valor', { campo: 'oleo.real', valor: 26000, origem: 'M' })); await c.waitForTimeout(500);
   ok(await c.evaluate(() => !congelada() && VN(E, 'oleo.real') === 26000), 'após descongelar, a COPROD volta a gravar');
+  const arqN = await g.evaluate(async () => { const a = await Store.arquivo(); return { n: a.length, tipos: [...new Set(a.map(r => r.tipo))].sort().join(), snap: a.some(r => r.payload && 'snapshot' in r.payload) }; });
+  ok(arqN.n >= 2 && /congelamento/.test(arqN.tipos) && /reabertura/.test(arqN.tipos) && !arqN.snap, `Arquivo na nuvem: redia_arquivo lista congelamento e reabertura sem o snapshot (${JSON.stringify(arqN)})`);
 
   /* ---- configuração da UEP ---- */
   await c.goto(URL + '#/config'); await c.waitForTimeout(300);
@@ -108,10 +111,12 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   await c.reload(); await c.waitForTimeout(1500);
   ok(await c.$('.apph') !== null && await c.evaluate(() => USUARIO.chave === 'CP01' && CFG.timeboxMin === 7), 'recarregar mantém a sessão da aba e lê a configuração nova');
   /* D-61: a tendência de 7 dias e as classes de queima vêm da base (redia_carregar traz valores e listas dos dias anteriores) */
-  await c.evaluate(async () => { const r = novoRegistro('valor', { campo: 'oleo.real', valor: 25000, origem: 'M', fonte: 'teste' }); r.data = addDias(DIA, -2); const l = novoRegistro('lista', { campo: 'queima.causas', itens: [{ causa: 'teste', valor: 10, classe: 'Extraordinária' }], origem: 'M' }); l.data = addDias(DIA, -1); await Store.gravarLote([r, l]); });
+  await c.evaluate(async () => { const r = novoRegistro('valor', { campo: 'oleo.real', valor: 25000, origem: 'M', fonte: 'teste' }); r.data = addDias(DIA, -20); await Store.gravarLote([r]); });   // D-65: D-15 a D-1 são REDIAs encerradas do histórico (pauta congelada) — grava fora delas
   await c.reload(); await c.waitForTimeout(1500);
-  const tend = await c.evaluate(() => ({ oleo: E.tend['oleo.real'].find(p => p.redia === addDias(DIA, -2))?.valor, ext: E.classes['Extraordinária'], mes: E.mes?.n }));
-  ok(tend.oleo === 25000 && tend.ext >= 10000, `tendência de 7 dias e classes de queima recarregadas da base (${JSON.stringify(tend)})`);
+  const tend = await c.evaluate(() => ({ oleo: E.tend30['oleo.real'].find(p => p.redia === addDias(DIA, -20))?.valor, d2: E.tend['oleo.real'].find(p => p.redia === addDias(DIA, -2))?.valor, ext: E.classes['Extraordinária'], t30: E.tend30['oleo.real'].filter(p => p.valor != null).length }));
+  ok(tend.oleo === 25000 && tend.d2 > 20000 && tend.ext > 0 && tend.t30 >= 16, `tendências de 7 e 30 dias e classes de queima recarregadas da base, com o histórico (${JSON.stringify(tend)})`);
+  const arqH = await c.evaluate(async () => (await Store.arquivo()).filter(r => r.tipo === 'ata').length);
+  ok(arqH === 15, `Arquivo na nuvem: 15 atas do histórico vindas de redia_arquivo (${arqH})`);
   /* D-63 (proposta 30): histórico pesquisável consulta a base (redia_buscar) */
   const bus = await c.evaluate(async () => { const r = await Store.buscar('teste', 50); return { n: r.length, tipos: [...new Set(r.map(x => x.tipo))].sort(), ant: r.some(x => x.data < DIA) }; });
   ok(bus.n >= 2 && bus.ant && bus.tipos.includes('valor'), `histórico: Store.buscar consulta a base e encontra registros de dias anteriores (${JSON.stringify(bus)})`);

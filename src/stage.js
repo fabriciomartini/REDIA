@@ -106,7 +106,7 @@ function piorSem(...s) { return ['nok', 'at', 'ok'].find(x => s.includes(x)) || 
 
 /* D-61 (proposta 4) · tendência de 7 dias: linha com os realizados das 7 REDIAs anteriores (D-7 a D-1), referência tracejada (meta/potencial)
    e o último ponto marcado. Só desenha com 2 ou mais pontos; sem dado, informa. */
-function sparkline(serie, { ref = null, dec = 0, un = '', w = 130, h = 34, rot = '7 dias' } = {}) {
+function sparkline(serie, { ref = null, dec = 0, un = '', w = 130, h = 30, rot = '7 dias' } = {}) {
   const pts = (serie || []).map((p, i) => ({ i, v: p.valor })).filter(p => p.v != null);
   if (pts.length < 2) return `<div class="spk"><span class="cap">Tendência 7 dias: ${pts.length ? 'só 1 dia com dado' : 'sem histórico'}</span></div>`;
   const vals = pts.map(p => p.v), lo0 = Math.min(...vals, ref ?? Infinity), hi0 = Math.max(...vals, ref ?? -Infinity), pad_ = (hi0 - lo0) * 0.15 || Math.abs(hi0) * 0.02 || 1, lo = lo0 - pad_, hi = hi0 + pad_;
@@ -119,6 +119,14 @@ function sparkline(serie, { ref = null, dec = 0, un = '', w = 130, h = 34, rot =
     <path d="${d}" fill="none" stroke="#008542" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${X(ult.i).toFixed(1)}" cy="${Y(ult.v).toFixed(1)}" r="3.4" fill="#008542"/></svg>
     <span class="cap spk-t" title="${esc(aria)} · mín. ${fmtN(Math.min(...vals), dec)} · máx. ${fmtN(Math.max(...vals), dec)}"><b class="k">${rot}</b> ${sinal} ${delta >= 0 ? '+' : '−'}${fmtN(Math.abs(delta), dec)}${un ? NBSP + un : ''}</span></div>`;
+}
+/* D-65 · enquadramento da corrente: símbolo + palavra + os parâmetros que decidem (o que está fora ou em atenção vem primeiro) */
+function linhaEnquadramento(E, corrente, hoje) {
+  const q = enquadramento(E, corrente, hoje); if (q.sem === 'sd') return `<div class="enq sd"><span class="enq-t">${glyph('sd', 16)}<b>Enquadramento</b> sem análise configurada</span></div>`;
+  const ord = { nok: 0, at: 1, ok: 2 }, its = q.itens.filter(a => a.st).sort((a, b) => ord[a.st] - ord[b.st]);
+  const txt = its.map(a => `${esc(a.curto || a.rot)} ${a.valor == null ? '—' : fmtN(a.valor, a.dec)}${a.un ? NBSP + esc(a.un) : ''}`).join(' · ');
+  const tit = q.itens.map(a => `${a.rot}: ${a.valor == null ? 'sem resultado' : fmtN(a.valor, a.dec) + ' ' + (a.un || '')} (${a.limTxt || 'sem limite'}) → ${a.motivo}`).join(' | ');
+  return `<div class="enq s-${q.sem}" title="${esc('Enquadramento ' + q.nome + ': ' + q.rot + ' · ' + tit)}" data-enq="${corrente}:${q.sem}"><span class="enq-t">${glyph(q.sem, 16)}<b>${q.rot}</b><span class="enq-p">${txt}</span></span></div>`;
 }
 const tagEsc = '<span class="o escl" title="Precisa de decisão do GEOP ou da gerência">Escalar</span>';   // D-61 (proposta 7)
 /* D-63 (proposta 29): marca de recorrência · mesma TAG/causa em N REDIAs nos últimos D dias */
@@ -138,16 +146,40 @@ function colunaSegurancaProcesso(E, hoje) {
   const det = `${sp.t12.length} Tier 1/2 · ${sp.t3.length} demanda(s) a sistema de segurança · ${sp.t4.length} barreira(s) degradada(s)${m ? ` · inibição mais antiga: ${m.tipo || ''} ${m.funcao} ${m.tag || ''} há ${m.dias ?? '—'} d` : ''} · críticos vencidos ${sp.venc.length}, vencem em 7 d ${sp.v7.length}`;
   return `<div class="ctr segc s-${sp.sem}" style="padding-left:18px;border-left:1px solid #E8E8E8" title="${esc(det)}" data-seg="${sp.sem}"><span class="gh">Segurança de processo · 24 h</span>
     <span class="row-c nw">${glyph(sp.sem, 22)}<span class="big b52">${sp.sem === 'sd' ? '—' : nEv}</span><span class="unit">evento${nEv === 1 ? '' : 's'}</span></span>
+    <span class="cap nw seg-st"><b class="k">${{ ok: 'Sem desvio', at: 'Atenção', nok: 'Não OK', sd: 'Sem dado' }[sp.sem]}</b></span>
     <span class="cap nw"><b class="k">${sp.inib.length}</b> inibiç${sp.inib.length === 1 ? 'ão' : 'ões'} · <b class="k">${sp.venc.length}</b> vencido${sp.venc.length === 1 ? '' : 's'}</span></div>`;
 }
 /* Offloading na abertura (D-47): previsão de TOP, navio designado para o próximo offloading e tancagem ocupada × livre */
+/* D-65 · fonte do dado no canto do card (mesmo padrão dos outros cards: etiqueta A/M com o sistema e a hora) */
+const fonteTag = (E, campo) => { const v = E.valores[campo]; if (!v) return ''; const f = v.origem === 'A' ? String(v.fonte || 'automático').replace(/^SITOP\s+\d\d\/\d\d\s+/, 'SITOP ') : 'M'; return `<span class="o fte" title="${esc((v.origem === 'A' ? 'Automático · ' : 'Manual · ') + (v.fonte || '') + ' · ' + hhmm(v.em))}">${esc(f)}</span>`; };
+/* D-65 · POB: ocupação em número grande, capacidade e vagas por extenso, barra de ocupação e fonte */
+function cardPob(E) {
+  const at = VN(E, 'pob.atual'), mx = VN(E, 'pob.max'), p = at != null && mx ? Math.min(100, at / mx * 100) : null, vg = at != null && mx != null ? mx - at : null;
+  const sem = p == null ? 'sd' : p >= 100 ? 'nok' : p >= 95 ? 'at' : 'ok';
+  return `<div class="card col4 pobc"><div class="row-sb"><span class="gh">POB</span>${fonteTag(E, 'pob.atual')}</div>
+    <span class="nw"><span class="big b52">${at ?? '—'}</span></span>
+    <div class="tq2 pob s-${sem}" role="img" aria-label="POB ${at ?? '—'} de ${mx ?? '—'}"><div style="width:${p ?? 0}%"></div></div>
+    <span class="cap nw">a bordo de <b class="k">${mx ?? '—'}</b></span><span class="cap nw"><b class="k">${vg ?? '—'}</b> vaga${vg === 1 ? '' : 's'}</span></div>`;
+}
+/* Offloading na abertura (D-47, revisto em D-65): previsão de TOP em destaque; navio e janela de mar em fichas com texto;
+   tancagem ocupada × livre em duas colunas alinhadas sob a barra */
 function cardOffloadingAbertura(E, top, navioOk) {
   const est = VN(E, 'off.estoque'), cap = VN(E, 'off.capacidade'), livre = est != null && cap ? Math.max(0, cap - est) : null, p = est != null && cap ? Math.min(100, est / cap * 100) : null;
   const nome = String(V(E, 'off.navio') || '').split(' · ')[0].trim(), jm = janelaMeteo(E);   // D-63 (proposta 16)
-  return `<div class="card col4 offa"><span class="gh">Offloading · Previsão de TOP</span>
-    <div class="row-sb"><span class="nw"><span class="big b44">${esc(top[0] || '—')}</span><span class="unit">${esc(top[1] || '')}</span></span><span class="row-c nw">${jm.sem !== 'sd' ? `<span class="gl" title="${esc(`Janela meteo-oceanográfica: ${jm.rot} · Hs ${fmtN(jm.hs.v, 1)} m · vento ${fmtN(jm.vento.v, 0)} nós · corrente ${fmtN(jm.corrente.v, 1)} nós${jm.tendencia ? ' · ' + jm.tendencia : ''}`)}" data-meteo="${jm.sem}">${(SH[jm.sem] || SH.sd)(20)}</span>` : ''}${nome ? pill(navioOk ? 'ok' : 'at', nome) : pill('at', 'Sem navio')}</span></div>
+  return `<div class="card col4 offa"><div class="row-sb"><span class="gh">Offloading · TOP previsto</span>${fonteTag(E, 'off.top')}</div>
+    <div class="row-sb"><span class="nw"><span class="big b44">${esc(top[0] || '—')}</span><span class="unit">${esc(top[1] || '')}</span></span>${nome ? pill(navioOk ? 'ok' : 'at', nome + (navioOk ? '' : ' · a confirmar')) : pill('at', 'Sem navio')}</div>
+    ${fichaMeteo(jm)}
     <div class="tq2" role="img" aria-label="Tancagem: ${p != null ? fmtN(p, 0) + '% ocupada' : 'sem dado'}"><div style="width:${p ?? 0}%"></div></div>
-    <span class="cap nw">Ocupado <b class="k">${fmtN(est)}</b> · livre <b class="k">${fmtU(livre, 0, 'm³')}</b>${p != null ? ` · ${fmtN(p, 0)}%` : ''}</span></div>`;
+    <div class="row-sb cap nw ocup"><span>Ocupado <b class="k">${fmtN(est)}</b>${p != null ? ` (${fmtN(p, 0)}%)` : ''}</span><span>Livre <b class="k">${fmtN(livre)}</b>${NBSP}m³</span></div></div>`;
+}
+/* D-65 · janela meteo-oceanográfica com texto: o símbolo nunca aparece sozinho (status por extenso + o parâmetro que decide) */
+function fichaMeteo(jm) {
+  if (jm.sem === 'sd') return '<span class="mto sd">' + glyph('sd', 15) + ' Janela de mar: sem previsão</span>';
+  const pars = [['Hs', jm.hs, 1, 'm'], ['vento', jm.vento, 0, 'nós'], ['corrente', jm.corrente, 1, 'nós']].filter(([, x]) => x.v != null);
+  const pior = pars.slice().sort((a, b) => ({ nok: 0, at: 1, ok: 2 }[a[1].sem] ?? 3) - ({ nok: 0, at: 1, ok: 2 }[b[1].sem] ?? 3))[0];
+  const rot = { ok: 'Mar dentro da janela', at: 'Mar perto do limite', nok: 'Mar fora da janela' }[jm.sem];
+  const det = pior ? ` · ${pior[0]} ${fmtN(pior[1].v, pior[2])}${pior[1].lim != null ? '/' + fmtN(pior[1].lim, pior[2]) : ''}${NBSP}${pior[3]}` : '';
+  return `<span class="mto s-${jm.sem}" data-meteo="${jm.sem}" title="${esc(`Janela meteo-oceanográfica do offloading: ${jm.rot} · ${pars.map(([n, x, d, u]) => `${n} ${fmtN(x.v, d)} ${u}${x.lim != null ? ' (limite ' + fmtN(x.lim, d) + ')' : ''}`).join(' · ')}${jm.tendencia ? ' · ' + jm.tendencia : ''}`)}">${glyph(jm.sem, 15)}<b>${rot}</b>${det}</span>`;
 }
 /* ---------------- Bloco 1 · Abertura (GEPLAT) ---------------- */
 function telaAbertura(E, ctx) {
@@ -189,13 +221,13 @@ function telaAbertura(E, ctx) {
         ${counter('Sem princípio de incêndio', VN(E, 'sms.dias_incendio'), `Recorde ${VN(E, 'sms.recorde_incendio') ?? '—'}`, 'padding:0 18px;border-left:1px solid #E8E8E8')}
         ${colunaSegurancaProcesso(E, ctx.dia)}
       </div>
-      <div class="card col4"><span class="gh">POB</span><span><span class="big b52">${VN(E, 'pob.atual') ?? '—'}</span><span class="unit">/${VN(E, 'pob.max') ?? '—'}</span></span><span class="cap">${VN(E, 'pob.max') != null && VN(E, 'pob.atual') != null ? (VN(E, 'pob.max') - VN(E, 'pob.atual')) + ' vagas' : ''}</span></div>
+      ${cardPob(E)}
       ${cardOffloadingAbertura(E, top, navioOk)}
     </section>
     <section class="g r2">
       <div class="card col6">${hd('Produção', pill(ef.sem, semNome(ef.sem)), 'oleo')}
         <div><span class="big">${fmtN(real)}</span><span class="unit">m³/d</span></div><span class="cap">${real != null ? fmtN(real * 6.2898) + NBSP + 'bbl/d' : 'Sem dado'}</span>
-        ${sparkline(E.tend?.['oleo.real'], { ref: pot, un: 'm³/d' })}
+        ${sparkline(E.tend?.['oleo.real'], { ref: pot, un: 'm³/d' })}${linhaEnquadramento(E, 'oleo', ctx.dia)}
         <div>${li('Potencial', fmtN(pot))}${li('Eficiência (EFOP)', ef.pct != null ? fmtN(ef.pct, 1) + '%' : '—')}${li('Projetado D', fmtN(VN(E, 'oleo.proj')), 1)}</div>
         <span class="gh">Produtores · ${pocos(E, 'produtor').length}</span><div class="cps">${chipsPoco(E, 'produtor') || '<span class="cap">Sem dado</span>'}</div></div>
       <div class="card iuga">
@@ -209,14 +241,14 @@ function telaAbertura(E, ctx) {
           <span class="gh">Modo do flare</span><div class="cps">${flare('HP', V(E, 'flare.hp'))}${flare('LP', V(E, 'flare.lp'))}</div>
           <span class="gh">Recuperação de gás</span><div class="cps">${chipsEq(E, 'recuperacao')}</div></div></div>
       <div class="card col6">${hd('Injeção de gás', pill(ga.sem, semNome(ga.sem)), 'gas')}
-        <div><span class="big">${fmtN(gR)}</span><span class="unit">Mm³/d</span></div>
-        <span class="cap row-w">${ga.pct != null ? fmtN(ga.pct, 1) + '% da meta' : 'Sem dado'} · sem exportação ${V(E, 'gas.ref') ? tag(V(E, 'gas.ref')) : ''}</span>
-        ${sparkline(E.tend?.['gas.real'], { ref: gM, un: 'Mm³/d' })}
+        <div class="row-sb"><span class="nw"><span class="big">${fmtN(gR)}</span><span class="unit">Mm³/d</span></span>${V(E, 'gas.ref') ? tag(V(E, 'gas.ref')) : ''}</div>
+        <span class="cap">${ga.pct != null ? fmtN(ga.pct, 1) + '% da meta' : 'Sem dado'} · sem exportação</span>
+        ${sparkline(E.tend?.['gas.real'], { ref: gM, un: 'Mm³/d' })}${linhaEnquadramento(E, 'gas', ctx.dia)}
         <div>${li('Meta', fmtN(gM))}${li('Projetado D', fmtN(VN(E, 'gas.proj')), 1)}</div>
         <span class="gh">Compressores e injetores</span><div class="cps">${chipsEq(E, 'gas')}${chipsPoco(E, 'inj_gas')}</div></div>
       <div class="card col6">${hd('Injeção de água', pill(ag.sem, semNome(ag.sem)), 'agua')}
         <div><span class="big">${fmtN(aR)}</span><span class="unit">m³/d</span></div><span class="cap">${ag.pct != null ? fmtN(ag.pct, 1) + '% da meta' : 'Sem dado'} · projetado D ${fmtN(VN(E, 'agua.proj'))}</span>
-        ${sparkline(E.tend?.['agua.real'], { ref: aM, un: 'm³/d' })}
+        ${sparkline(E.tend?.['agua.real'], { ref: aM, un: 'm³/d' })}${linhaEnquadramento(E, 'agua', ctx.dia)}
         <div class="row-sb mt4"><span class="gh">Composição da água injetada</span>${V(E, 'agua.ref') ? tag(V(E, 'agua.ref')) : ''}</div>
         <div class="bar" role="img" aria-label="Composição da água injetada"><div style="width:${tot ? urs / tot * 100 : 0}%;background:#00B2A9"></div><div style="width:${tot ? pr / tot * 100 : 0}%;min-width:${pr ? 4 : 0}px;background:#75787B"></div></div>
         <div class="comp"><span class="lg"><i style="background:#00B2A9"></i>Dessulfatada (URS)</span><b>${fmtU(urs, 0, 'm³')}</b><span class="sec">${pct(urs)}</span>
@@ -297,9 +329,9 @@ function cardCanal(E, coord, b) {
 }
 /* Resultados de Análises (D-52): últimos resultados do eplab; a data fica em destaque quando passa da periodicidade */
 function cardAnalises(E, coord, b, ctx) {
-  const an = labDe(E, coord, ctx.dia), v = an.find(a => a.origem);
+  const an = labDe(E, coord, ctx.dia).filter(a => a.tela), v = an.find(a => a.origem);   // D-65: só as marcadas "na tela da coordenação
   return `<div class="card col fill">${hd('Resultados de Análises', v ? tag(v.origem === 'A' ? 'eplab' : 'M') : '', '', lk(b, 'analises'))}
-    ${an.map(a => `<div class="row2 an${a.sem === 'nok' ? ' an-nok' : ''}"><div class="col"><span class="t1">${esc(a.curto || a.rot)}${a.limTxt ? ` <span class="sec n an-l">${esc(a.limTxt)}</span>` : ''}</span></div><span class="tg">${a.sem ? glyph(a.sem, 18) : ''}<b class="anv">${a.valor === null ? '<span class="sec">Sem dado</span>' : (a.tipo === 'texto' ? esc(a.valor) : fmtN(a.valor, a.dec)) + (a.un && a.valor !== null ? `<span class="u">${NBSP}${esc(a.un)}</span>` : '')}</b>${a.data ? (a.atrasada ? `<span class="o at dt">${SH.at(15)}${ddmm(a.data)}</span>` : `<span class="dt0">${ddmm(a.data)}</span>`) : ''}</span></div>`).join('')}
+    ${an.map(a => `<div class="row2 an${a.sem === 'nok' ? ' an-nok' : ''}"><div class="col"><span class="t1">${esc(a.curto || a.rot)}${a.limTxt ? ` <span class="sec n an-l">${esc(a.limTxt)}</span>` : ''}</span></div><span class="tg">${a.sem === 'nok' ? `<span class="o an-st nok">${SH.nokW(13)}Fora</span>` : a.sem === 'at' ? `<span class="o an-st at">${SH.at(13)}Limite</span>` : a.sem ? glyph(a.sem, 18) : ''}<b class="anv">${a.valor === null ? '<span class="sec">Sem dado</span>' : (a.tipo === 'texto' ? esc(a.valor) : fmtN(a.valor, a.dec)) + (a.un && a.valor !== null ? `<span class="u">${NBSP}${esc(a.un)}</span>` : '')}</b>${a.data ? (a.atrasada ? `<span class="o at dt">${SH.at(15)}${ddmm(a.data)}</span>` : `<span class="dt0">${ddmm(a.data)}</span>`) : ''}</span></div>`).join('')}
     </div>`;
 }
 function linhaSistema(titulo, nota, status) {
@@ -438,7 +470,7 @@ function telaComan(E, ctx) {
       <div class="card col">${hd('Geração principal', pill(V(E, 'ger.reserva') === 'Sem reserva' ? 'nok' : 'ok', V(E, 'ger.reserva') || 'Sem dado'), 'raio', lk(b, 'geracao'))}
         <span class="gh">4 × 33%</span>
         <div class="tgs cp">${tgs.map(t => `<div class="tgc"><div class="row-sb"><b class="f24">${T(t.tg)}</b>${pill(semDeStatus(t.status) === 'sd' ? 'sd' : semDeStatus(t.status), t.status)}</div><span class="t2 k">${T(t.linha1)}</span><span class="t2${t.alerta === 'sim' ? ' k fb' : ''}">${T(t.linha2)}</span></div>`).join('')}</div>
-        <div class="cps cp mt6">${L(E, 'ger.aux').map(a => `<span class="w">${glyph(semDeStatus(a.status), 13)}${T(a.nome)}</span>`).join('')}</div></div>
+        <div class="cps cp mt6">${L(E, 'ger.aux').map(a => `<span class="w" title="${esc(a.nome)}: ${esc(a.status || 'sem dado')}">${glyph(semDeStatus(a.status), 13)}${T(a.nome)}${semDeStatus(a.status) !== 'ok' ? ` <span class="q">· ${esc(String(a.status || 'sem dado').toLowerCase())}</span>` : ''}</span>`).join('')}</div></div>
       <div class="card col fill">${hd('Órgãos legais e suprimentos', '', '', lk(b, 'legais'))}${L(E, 'legais').map(l => `<div class="li"><span>${T(l.item)}</span>${pill(semDeStatus(l.status), l.status)}</div>`).join('')}
         ${pecas.length ? `<a class="li lk2" href="${lk(b, 'criticos')}"><span>${glyph(falta.length ? 'at' : 'ok', 16)} Peças críticas em falta</span><span class="v">${falta.length}<span class="sec n"> · ${pecas.filter(x => x.situacao === 'Em trânsito').length} em trânsito</span><span class="chev" aria-hidden="true">›</span></span></a>` : ''}</div>`;
   return telaCoord(ctx, b, cabecalho({ ...ctx, subData: 'Boletim SITOP' }, b, { eye: 'COMAN', t: 'Manutenção' }, 'Elétrica, instrumentação, automação e mecânica'), faixa(E), esq, E, 'COMAN');

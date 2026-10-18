@@ -229,6 +229,21 @@ language sql stable security invoker set search_path = public as $$
     ) x), '[]'::jsonb)
 $$;
 
+-- D-65: arquivo das REDIAs · congelamentos, reaberturas e atas de todos os dias da UEP (sem o retrato da pauta, que é grande),
+-- mais recentes primeiro. Base da área "Arquivo" do app.
+create or replace function public.redia_arquivo(p_uep text, p_limite integer default 400) returns jsonb
+language sql stable security invoker set search_path = public as $$
+  select coalesce((
+    select jsonb_agg(x.j order by x.data desc, x.seq desc)
+    from (
+      select r.data, r.seq, (public.redia_json(r) - 'payload') || jsonb_build_object('payload', r.payload - 'snapshot') as j
+      from public.registros r
+      where r.uep = p_uep and r.escopo = 'dia' and r.tipo in ('ata', 'congelamento', 'reabertura')
+      order by r.data desc, r.seq desc
+      limit greatest(1, least(coalesce(p_limite, 400), 2000))
+    ) x), '[]'::jsonb)
+$$;
+
 -- Registros gravados depois de um número de sequência (sincronização incremental).
 create or replace function public.redia_novos(p_uep text, p_seq bigint) returns jsonb
 language sql stable security invoker set search_path = public as $$
@@ -359,13 +374,13 @@ revoke execute on function
   public.redia_registros_antes_inserir(), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
-  public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer)
+  public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer), public.redia_arquivo(text, integer)
   from public, anon, authenticated;
 grant execute on function
   public.redia_uep_atual(), public.redia_json(public.registros), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
-  public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer)
+  public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer), public.redia_arquivo(text, integer)
   to authenticated;
 
 -- ---------------------------------------------------------------------

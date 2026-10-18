@@ -99,6 +99,7 @@ const Nuvem = {
   novos(uep, seq) { return this.rpc('redia_novos', { p_uep: uep, p_seq: seq || 0 }); },
   gravar(regs) { return this.rpc('redia_gravar', { p_regs: regs.map(r => { const x = { ...r }; delete x._arq; delete x.seq; return x; }) }); },
   resetar(uep) { return this.rpc('redia_resetar', { p_uep: uep }); },
+  arquivo(uep, limite = 400) { return this.rpc('redia_arquivo', { p_uep: uep, p_limite: limite }); },   // D-65: atas e congelamentos de todos os dias
   buscar(uep, texto, limite = 100) { return this.rpc('redia_buscar', { p_uep: uep, p_texto: texto, p_limite: limite }); },   // D-63: histórico pesquisável
   configLer(uep) { return this.rpc('redia_config_ler', { p_uep: uep }); },
   configSalvar(uep, cfg) { return this.rpc('redia_config_salvar', { p_uep: uep, p_config: cfg }); },

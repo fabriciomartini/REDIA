@@ -108,6 +108,18 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | 9.4 | COPROD › detalhe Indicadores | Perda de produção D-1 por causa e sistema, Pareto do mês, cota e reserva do campo |
 | 9.5 | COEMB › detalhe Indicadores | Janela meteo-oceanográfica e estabilidade com semáforo pelos limites da Configuração |
 
+## 10. Enquadramento, análises, histórico e Arquivo (v1.10)
+
+| # | Passo | Esperado |
+|---|---|---|
+| 10.1 | Abertura › cards Produção, Injeção de gás e Injeção de água | Linha "Enquadramento" com semáforo e texto (Enquadrado, Atenção, Desenquadrado ou Sem análise) e os parâmetros que entram |
+| 10.2 | Configuração › Análises (eplab) › subir o limite do BSW acima do resultado e salvar | Óleo passa a Enquadrado; com o resultado fora do limite, Desenquadrado |
+| 10.3 | Configuração › **Incluir análise** (coordenação, nome, unidade, limite, corrente) | Campo novo em Dados automáticos da coordenação; entra no enquadramento da corrente escolhida |
+| 10.4 | Desmarcar **Na tela** de uma análise / **Excluir** e **Reincluir** | Some e volta no card Resultados de Análises; excluída sai também de Dados automáticos |
+| 10.5 | Abertura › POB, Offloading e semáforo do mar | Números legíveis com fonte; ficha do mar diz "Mar dentro da janela / perto do limite / fora da janela" e o parâmetro mais próximo do limite |
+| 10.6 | Início (administrador) › **Gerar histórico de 15 dias** | 15 REDIAs de exemplo encerradas; tendências, recorrência e visão semanal com dados. Rodar de novo não altera dias encerrados |
+| 10.7 | Menu › **Arquivo** | Uma linha por REDIA com pauta congelada/ata; "Baixar PDF arquivado" (quando houver), "Gerar PDF" e "Abrir REDIA" |
+
 ## Registro do resultado
 
 | Coordenação | Testador (chave) | Dispositivos | Data | Resultado | Issues |

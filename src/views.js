@@ -36,7 +36,7 @@ function cabecalhoApp(rota) {
   return `<header class="apph">
     <div><span class="kick">REDIA ${esc(CFG.uep)} · ${esc(APP.versao)}</span><div class="tit">${esc(rota.titulo)}</div><span class="dash"></span></div>
     ${E && USUARIO && notificacoesAbertas(E, USUARIO.coord).length ? `<a class="ntf" href="#/curadoria/${USUARIO.coord}" title="Notificação do GEPLAT">Concluir ${esc(USUARIO.coord)}</a>` : ''}
-    <nav aria-label="Seções">${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/historico', 'Histórico', rota.id === 'historico')}${item('#/config', 'Configuração', rota.id === 'config')}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
+    <nav aria-label="Seções">${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/arquivo', 'Arquivo', rota.id === 'arquivo')}${item('#/historico', 'Histórico', rota.id === 'historico')}${item('#/config', 'Configuração', rota.id === 'config')}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
     <span class="armz">${textoArmaz()}</span>
     <div class="egp-sp"></div>
     <svg class="egp" width="420" height="80" viewBox="0 0 420 80" preserveAspectRatio="none" aria-hidden="true"><path d="M90 -20 L460 -20 L460 120 L64 120 L48 76 Q44 64 48 54 Z" fill="#008542"/><path d="M40 -20 L22 50 Q19 62 24 72 L40 120" fill="none" stroke="#FDC82F" stroke-width="3"/></svg>
@@ -57,6 +57,7 @@ const ROTAS = [
   { re: /^#\/apresentacao\/([1-5])$/, id: 'apresentacao', titulo: 'Apresentação', fn: telaApresentacao },
   { re: /^#\/apresentacao\/(semana)$/, id: 'apresentacao', titulo: 'Apresentação · visão semanal', fn: telaApresentacao },   // D-63 (proposta 28)
   { re: /^#\/historico$/, id: 'historico', titulo: 'Histórico', fn: telaHistorico },   // D-63 (proposta 30)
+  { re: /^#\/arquivo$/, id: 'arquivo', titulo: 'Arquivo', fn: telaArquivo },   // D-65
   { re: /^#\/apresentacao\/([2-4])\/(\w+)$/, id: 'apresentacao', titulo: 'Apresentação · detalhe', fn: telaApresentacao },
   { re: /^#\/ata$/, id: 'ata', titulo: 'Fechamento e ata', fn: telaAta },
   { re: /^#\/config$/, id: 'config', titulo: 'Configuração', fn: telaConfig },
@@ -348,6 +349,7 @@ async function telaInicio() {
         ${nuvem ? `<p class="note">${Store.online ? `Última sincronização às ${Store.ultimaLeitura ? hhmmss(Store.ultimaLeitura) : '—'} · ${Store.tempoReal ? 'tempo real conectado' : 'leitura periódica'}.` : '<b>Sem conexão com a base.</b> As alterações não são gravadas até a rede voltar.'}</p>` : ''}
         ${Store.modo ? `<div class="row" style="margin-top:8px">${nuvem ? '<button class="btn sm sec" data-act="sincronizar">Sincronizar agora</button>' : ''}<button class="btn sm" data-act="exportar">Exportar registros (JSON)</button>${!nuvem || podeAdministrar() ? `<label class="btn sm" for="imp">${nuvem ? 'Importar registros (migração)' : 'Importar registros'}</label><input id="imp" type="file" accept=".json" hidden>` : ''}</div>` : ''}
         ${Store.modo && (!nuvem || USUARIO.admin) ? `<div class="row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--claro)"><button class="btn sm perigo" data-act="resetar">Resetar demonstração</button><span class="note">Apaga os dados inseridos por usuários e testadores${nuvem ? ', para todos' : ' neste navegador'}.</span></div>` : ''}
+        ${Store.modo && EXEMPLO_DISPONIVEL && podeAdministrar() ? `<div class="row" style="margin-top:10px"><button class="btn sm sec" data-act="historico15">Gerar histórico de 15 dias</button><span class="note">Grava REDIAs de exemplo encerradas (dados, curadoria, demandas, reunião, pauta congelada e ata) nos 15 dias anteriores a ${ddmm(DIA)}, para tendências, recorrência, visão semanal e Arquivo. Dias que já têm pauta congelada ou ata não são alterados.</span></div>` : ''}
         ${nuvem && USUARIO.admin ? '<div class="pdsenha" data-pedidos-senha style="margin-top:14px;padding-top:12px;border-top:1px solid var(--claro)"><b>Pedidos de nova senha</b><p class="note">Carregando…</p></div>' : ''}
       </section>
       <section class="pn"><h2>Sessão</h2>
@@ -385,6 +387,14 @@ async function telaInicio() {
   on('sincronizar', async () => { await sincronizarTela(); rerender(); });
   on('senha', () => trocarSenhaObrigatoria(true));
   on('resetar', resetarDemonstracao);
+  on('historico15', async e => {   // D-65
+    const r0 = await modal({ titulo: 'Gerar histórico de 15 dias?', html: `<p>Grava REDIAs de exemplo encerradas de ${ddmm(addDias(DIA, -15))} a ${ddmm(addDias(DIA, -1))} ${Store.remoto() ? '<b>na base de dados, visíveis para todos</b>' : 'neste navegador'}, marcadas como exemplo. Dias que já têm pauta congelada ou ata ficam como estão.</p><p class="note">Para apagar depois, use Resetar demonstração.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Gerar histórico', cls: 'pri' }] });
+    if (r0.id !== 'ok') return;
+    e.target.disabled = true;
+    try { const r = await gravarHistorico(DIA, 15); if (Store.remoto()) await Store.carregar(DIA); atualizarEstado(); aviso(r.n ? `Histórico gravado: ${r.dias} dia(s), ${r.n} registros${r.pulados ? ` · ${r.pulados} dia(s) já encerrados foram mantidos` : ''}.` : 'Nada a gravar: os 15 dias anteriores já têm REDIA encerrada.', 'ok'); }
+    catch (x) { aviso('Não foi possível gravar o histórico: ' + x.message, 'erro'); }
+    rerender();
+  });
   const ps = $('[data-pedidos-senha]');   // D-56: conferência dos pedidos de "Esqueci a senha" (só administrador)
   if (ps) Nuvem.pedidosSenha(CFG.uep).then(l => { if (!ps.isConnected) return; const SIT = { enviada: ['ok', 'senha enviada ao seu e-mail'], falha: ['nok', 'falha no envio'], ignorado: ['ne', 'ignorado (repetido)'] };
     ps.innerHTML = `<b>Pedidos de nova senha</b>${l.length ? `<table class="tb"><tbody>${l.slice(0, 6).map(p => `<tr><td><b>${esc(p.chave)}</b></td><td>${ddmm(String(p.em).slice(0, 10))} ${hhmm(p.em)}</td><td><span class="chip ${(SIT[p.situacao] || SIT.ignorado)[0]}">${esc((SIT[p.situacao] || SIT.ignorado)[1])}</span></td></tr>`).join('')}</tbody></table>` : '<p class="note">Nenhum pedido. A senha temporária pedida em “Esqueci a senha” chega ao e-mail do administrador.</p>'}`; });
@@ -671,7 +681,8 @@ function notaAcumulado() {
   return `<div class="banner${M.faltam.length ? '' : ' ok'}"><span><b>Acumulado do mês (soma diária do SITOP):</b> gás produzido ${M.gas != null ? fmtN(M.gas) + ' m³' : 'sem dado'} · queima ${M.queima != null ? fmtN(M.queima) + ' m³' : 'sem dado'} · ${M.n} dia${M.n === 1 ? '' : 's'}${M.n ? ` (${ddmm(M.dias[0].ref)} a ${ddmm(M.dias[M.n - 1].ref)})` : ''}${M.faltam.length ? ` · <b>sem dado em ${M.faltam.map(ddmm).join(', ')}</b> (abra o dia seguinte e informe o valor)` : ''}.${r.fonteP === 'manual' || r.fonteQ === 'manual' ? ' <b>Correção manual em uso</b>: apague o campo de correção para voltar à soma.' : ''}</span></div>`;
 }
 function abaDados(coord, manual = null) {
-  const campos = manual ? CAMPOS.filter(c => manual[2].includes(c.id)) : CAMPOS.filter(c => c.coord === coord && !MANUAL_IDS.has(c.id));
+  labLista(coord);   // D-65: registra os campos das análises incluídas na Configuração
+  const campos = manual ? CAMPOS.filter(c => manual[2].includes(c.id)) : CAMPOS.filter(c => c.coord === coord && !MANUAL_IDS.has(c.id) && !(c.lab && !labAtiva(c.id.replace(/\.data$/, ''))));
   const listas = manual ? manual[3].map(id => LISTA[id]) : LISTAS.filter(l => l.coord === coord && !l.aba && !MANUAL_IDS.has(l.id));
   const grupos = [...new Set(campos.map(c => c.grupo))];
   const dis = bloqueado() ? 'disabled' : '';
@@ -1156,6 +1167,49 @@ function telaImprimir() {
   setTimeout(() => { window.print(); }, 300);
 }
 
+/* ======================= Arquivo das REDIAs (D-65) =======================
+   Uma linha por REDIA com pauta congelada ou ata: quem congelou e quando (código de integridade), reaberturas,
+   ata (quem fechou, páginas) e o PDF — o arquivado nos arquivos da REDIA (Storage) ou gerado na hora a partir da pauta congelada daquele dia. */
+async function telaArquivo() {
+  render(cabecalhoApp({ id: 'arquivo', titulo: 'Arquivo das REDIAs' }) + `<div class="wrap"><section class="pn"><h2>Relatórios arquivados</h2><p class="note">Carregando o arquivo…</p></section></div>`);
+  let lista = [];
+  try { lista = await Store.arquivo(); } catch (e) { aviso('Não foi possível ler o arquivo: ' + e.message, 'erro'); }
+  if (ROTA_ATUAL?.id !== 'arquivo') return;
+  const dias = {};
+  for (const r of lista.slice().reverse()) {   // em ordem de gravação: o último estado vale
+    const d = (dias[r.data] ||= { dia: r.data, cong: null, reab: 0, ata: null, estado: 'edicao' });
+    if (r.tipo === 'congelamento') { d.cong = r; d.estado = 'congelada'; } else if (r.tipo === 'reabertura') { d.reab++; d.estado = 'reaberta'; } else if (r.tipo === 'ata') d.ata = r;
+  }
+  const meses = [...new Set(Object.keys(dias).map(d => d.slice(0, 7)))].sort().reverse(), mes = UI.arqMes && meses.includes(UI.arqMes) ? UI.arqMes : 'todos';
+  const linhas = Object.values(dias).filter(d => mes === 'todos' || d.dia.startsWith(mes)).sort((a, b) => b.dia.localeCompare(a.dia));
+  const nomeMes = m => { const [y, mm] = m.split('-'); return ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][+mm - 1] + ' de ' + y; };
+  render(cabecalhoApp({ id: 'arquivo', titulo: 'Arquivo das REDIAs' }) + `<div class="wrap">
+    <section class="pn"><div class="pn-h"><h2>Relatórios arquivados · ${esc(CFG.uep)}</h2><span style="flex:1"></span><label class="lbl" for="arq-mes" style="margin:0">Mês</label><select id="arq-mes" class="in" style="width:auto"><option value="todos">Todos</option>${meses.map(m => `<option value="${m}" ${m === mes ? 'selected' : ''}>${nomeMes(m)}</option>`).join('')}</select></div>
+      <p class="note">Cada REDIA encerrada fica aqui com a pauta congelada (código de integridade) e a ata. <b>Baixar PDF arquivado</b> traz o arquivo gravado no fechamento; <b>Gerar PDF</b> monta o relatório na hora a partir da pauta congelada daquele dia (relatório + todas as telas). ${Store.remoto() ? 'Arquivo lido da base de dados da UEP.' : 'Modo demonstração: arquivo deste navegador.'}</p>
+      <div class="tbw"><table class="tb arq"><thead><tr><th>REDIA</th><th>Pauta</th><th>Ata</th><th>Arquivo</th><th></th></tr></thead><tbody>
+      ${linhas.map(d => { const a = d.ata?.payload, c = d.cong;
+        return `<tr><td class="nw"><b>${ddmmaaaa(d.dia)}</b><br><span class="note">${diaSemana(d.dia)}${d.dia === DIA ? ' · aberta agora' : ''}</span></td>
+          <td>${d.estado === 'congelada' ? `<span class="chip ok">Congelada ${hhmm(c.criadoEm)}</span><br><span class="note">${esc(c.autor?.nome || '')} · código ${esc(c.payload.hash || '—')}${d.reab ? ` · ${d.reab} reabertura(s)` : ''}</span>` : d.estado === 'reaberta' ? `<span class="chip at">Reaberta</span><br><span class="note">${d.reab} reabertura(s) · sem novo congelamento</span>` : '<span class="chip ne">Em edição</span>'}</td>
+          <td>${a ? `<span class="chip ok">Fechada ${hhmm(d.ata.criadoEm)}</span><br><span class="note">${esc(d.ata.autor?.nome || '')}${a.paginas ? ` · ${a.paginas} páginas (${a.telas} telas)` : ''}${(a.participantes || []).length ? ` · ${a.participantes.length} participantes` : ''}</span>${a.observacoes ? `<br><span class="note">${esc(String(a.observacoes).slice(0, 120))}</span>` : ''}` : '<span class="chip ne">Não fechada</span>'}</td>
+          <td class="nw">${a?.caminho ? '<span class="chip ok">PDF arquivado</span>' : a ? `<span class="chip ne">${a.historico ? 'Histórico · PDF sob demanda' : 'Sem PDF gravado'}</span>` : '—'}</td>
+          <td class="nw">${a?.caminho ? `<button class="btn sm pri" data-arq-pdf="${esc(a.caminho)}">Baixar PDF arquivado</button> ` : ''}${c || a ? `<button class="btn sm sec" data-arq-gerar="${d.dia}">Gerar PDF</button> ` : ''}<button class="btn sm lnk" data-arq-abrir="${d.dia}">Abrir REDIA</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="note">Nenhuma REDIA encerrada ainda. Ao congelar a pauta e fechar a ata, a REDIA entra no arquivo.</td></tr>'}
+      </tbody></table></div>
+      <p class="note">${linhas.length} REDIA(s) ${mes === 'todos' ? 'no arquivo' : 'em ' + nomeMes(mes)}.</p></section></div>`);
+  $('#arq-mes').onchange = e => { UI.arqMes = e.target.value; telaArquivo(); };
+  $$('[data-arq-pdf]').forEach(b => b.onclick = async () => { const c = b.dataset.arqPdf; b.disabled = true; try { baixar(c.split('/').pop(), await Nuvem.baixarArquivo(c), 'application/pdf'); } catch (e) { aviso(e.message, 'erro'); } b.disabled = false; });
+  $$('[data-arq-abrir]').forEach(b => b.onclick = async () => { await abrirDia(b.dataset.arqAbrir); location.hash = '#/apresentacao/1'; });
+  $$('[data-arq-gerar]').forEach(b => b.onclick = async () => {
+    const dia = b.dataset.arqGerar, atual = DIA, a = dias[dia]?.ata?.payload || {};
+    $$('[data-arq-gerar],[data-arq-pdf]').forEach(x => x.disabled = true);
+    try {
+      DIA = dia; await Store.carregar(dia); atualizarEstado();
+      const r = await gerarAtaPdf({ participantes: a.participantes || [], observacoes: a.observacoes || '' });
+      baixar(`ata_REDIA_${CFG.uep}_${dia}.pdf`, r.blob, 'application/pdf'); aviso(`PDF da REDIA de ${ddmm(dia)} gerado (${r.paginas} páginas).`, 'ok');
+    } catch (e) { $('.ata-prog')?.remove(); aviso('Não foi possível gerar o PDF: ' + e.message, 'erro'); }
+    finally { DIA = atual; try { await Store.carregar(atual); } catch { } atualizarEstado(); $$('[data-arq-gerar],[data-arq-pdf]').forEach(x => x.disabled = false); }
+  });
+}
+
 /* ======================= Histórico pesquisável (D-63, proposta 30) ======================= */
 const TIPO_NOME = { sugestao: 'Sugestão (passagem)', item: 'Item da coordenação', demanda: 'Demanda · Canal Base x Bordo', servico: 'Serviço do dia', reuniao: 'Reunião', decisao: 'Decisão da curadoria', valor: 'Dado', lista: 'Lista' };
 function textoRegistro(r) {
@@ -1215,11 +1269,31 @@ function telaConfig() {
         ${Object.entries(C.metasManutencao || {}).map(([k, v], i) => `<tr><td><input class="in" data-mm-k value="${esc(k)}"></td><td><input class="in" type="number" step="any" data-mm-v value="${esc(v)}"></td><td><button class="btn sm lnk" data-mm-rm="${i}">Remover</button></td></tr>`).join('')}
         </tbody></table></div><div class="row" style="margin-top:6px"><button class="btn sm sec" data-act="mm-add">Adicionar indicador</button></div></section>
     </div>
-    <section class="pn" style="margin-top:16px"><h2>Limites de especificação das análises (eplab)</h2>
-      <p class="note">D-61 (proposta 13): com limite informado, o resultado ganha semáforo (fora do limite = Não OK; a menos de 10% da faixa = Atenção). Vazio = só a data é avaliada. Valores iniciais são referências públicas a confirmar pela coordenação (PREMISSA).</p>
-      <div class="tbw"><table class="tb"><thead><tr><th>Coordenação</th><th>Análise</th><th>Unidade</th><th>Mínimo</th><th>Máximo</th></tr></thead><tbody>
-      ${Object.entries(LAB).flatMap(([coord, ans]) => ans.filter(a => a.tipo !== 'texto').map(a => { const id = `lab.${coord}.${a.k}`, l = (C.limitesLab || {})[id] || {}; return `<tr><td>${coord}</td><td>${esc(a.rot)}</td><td>${esc(a.un || '—')}</td><td><input class="in" type="number" step="any" style="width:110px" data-ll="${id}" data-ll-k="min" value="${l.min ?? ''}"></td><td><input class="in" type="number" step="any" style="width:110px" data-ll="${id}" data-ll-k="max" value="${l.max ?? ''}"></td></tr>`; })).join('')}
-      </tbody></table></div></section>
+    <section class="pn" style="margin-top:16px" id="cfg-lab"><h2>Análises (eplab) · limites, tela e enquadramento</h2>
+      <p class="note">D-61/D-65: com limite informado, o resultado ganha semáforo (fora do limite = Não OK; a menos de 10% da faixa = Atenção). <b>Na tela</b>: a análise aparece no card “Resultados de Análises” da coordenação. <b>Enquadramento</b>: a análise entra no semáforo da corrente na tela inicial — uma análise fora da especificação deixa a corrente <b>Desenquadrada</b>; perto do limite, sem resultado ou com resultado atrasado, em <b>Atenção</b>. Limites iniciais são referências públicas a confirmar (PREMISSA).</p>
+      <div class="tbw"><table class="tb" id="lab-tab"><thead><tr><th>Coordenação</th><th>Análise</th><th>Unidade</th><th>Mínimo</th><th>Máximo</th><th>Na tela</th><th>Enquadramento</th><th></th></tr></thead><tbody>
+      ${['COPROD', 'COEMB', 'COMAN'].flatMap(coord => labLista(coord).map(a => { const id = `lab.${coord}.${a.k}`, l = (C.limitesLab || {})[id] || {}, o = labOpc(id), txt = a.tipo === 'texto', nova = (C.labNovas || []).some(n => n.coord === coord && n.k === a.k);
+        return `<tr data-lab="${id}"><td>${coord}</td><td>${esc(a.rot)}${nova ? ' <span class="chip ne">incluída</span>' : ''}<br><span class="note">a cada ${a.per} dia${a.per === 1 ? '' : 's'}</span></td><td>${esc(a.un || '—')}</td>
+          <td>${txt ? '<span class="note">texto</span>' : `<input class="in" type="number" step="any" style="width:100px" data-ll="${id}" data-ll-k="min" value="${l.min ?? ''}">`}</td><td>${txt ? '' : `<input class="in" type="number" step="any" style="width:100px" data-ll="${id}" data-ll-k="max" value="${l.max ?? ''}">`}</td>
+          <td><label class="sw"><input type="checkbox" data-lt="${id}" ${o.tela !== false ? 'checked' : ''}><span>Na tela</span></label></td>
+          <td>${txt ? '<span class="note">—</span>' : `<select class="in" data-lc="${id}"><option value="">Não entra</option>${Object.entries(CORRENTES).map(([k, n]) => `<option value="${k}" ${o.corrente === k ? 'selected' : ''}>${n}</option>`).join('')}</select>`}</td>
+          <td><button class="btn sm lnk" data-lab-rm="${id}">Excluir</button></td></tr>`; })).join('')}
+      </tbody></table></div>
+      ${(C.labRemovidas || []).length ? `<p class="note" style="margin-top:8px">Excluídas da lista-base: ${(C.labRemovidas || []).map(id => { const [, c, k] = id.split('.'), a = (LAB[c] || []).find(x => x.k === k); return `<span class="chip ne">${esc(c)} · ${esc(a?.rot || k)} <button class="btn sm lnk" data-lab-re="${id}">Reincluir</button></span>`; }).join(' ')}</p>` : ''}
+      <h3>Incluir análise</h3>
+      <div class="fgrid">
+        <div><label class="lbl" for="na-coord">Coordenação</label><select id="na-coord" class="in"><option>COPROD</option><option>COEMB</option><option>COMAN</option></select></div>
+        <div style="grid-column:span 2"><label class="lbl" for="na-rot">Análise</label><input id="na-rot" class="in" maxlength="70" placeholder="ex.: Oxigênio dissolvido após a desaeradora"></div>
+        <div><label class="lbl" for="na-un">Unidade</label><input id="na-un" class="in" maxlength="12" placeholder="ex.: ppb"></div>
+        <div><label class="lbl" for="na-dec">Casas decimais</label><input id="na-dec" class="in" type="number" min="0" max="3" value="0"></div>
+        <div><label class="lbl" for="na-per">Periodicidade (dias)</label><input id="na-per" class="in" type="number" min="1" value="1"></div>
+        <div><label class="lbl" for="na-min">Mínimo</label><input id="na-min" class="in" type="number" step="any"></div>
+        <div><label class="lbl" for="na-max">Máximo</label><input id="na-max" class="in" type="number" step="any"></div>
+        <div><label class="lbl" for="na-cor">Enquadramento</label><select id="na-cor" class="in"><option value="">Não entra</option>${Object.entries(CORRENTES).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></div>
+        <div><label class="sw" style="margin-top:28px"><input type="checkbox" id="na-tela" checked><span>Na tela da coordenação</span></label></div>
+      </div>
+      <div class="row end" style="margin-top:8px"><button class="btn sec" data-act="lab-add">Incluir análise</button></div>
+      <p class="note">A análise incluída ganha campo na aba Dados automáticos da coordenação (resultado e data). A captura do eplab a reconhece quando o sistema estiver integrado (I-51); até lá, preenchimento manual. Incluir, excluir e as caixas valem ao clicar em <b>Salvar configuração</b>.</p></section>
     <div class="row end" style="margin-top:16px"><button class="btn sec" data-act="padrao" ${podeAdministrar() ? '' : 'disabled'}>Restaurar padrão</button><button class="btn pri" data-act="salvar-cfg" ${podeAdministrar() ? '' : 'disabled'}>Salvar configuração</button></div>
   </div>`);
   $('[data-act="salvar-cfg"]').onclick = async () => {
@@ -1238,7 +1312,26 @@ function telaConfig() {
     for (const d of [0, 1, 2, 3, 4, 5, 6]) CFG.pautaExtra[d] = $('#pe-' + d).value.trim();
     const mm = {}; $$('#mm-tab tbody tr').forEach(tr => { const k = $('[data-mm-k]', tr).value.trim(), v = $('[data-mm-v]', tr).value; if (k && v !== '' && !isNaN(+v)) mm[k] = +v; }); CFG.metasManutencao = mm;
     const ll = {}; $$('[data-ll]').forEach(i => { const v = i.value; (ll[i.dataset.ll] ||= { min: '', max: '' })[i.dataset.llK] = v === '' ? '' : +v; }); CFG.limitesLab = ll;
+    const lc = {}; $$('[data-lab]').forEach(tr => { const id = tr.dataset.lab; lc[id] = { tela: !!$('[data-lt]', tr)?.checked, corrente: $('[data-lc]', tr)?.value || '' }; }); CFG.labCfg = lc;   // D-65
+    CFG.labNovas = UI.labNovas ?? CFG.labNovas; CFG.labRemovidas = UI.labRemovidas ?? CFG.labRemovidas; UI.labNovas = UI.labRemovidas = undefined;
     try { await Store.salvarConfig(); atualizarEstado(); aviso('Configuração salva.', 'ok'); rerender(); } catch (e) { aviso(e.message, 'erro'); }
+  };
+  /* D-65: incluir / excluir / reincluir análises (aplica na tela na hora; grava em "Salvar configuração") */
+  const guardaLab = () => { const tmp = {}; $$('[data-lab]').forEach(tr => { const id = tr.dataset.lab; tmp[id] = { tela: !!$('[data-lt]', tr)?.checked, corrente: $('[data-lc]', tr)?.value || '' }; }); CFG.labCfg = { ...CFG.labCfg, ...tmp }; const ll = { ...CFG.limitesLab }; $$('[data-ll]').forEach(i => { (ll[i.dataset.ll] ||= {})[i.dataset.llK] = i.value === '' ? '' : +i.value; }); CFG.limitesLab = ll; };
+  const reabrirLab = () => { const y = $('#cfg-lab')?.getBoundingClientRect().top + scrollY; rerender(); setTimeout(() => window.scrollTo(0, y - 80), 0); aviso('Alteração aplicada na tela. Clique em Salvar configuração para gravar.', 'info'); };
+  $$('[data-lab-rm]').forEach(b => b.onclick = () => { guardaLab(); const id = b.dataset.labRm, [, c, k] = id.split('.');
+    if ((CFG.labNovas || []).some(n => n.coord === c && n.k === k)) CFG.labNovas = CFG.labNovas.filter(n => !(n.coord === c && n.k === k)); else CFG.labRemovidas = [...new Set([...(CFG.labRemovidas || []), id])];
+    UI.labNovas = CFG.labNovas; UI.labRemovidas = CFG.labRemovidas; reabrirLab(); });
+  $$('[data-lab-re]').forEach(b => b.onclick = () => { guardaLab(); CFG.labRemovidas = (CFG.labRemovidas || []).filter(x => x !== b.dataset.labRe); UI.labRemovidas = CFG.labRemovidas; UI.labNovas = CFG.labNovas; reabrirLab(); });
+  $('[data-act="lab-add"]').onclick = () => {
+    const rot = $('#na-rot').value.trim(); if (rot.length < 3) return aviso('Informe o nome da análise.', 'erro');
+    guardaLab(); const coord = $('#na-coord').value, base = rot.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 20) || 'analise';
+    let k = 'u_' + base, n = 2; while (labLista(coord).some(a => a.k === k) || (LAB[coord] || []).some(a => a.k === k)) k = 'u_' + base + '_' + n++;
+    const id = `lab.${coord}.${k}`, mn = $('#na-min').value, mx = $('#na-max').value;
+    CFG.labNovas = [...(CFG.labNovas || []), { coord, k, rot, un: $('#na-un').value.trim(), dec: Math.max(0, Math.min(3, +$('#na-dec').value || 0)), per: Math.max(1, +$('#na-per').value || 1) }];
+    CFG.limitesLab = { ...CFG.limitesLab, [id]: { min: mn === '' ? '' : +mn, max: mx === '' ? '' : +mx } };
+    CFG.labCfg = { ...CFG.labCfg, [id]: { tela: $('#na-tela').checked, corrente: $('#na-cor').value } };
+    UI.labNovas = CFG.labNovas; UI.labRemovidas = CFG.labRemovidas; reabrirLab();
   };
   $('[data-act="mm-add"]').onclick = () => { const tb = $('#mm-tab tbody'); const tr = document.createElement('tr'); tr.innerHTML = '<td><input class="in" data-mm-k placeholder="ex.: ICPMe"></td><td><input class="in" type="number" step="any" data-mm-v></td><td><button class="btn sm lnk" data-mm-rm>Remover</button></td>'; tb.appendChild(tr); $('[data-mm-rm]', tr).onclick = () => tr.remove(); $('[data-mm-k]', tr).focus(); };
   $$('[data-mm-rm]').forEach(b => b.onclick = () => b.closest('tr').remove());

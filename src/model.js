@@ -91,6 +91,8 @@ const LAB = {
     { k: 'tog_agua', rot: 'TOG da água produzida', un: 'mg/L', dec: 0, per: 1 },
     { k: 'h2s_gas', rot: 'H₂S no gás combustível', un: 'ppm', dec: 0, per: 7 },
     { k: 'so4_urs', curto: 'Sulfato na água da URS', rot: 'Sulfato na água dessulfatada (URS)', un: 'mg/L', dec: 0, per: 1 },
+    { k: 'o2_inj', curto: 'O₂ dissolvido · água de injeção', rot: 'Oxigênio dissolvido na água de injeção', un: 'ppb', dec: 0, per: 1 },   // D-65: enquadramento da água injetada
+    { k: 'h2o_gas', curto: 'Água no gás de injeção', rot: 'Teor de água no gás de injeção', un: 'ppmv', dec: 0, per: 1 },             // D-65: enquadramento do gás injetado
   ],
   COEMB: [
     { k: 'bsw_tq', rot: 'BSW dos tanques de carga', un: '%', dec: 2, per: 1 },
@@ -107,19 +109,47 @@ const LAB = {
     { k: 'cond_dess', curto: 'Condutividade · água dessalinizada', rot: 'Condutividade da água dessalinizada', un: 'µS/cm', dec: 0, per: 1 },
   ],
 };
-for (const [coord, ans] of Object.entries(LAB)) for (const a of ans) {
-  CAMPOS.push({ id: `lab.${coord}.${a.k}`, coord, grupo: LAB_GRUPO, rot: a.rot, tipo: a.tipo || 'num', un: a.un, dec: a.dec, lab: a });
-  CAMPOS.push({ id: `lab.${coord}.${a.k}.data`, coord, grupo: LAB_GRUPO, rot: a.rot + ' · data do resultado', tipo: 'data', lab: a, labData: true });
+var CAMPO_PRONTO = null;   // vira o mapa CAMPO depois de montado (evita acessar a const antes da declaração)
+function registrarCampoLab(coord, a) {
+  const id = `lab.${coord}.${a.k}`;
+  if (CAMPO_PRONTO ? CAMPO_PRONTO[id] : CAMPOS.some(c => c.id === id)) return;
+  const c1 = { id, coord, grupo: LAB_GRUPO, rot: a.rot, tipo: a.tipo || 'num', un: a.un, dec: a.dec, lab: a }, c2 = { id: id + '.data', coord, grupo: LAB_GRUPO, rot: a.rot + ' · data do resultado', tipo: 'data', lab: a, labData: true };
+  CAMPOS.push(c1, c2); if (CAMPO_PRONTO) { CAMPO_PRONTO[c1.id] = c1; CAMPO_PRONTO[c2.id] = c2; }
 }
+for (const [coord, ans] of Object.entries(LAB)) for (const a of ans) registrarCampoLab(coord, a);
+/* D-65 · análises configuráveis por UEP (Configuração › Limites de especificação):
+   CFG.labNovas = [{ coord, k, rot, un, dec, per }] (incluídas), CFG.labRemovidas = [ids] (excluídas da lista-base),
+   CFG.labCfg = { [id]: { tela: bool (aparece no card da coordenação), corrente: '' | 'oleo' | 'gas' | 'agua' (entra no enquadramento) } } */
+const CORRENTES = { oleo: 'Óleo', gas: 'Gás injetado', agua: 'Água injetada' };
+function labLista(coord) {
+  const rem = new Set(CFG.labRemovidas || []), novas = (CFG.labNovas || []).filter(a => a.coord === coord && a.k);
+  for (const a of novas) registrarCampoLab(coord, a);
+  return [...(LAB[coord] || []), ...novas.filter(n => !(LAB[coord] || []).some(b => b.k === n.k))].filter(a => !rem.has(`lab.${coord}.${a.k}`));
+}
+const labAtiva = id => { const [, coord, k] = id.split('.'); return labLista(coord).some(a => a.k === k); };
+const labOpc = id => Object.assign({ tela: true, corrente: '' }, (CFG.labCfg || {})[id] || {});
 /* resultado, data e atraso de cada análise da coordenação (atrasada = intervalo desde o resultado maior que a periodicidade) */
 function labDe(E, coord, hojeIso = (typeof DIA !== 'undefined' ? DIA : isoData(new Date()))) {
-  return (LAB[coord] || []).map(a => {
+  return labLista(coord).map(a => {
     const id = `lab.${coord}.${a.k}`, v = E.valores[id], d = E.valores[id + '.data'];
     const valor = v ? v.valor : null, data = d && /^\d{4}-\d{2}-\d{2}$/.test(d.valor || '') ? d.valor : null;
     const dias = data ? diffDias(hojeIso, data) : null;
     const lim = (CFG.limitesLab || {})[id] || {}, r = labSem(valor === '' ? null : valor, lim, a.tipo, a.dec);
-    return { ...a, id, valor: valor === '' ? null : valor, data, dias, atrasada: dias !== null && dias > a.per, origem: v?.origem || null, fonte: v?.fonte || '', em: v?.em || null, lim, sem: r.sem, limTxt: r.txt };
+    const o = labOpc(id);
+    return { ...a, id, coord, valor: valor === '' ? null : valor, data, dias, atrasada: dias !== null && dias > a.per, origem: v?.origem || null, fonte: v?.fonte || '', em: v?.em || null, lim, sem: r.sem, limTxt: r.txt, tela: o.tela !== false, corrente: o.corrente || '' };
   });
+}
+/* D-65 · enquadramento da corrente (óleo, gás injetado, água injetada) = soma das análises marcadas para a corrente:
+   uma fora da especificação → Desenquadrado; perto do limite, sem resultado ou com resultado atrasado → Atenção; todas dentro → Enquadrado.
+   Análise sem limite definido não decide (fica listada como "sem limite"). */
+const ENQ_ROT = { ok: 'Enquadrado', at: 'Atenção', nok: 'Desenquadrado', sd: 'Sem análise' };
+function enquadramento(E, corrente, hoje = (typeof DIA !== 'undefined' ? DIA : isoData(new Date()))) {
+  const itens = Object.keys(LAB).concat((CFG.labNovas || []).map(a => a.coord)).filter((c, i, a) => a.indexOf(c) === i).flatMap(c => labDe(E, c, hoje)).filter(a => a.corrente === corrente);
+  const st = a => a.sem === null ? null : a.sem === 'nok' ? 'nok' : (a.sem === 'at' || a.sem === 'sd' || a.valor === null || a.atrasada) ? 'at' : 'ok';
+  const sts = itens.map(st).filter(Boolean);
+  const sem = !sts.length ? 'sd' : sts.includes('nok') ? 'nok' : sts.includes('at') ? 'at' : 'ok';
+  const motivo = a => a.sem === 'nok' ? 'fora da especificação' : a.valor === null ? 'sem resultado' : a.atrasada ? `resultado atrasado (${a.dias} d)` : a.sem === 'at' ? 'perto do limite' : a.sem === null ? 'sem limite' : 'dentro';
+  return { corrente, nome: CORRENTES[corrente], sem, rot: ENQ_ROT[sem], itens: itens.map(a => ({ ...a, st: st(a), motivo: motivo(a) })) };
 }
 /* D-61 (proposta 13): semáforo por faixa de especificação. Limites por parâmetro ficam na configuração da UEP (CFG.limitesLab),
    não no código; sem limite informado, não há semáforo (só a data). Atenção = dentro do limite, mas a menos de 10% da faixa dele. */
@@ -152,6 +182,7 @@ function equipDe(E, conj) {
   return e.grupos.map(([g]) => ({ grupo: g, itens: e.itens.filter(i => i.grupo === g).map(i => ({ ...i, status: E.valores[i.id]?.valor || '' })) }));
 }
 const CAMPO = Object.fromEntries(CAMPOS.map(c => [c.id, c]));
+CAMPO_PRONTO = CAMPO;
 
 /* ---- campos de lista (substituídos inteiros a cada edição) ---- */
 /* D-62 (proposta 1): classificação dos eventos de segurança de processo (API RP 754). Tier 1/2 = perda de contenção com consequência;
@@ -607,6 +638,21 @@ const APLAT_EXEMPLO_NOVAS = {
   COEMB: [['Inspeção da estação de offloading de popa', 'Offloading · PT [nº] · [horário]']],
   COMAN: [['Troca de filtros do TG-B', 'Geração principal · PT [nº] · [horário]']],
 };
+/* D-65 · valores dos dias anteriores, determinísticos pela data: o exemplo do dia e o histórico de 15 dias geram exatamente
+   os mesmos números para a mesma data (gravar os dois não cria versões diferentes do mesmo dia) */
+const numDia = dia => Math.round(parseData(dia).getTime() / 86400000);
+function valoresTendDia(dia) {
+  const n = numDia(dia);
+  return { 'oleo.real': Math.round(26400 + 420 * Math.sin(n * 1.3) + (n % 11 === 4 ? -1800 : 0)), 'iuga.real': +(97.4 + 0.5 * Math.cos(n * 0.9)).toFixed(2), 'gas.real': Math.round(5100 + 250 * Math.sin(n * 0.8)), 'agua.real': Math.round(17350 + 180 * Math.cos(n * 1.1)) };
+}
+function gasQueimaDia(dia) { const x = parseData(dia).getDate(), gas = Math.round(4185000 + 60000 * Math.sin(x * 1.7)), iu = 97.62 + 0.35 * Math.sin(x * 2.3); return { 'gas.prod_d1': gas, 'queima.real_d1': Math.round(gas * (1 - iu / 100)) }; }
+function listasDia(dia) {
+  const x = parseData(dia).getDate(), q = 28 + 6 * Math.sin(x * 1.7), extra = x % 11 === 0 ? 60 : x % 7 === 0 ? 18 : 0;
+  return {
+    causas: [{ causa: 'Gás de assistência e purga', valor: Math.round(q), evitavel: 'não', classe: 'Rotina', equipamento: '' }, ...(extra ? [{ causa: 'Parada de compressor', valor: extra, evitavel: 'sim', classe: 'Extraordinária', equipamento: x % 11 === 0 ? 'TC-A' : 'FGRU A' }] : [])],
+    perda: [...(x % 4 === 0 ? [{ causa: 'Parada de compressor', sistema: 'Planta de processo', volume: 900, obs: '' }] : []), ...(x % 6 === 0 ? [{ causa: 'Teste de produção', sistema: 'Poços e subsea', volume: 400, obs: '' }] : []), ...(x % 9 === 0 ? [{ causa: 'Offloading · redução de vazão', sistema: 'Escoamento / offloading', volume: 300, obs: '' }] : [])],
+  };
+}
 /* monta os registros de exemplo do dia (sem gravar); também serve de origem simulada para a captura (D-52) */
 function montarExemplo(iso) {
   const D1 = addDias(iso, -1), D2 = addDias(iso, -2);
@@ -651,9 +697,9 @@ function montarExemplo(iso) {
   { // gás produzido D-1 e queima D-1 (SITOP) de cada REDIA do mês; o sistema soma (D-43)
     const hoje = parseData(iso).getDate();
     for (let x = 2; x <= hoje; x++) {
-      const dia = iso.slice(0, 8) + pad(x), gas = Math.round(4185000 + 60000 * Math.sin(x * 1.7));
-      const iu = x === hoje ? 96.35 : 97.62 + 0.35 * Math.sin(x * 2.3), sit = `SITOP ${ddmm(dia)} 00:37`;
-      for (const [campo, valor] of [['gas.prod_d1', gas], ['queima.real_d1', Math.round(gas * (1 - iu / 100))]]) { const r = mk('valor', { campo, valor, origem: 'A', fonte: sit, exemplo: true }); r.data = dia; regs.push(r); }
+      const dia = iso.slice(0, 8) + pad(x), gq = gasQueimaDia(dia), sit = `SITOP ${ddmm(dia)} 00:37`;
+      if (x === hoje) gq['queima.real_d1'] = Math.round(gq['gas.prod_d1'] * (1 - 96.35 / 100));   // a REDIA de hoje traz o IUGA D-1 do dia (96,35%)
+      for (const [campo, valor] of Object.entries(gq)) { const r = mk('valor', { campo, valor, origem: 'A', fonte: sit, exemplo: true }); r.data = dia; regs.push(r); }
     }
     val('iuga.gas_prod_proj', 4200000, 'A', 'SITOP 00:37'); }
   lst('cilindros', [
@@ -675,18 +721,15 @@ function montarExemplo(iso) {
   lst('oleo.deferimento', [{ causa: 'Injection A indisponível · restrição de gas lift', sistema: 'Planta de processo', volume: 620, obs: 'Até o retorno da Injection A' }, { causa: 'BUZ-130 fechado para teste', sistema: 'Poços e subsea', volume: 380, obs: 'Teste de produção' }, { causa: 'Limitação do TC-A após a partida', sistema: 'Planta de processo', volume: 150, obs: '' }], 'A', 'BDO D-1 03:41');   // D-63 (proposta 8)
   { // D-61: tendência de 7 dias (REDIAs de D-6 a D-1, cada uma com o realizado do dia anterior) e queima por classe nas REDIAs anteriores do mês
     const ant = (dia, campo, valor, fonte) => { const r = mk('valor', { campo, valor, origem: 'A', fonte, exemplo: true }); r.data = dia; regs.push(r); };
-    for (let k = 29; k >= 1; k--) {   // 30 dias (visão semanal, D-63); os últimos 7 alimentam a abertura
+    for (let k = 29; k >= 1; k--) {   // 30 dias (visão semanal, D-63); os últimos 7 alimentam a abertura · valores por data (D-65)
       const dia = addDias(iso, -k), f = `BDO D-1 · REDIA ${ddmm(dia)}`;
-      ant(dia, 'oleo.real', Math.round(26400 + 420 * Math.sin(k * 1.3) + (k === 3 ? -1800 : 0)), f);   // queda no D-4 (parada curta)
-      ant(dia, 'iuga.real', +(97.4 + 0.5 * Math.cos(k * 0.9) - (k === 1 ? 0.9 : 0)).toFixed(2), f);
-      ant(dia, 'gas.real', Math.round(5100 + 250 * Math.sin(k * 0.8) - (k <= 2 ? 1200 : 0)), f);   // Injection A fora desde D-3
-      ant(dia, 'agua.real', Math.round(17350 + 180 * Math.cos(k * 1.1)), f);
+      for (const [campo, valor] of Object.entries(valoresTendDia(dia))) ant(dia, campo, valor, f);
     }
     const hoje = parseData(iso).getDate();
     for (let x = 1; x < hoje; x++) {
-      const dia = iso.slice(0, 8) + pad(x), q = 28 + 6 * Math.sin(x * 1.7), extra = x % 5 === 0 ? 60 : x % 3 === 0 ? 18 : 0;
-      const r = mk('lista', { campo: 'queima.causas', itens: [{ causa: 'Gás de assistência e purga', valor: Math.round(q), evitavel: 'não', classe: 'Rotina', equipamento: '' }, ...(extra ? [{ causa: 'Parada de compressor', valor: extra, evitavel: 'sim', classe: 'Extraordinária', equipamento: x % 5 === 0 ? 'TC-A' : 'FGRU A' }] : [])], origem: 'A', fonte: `SITOP ${ddmm(dia)} 00:37`, exemplo: true }); r.data = dia; regs.push(r);
-      const df = mk('lista', { campo: 'oleo.deferimento', itens: [...(x % 4 === 0 ? [{ causa: 'Parada de compressor', sistema: 'Planta de processo', volume: 900, obs: '' }] : []), ...(x % 6 === 0 ? [{ causa: 'Teste de produção', sistema: 'Poços e subsea', volume: 400, obs: '' }] : []), ...(x % 9 === 0 ? [{ causa: 'Offloading · redução de vazão', sistema: 'Escoamento / offloading', volume: 300, obs: '' }] : [])], origem: 'A', fonte: `BDO ${ddmm(dia)}`, exemplo: true }); if (df.payload.itens.length) { df.data = dia; regs.push(df); }   // D-63 (proposta 8): Pareto do mês
+      const dia = iso.slice(0, 8) + pad(x), ls = listasDia(dia);
+      const r = mk('lista', { campo: 'queima.causas', itens: ls.causas, origem: 'A', fonte: `SITOP ${ddmm(dia)} 00:37`, exemplo: true }); r.data = dia; regs.push(r);
+      const df = mk('lista', { campo: 'oleo.deferimento', itens: ls.perda, origem: 'A', fonte: `BDO ${ddmm(dia)}`, exemplo: true }); if (df.payload.itens.length) { df.data = dia; regs.push(df); }   // D-63 (proposta 8): Pareto do mês
     }
   }
   /* status dos equipamentos (D-53): o da passagem de serviço das 06:00; CO2 B fica sem informação para mostrar o alerta da captura */
@@ -919,13 +962,86 @@ function montarExemplo(iso) {
 
   // Resultados de análises (eplab) · exemplo com uma análise atrasada por coordenação e algumas sem resultado na origem
   const lab = (coord, k, valor, diasAtras, hora = '05:10') => { val(`lab.${coord}.${k}`, valor, 'A', `eplab ${hora}`); val(`lab.${coord}.${k}.data`, addDias(iso, -diasAtras), 'A', `eplab ${hora}`); };
-  lab('COPROD', 'bsw_oleo', 0.25, 1); lab('COPROD', 'sal_oleo', 57, 1); lab('COPROD', 'tog_agua', 18, 1); lab('COPROD', 'h2s_gas', 4, 11); lab('COPROD', 'so4_urs', 38, 1);
+  lab('COPROD', 'bsw_oleo', 0.25, 1); lab('COPROD', 'sal_oleo', 57, 1); lab('COPROD', 'tog_agua', 18, 1); lab('COPROD', 'h2s_gas', 4, 11); lab('COPROD', 'so4_urs', 28, 1); lab('COPROD', 'o2_inj', 12, 1); lab('COPROD', 'h2o_gas', 45, 1);
   lab('COEMB', 'bsw_tq', 0.40, 1); lab('COEMB', 'tog_slop', 22, 1); lab('COEMB', 'cl_pot', 0.8, 1); lab('COEMB', 'turb_pot', 0.6, 9);
   lab('COMAN', 'visc_tg', 30.8, 12); lab('COMAN', 'agua_tg', 85, 12); lab('COMAN', 'ph_resf', 8.2, 10); lab('COMAN', 'cond_dess', 410, 1);
   return regs;
 }
+/* D-65 · histórico de REDIAs: monta os dias D-n a D-1 como REDIAs completas e encerradas (dados, listas, sugestões dos
+   supervisores e decisões da curadoria, ameaças, demandas do Canal Base x Bordo, decisões/aprendizados/tempos da reunião,
+   pauta congelada às 08:40 e ata fechada), para que tendências, recorrência, visão semanal, histórico e arquivo tenham base.
+   Tudo marcado como exemplo (payload.exemplo e payload.historico). */
+const HIST_SUG = {   // 8 por coordenação; só a passagem das 06:00 dos dias pares leva TAG: no histórico de 15 dias cada TAG aparece 1 ou 2 vezes (a recorrência fica para os casos do exemplo)
+  COPROD: [['FGRU A desarmou por alta temperatura', 'FGRU A', 'Queima'], ['BSW elevado no BUZ-095 após reabertura', 'BUZ-095', 'Produção'], ['Oscilação de nível no separador de teste', 'LIT-1223007', 'Produção'], ['TC-A partiu após trip por vibração', 'TC-A', 'Queima'], ['Dosagem de anti-incrustante ajustada no BUZ-074', 'BUZ-074', 'Produção'], ['Alarme de alta pressão no vaso de flare', 'PIT-5410001', 'Queima'], ['Troca de filtro da injeção de água', 'F-1251001', 'Injeção'], ['Main C em stand-by após teste', 'Main C', 'Injeção']],
+  COEMB: [['Água potável em queda com a UD-5122501C fora', 'UD-5122501C', 'Utilidades'], ['Conexão do offloading adiada pelo mar', 'Estação de offloading', 'Escoamento'], ['Sensor de calado inoperante', 'XT-55206001', 'Segurança'], ['Drenagem do TQ-3C para o slop', 'TQ-3C', 'Escoamento'], ['Gerador de gás inerte B no diesel', 'GGI B', 'Utilidades'], ['Inspeção do mangote de proa', 'Mangote de proa', 'Escoamento'], ['Bomba de lastro 2 com vibração', 'B-5320002', 'Integridade'], ['Teste do sistema de amarração', 'Amarração', 'Integridade']],
+  COMAN: [['Eletrocloradora de vante em falha', 'UE-5121501', 'Integridade'], ['HVAC do M22 inoperante', 'AC-5252003A', 'Habitabilidade'], ['WHRU do TG-C restringido', 'TG-C', 'Utilidades'], ['Compressor de ar C em manutenção', 'UC-5134501C', 'Utilidades'], ['Inversor da bomba de incêndio B com alarme', 'P-5411002B', 'Segurança'], ['Iluminação de emergência do M-14 em falha', 'M-14', 'Segurança'], ['Troca de óleo do TG-A', 'TG-A', 'Utilidades'], ['Detector de gás do M-10 em falha', 'GD-5243012', 'Segurança']],
+  GEPLAT: [['PT de espaço confinado no TQ-4S', '', 'Segurança'], ['Voo de troca de turma confirmado', '', 'Logística'], ['Simulado de abandono realizado', '', 'Segurança'], ['Atendimento ambulatorial sem afastamento', '', 'Saúde'], ['Auditoria interna de SMS programada', '', 'Segurança']],
+};
+const HIST_DEM = [['Peças para a FGRU A', 'bordo → base', '4º COPROD', 'COPROD'], ['Programação do próximo alívio', 'base → bordo', 'COEMB de bordo', 'COEMB'], ['Kit de vedação da dessalinizadora', 'bordo → base', '4º COMAN', 'COMAN'], ['Janela da embarcação para o BUZ-047', 'base → bordo', 'COPROD de bordo', 'COPROD'], ['Laudo da amostra de óleo diesel', 'bordo → base', '4º COEMB', 'COEMB']];
+const HIST_DEC = ['Manter a FGRU A fora até a troca do selo', 'Antecipar o teste de vazão do BUZ-112', 'Priorizar a dessalinizadora C na manutenção', 'Reduzir a vazão do BUZ-095 até estabilizar o BSW', 'Adiar a conexão do offloading para a janela da tarde'];
+const HIST_APZ = ['Confirmar a janela do navio antes de programar o offloading', 'Registrar a queima estimada antes de cada partida de compressor', 'Checar o estoque de químicos antes do fim de semana'];
+function montarHistorico(iso, dias = 15) {
+  const regs = [], autor = c => ({ nome: (c || 'GEPLAT') + ' (exemplo)', chave: '', papel: c || 'GEPLAT' });
+  const mk = (tipo, dia, hora, payload, extra = {}) => ({ v: 1, id: uid(), tipo, data: dia, uep: CFG.uep, criadoEm: `${dia}T${hora}:00.000Z`, gravadoEm: carimbo(), autor: autor(payload.coord), payload: { ...payload, exemplo: true, historico: true }, ...extra });
+  for (let k = dias; k >= 1; k--) {
+    const dia = addDias(iso, -k), n = numDia(dia), f = `BDO D-1 · REDIA ${ddmm(dia)}`, sit = `SITOP ${ddmm(dia)} 00:37`;
+    // dados e listas (mesmos números do exemplo para a mesma data)
+    for (const [campo, valor] of Object.entries(valoresTendDia(dia))) regs.push(mk('valor', dia, '06:41', { campo, valor, origem: 'A', fonte: f }));
+    for (const [campo, valor] of Object.entries(gasQueimaDia(dia))) regs.push(mk('valor', dia, '06:42', { campo, valor, origem: 'A', fonte: sit }));
+    for (const [campo, valor] of [['oleo.potencial', 26869], ['iuga.meta', 97], ['gas.meta', 5500], ['agua.meta', 17400], ['pob.atual', 176 + (n % 12)], ['pob.max', 190], ['off.estoque', 60000 + ((n * 27135) % 140000)]]) regs.push(mk('valor', dia, '06:43', { campo, valor, origem: 'A', fonte: sit }));
+    const ls = listasDia(dia);
+    regs.push(mk('lista', dia, '06:44', { campo: 'queima.causas', itens: ls.causas, origem: 'A', fonte: sit }));
+    if (ls.perda.length) regs.push(mk('lista', dia, '06:44', { campo: 'oleo.deferimento', itens: ls.perda, origem: 'A', fonte: `BDO ${ddmm(dia)}` }));
+    // passagens de serviço (06:00 e 18:00 da véspera) e curadoria
+    for (const [coord, pool] of Object.entries(HIST_SUG)) for (let j = 0; j < (n % 2 ? 2 : 1); j++) {
+      const [titulo, tag0, impacto] = pool[(n * 3 + j * 5) % pool.length], tag = j || n % 2 ? '' : tag0, pas = j ? '18:00' : '06:00';
+      const sg = mk('sugestao', dia, j ? '07:02' : '07:01', { coord, passagem: pas, turno: j ? 'diurno' : 'noturno', dataPassagem: j ? addDias(dia, -1) : dia, prioridade: j ? 'media' : 'alta', origem: coord === 'GEPLAT' ? 'Téc. segurança → GEPLAT' : 'Supervisor', titulo, textoOriginal: titulo + '.', tag, categoria: 'Falha / degradação', status: 'Atenção', impacto });
+      sg.autor = { nome: 'Supervisor (exemplo)', chave: '', papel: 'supervisor' }; regs.push(sg);
+      const recusa = j === 1 && n % 3 === 0;
+      regs.push(mk('decisao', dia, '07:45', recusa ? { coord, alvo: sg.id, acao: 'recusar', motivo: 'Já tratado na passagem anterior' } : { coord, alvo: sg.id, acao: 'aprovar', titulo, tag, status: 'Atenção', impacto, semaforo: j ? 'at' : (n % 4 === 0 ? 'nok' : 'at'), abertura: j === 0 }));
+    }
+    for (const coord of ['COPROD', 'COEMB', 'COMAN']) { const [t] = HIST_SUG[coord][(n * 3) % HIST_SUG[coord].length]; regs.push(mk('item', dia, '07:50', { coord, tipo: 'ameaca', texto: t, semaforo: 'at', ordem: 1 })); }
+    for (const coord of COORDS) regs.push(mk('conclusao', dia, '08:05', { coord, concluido: true }));
+    // Canal Base x Bordo: uma demanda a cada 2 dias; as antigas fechadas (no prazo ou com atraso)
+    if (n % 2 === 0) {
+      const [titulo, sentido, responsavel, coord] = HIST_DEM[(n / 2) % HIST_DEM.length | 0], prazo = addDias(dia, 3);
+      const d = mk('demanda', dia, '09:30', { titulo, sentido, responsavel, prazo, origem: 'C', coord, dataRedia: dia, status: 'aberta' }, { escopo: 'demandas' }); regs.push(d);
+      if (k > 5) { const fim = addDias(dia, n % 4 === 0 ? 2 : 5); regs.push(mk('atualiza', fim, '10:00', { coord, alvo: d.id, campos: { status: 'encerrada', statusEm: `${fim}T13:00:00.000Z` } }, { escopo: 'demandas' })); }
+    }
+    // reunião: tempos medidos por bloco, decisão e aprendizado
+    let ini = Date.parse(`${dia}T11:45:00.000Z`);
+    for (let b = 1; b <= 5; b++) { const seg = 250 + ((n * 37 + b * 53) % 140); regs.push(mk('reuniao', dia, '12:' + pad(5 + b * 8), { tipo: 'tempo', bloco: b, inicio: new Date(ini).toISOString(), fim: new Date(ini + seg * 1000).toISOString(), segundos: seg, timebox: CFG.timeboxMin * 60 })); ini += seg * 1000; }
+    const dec = HIST_DEC[n % HIST_DEC.length];
+    regs.push(mk('reuniao', dia, '12:40', { tipo: 'decisao', texto: dec, por: 'GEOP', coord: 'GEPLAT' }));
+    if (n % 3 === 0) regs.push(mk('reuniao', dia, '12:41', { tipo: 'aprendizado', texto: HIST_APZ[n % HIST_APZ.length] }));
+    // pauta congelada às 08:40 e ata fechada (PDF gerado sob demanda na área Arquivo)
+    regs.push(mk('congelamento', dia, '11:40', { coord: 'GEPLAT', snapshot: {}, hash: hash(dia + CFG.uep), semConclusao: [] }));
+    regs.push(mk('ata', dia, '13:05', { coord: 'GEPLAT', participantes: ['GEPLAT de bordo', 'COPROD de bordo', 'COEMB de bordo', 'COMAN de bordo', 'GEOP (base)', '4º COPROD (base)'], observacoes: dec + '.', formato: 'pdf', paginas: null, telas: null }));
+  }
+  return regs;
+}
+/* dias já encerrados ou congelados na base: o histórico não grava neles (não sobrescreve REDIA real nem duplica um histórico já gravado) */
+async function diasFechados() {
+  const arq = await Store.arquivo(), por = {};
+  for (const r of arq.slice().reverse()) { const d = (por[r.data] ||= { ata: false, cong: false }); if (r.tipo === 'ata') d.ata = true; else d.cong = r.tipo === 'congelamento'; }
+  return new Set(Object.entries(por).filter(([, d]) => d.ata || d.cong).map(([dia]) => dia));
+}
+function filtrarDias(regs, fechados) {
+  const diaDe = r => r.escopo === 'demandas' ? (r.payload.dataRedia || r.data) : r.data, encerra = r => r.tipo === 'atualiza' && r.escopo === 'demandas';
+  const out = regs.filter(r => !encerra(r) && !fechados.has(diaDe(r))), ids = new Set(out.map(r => r.id));
+  return [...out, ...regs.filter(r => encerra(r) && ids.has(r.payload.alvo))];
+}
+async function gravarHistorico(iso, dias = 15) {
+  const fechados = await diasFechados(), regs = filtrarDias(montarHistorico(iso, dias), fechados);
+  const n = regs.length ? await Store.gravarLote(regs) : 0;
+  return { n, dias: new Set(regs.filter(r => r.escopo !== 'demandas').map(r => r.data)).size, pulados: [...fechados].filter(d => d < iso && d >= addDias(iso, -dias)).length };
+}
 async function carregarExemplo(iso) {
-  const regs = montarExemplo(iso);
+  const ex = montarExemplo(iso), hist = montarHistorico(iso, 15);
+  const chave = r => (r.tipo === 'valor' || r.tipo === 'lista') ? r.data + '|' + r.tipo + '|' + r.payload.campo : null;
+  const vistos = new Set(ex.map(chave).filter(Boolean));
+  const fechados = await diasFechados();
+  const regs = filtrarDias([...ex, ...hist.filter(r => { const k = chave(r); return !k || !vistos.has(k); })], fechados);
   await Store.gravarLote(regs);   // na nuvem: em lotes, numa ida só por lote
   return regs.length;
 }

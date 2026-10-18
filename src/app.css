@@ -563,7 +563,7 @@ table.tb tr.sel td{background:#FFF7DA}
 .stage .gl .ic{display:block}
 .stage .dtiles.dt-in .dtile.s-ok{box-shadow:inset 6px 0 0 var(--verde)}.stage .dtiles.dt-in .dtile.s-at{box-shadow:inset 6px 0 0 var(--amarelo)}.stage .dtiles.dt-in .dtile.s-nok{box-shadow:inset 6px 0 0 var(--vermelho)}
 /* D-47 · offloading na abertura e card Queima projetada */
-.stage .r1{grid-template-columns:minmax(0,1.5fr) minmax(0,3.0fr) minmax(0,.45fr) minmax(0,1.05fr)}   /* D-62: coluna de segurança de processo no card dos contadores */
+.stage .r1{grid-template-columns:minmax(0,1.33fr) minmax(0,2.85fr) minmax(0,.55fr) minmax(0,1.27fr)}   /* D-62: coluna de segurança de processo no card dos contadores */
 .stage .offa{gap:6px}
 .stage .tq2{height:14px;border-radius:7px;background:rgba(117,120,123,.18);overflow:hidden}
 .stage .tq2>div{height:100%;background:var(--verde);border-radius:7px 0 0 7px}
@@ -620,7 +620,7 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .stage .anv .u{font-size:15px;font-weight:600;color:var(--cinza)}
 .stage .dt0{font-size:15px;color:var(--cinza);font-variant-numeric:tabular-nums;min-width:46px;text-align:right}
 .stage .o.at.dt{display:inline-flex;flex-direction:row;white-space:nowrap;background:rgba(253,200,47,.55);border-radius:999px;padding:4px 9px 4px 6px;font-variant-numeric:tabular-nums}
-.stage .tbl.lab{grid-template-columns:minmax(0,1.6fr) auto auto auto auto auto minmax(0,.9fr);column-gap:22px}
+.stage .tbl.lab{grid-template-columns:minmax(0,1.6fr) auto auto auto auto auto auto minmax(0,.8fr);column-gap:18px}
 .stage .tbl.lab .u{color:var(--cinza);font-size:16px}
 .stage .tbl.cnl{grid-template-columns:minmax(0,1fr) auto minmax(0,.5fr) auto;column-gap:18px}
 
@@ -729,3 +729,21 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .stage .sem-r .spk .spk-t{flex:none;width:100%}
 .stage .sem-r .tiles .tile span,.stage .scr .tiles.sem .tile span{font-size:17px}
 .stage .sem-r .t1{font-size:22px;font-weight:700}
+/* ---- D-65 · enquadramento, POB, offloading e janela de mar ---- */
+.stage .enq{display:flex;align-items:center;min-width:0;padding:3px 0 2px}
+.stage .enq-t{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16px}
+.stage .enq-t b{flex:none}
+.stage .enq-p{color:var(--cinza);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.stage .enq.s-nok .enq-t b{color:var(--vermelho)}
+.stage .o.fte{font-size:12px;padding:3px 6px;font-weight:600}
+.stage .offa .gh,.stage .pobc .gh{white-space:nowrap;letter-spacing:.02em}
+.stage .pobc .tq2.pob>div{background:var(--verde)}.stage .pobc .tq2.pob.s-at>div{background:var(--amarelo)}.stage .pobc .tq2.pob.s-nok>div{background:var(--vermelho)}
+.stage .pobc .tq2,.stage .offa .tq2{height:10px}
+.stage .mto{display:inline-flex;align-items:center;gap:6px;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.stage .mto.s-nok b{color:var(--vermelho)}
+.stage .offa .row-sb.cap{gap:10px}
+.stage .o.an-st{font-size:13px;padding:3px 7px;margin-right:4px}.stage .o.an-st.nok{background:var(--vermelho);color:#fff}.stage .o.an-st.at{background:rgba(253,200,47,.6)}
+.stage .r2 .cps .w{font-size:16px;padding:5px 10px 5px 7px}
+.stage .r2 .enq{padding:0}
+.stage .offa .ocup{font-size:16px}
+.stage .pobc .cap{line-height:1.15}

@@ -1,5 +1,15 @@
 # Histórico de versões
 
+## 1.10.0 · D-65 (2026-10-17)
+
+- **POB e Offloading (abertura):** leitura revista. POB com número grande, barra de ocupação (Atenção a partir de 95%, Não OK acima da capacidade), "a bordo de N" e vagas; fonte em etiqueta própria no cabeçalho. Offloading com título "Offloading · TOP previsto", data e navio na mesma linha (navio "a confirmar" quando não confirmado), barra do tanque e legenda "Ocupado X (%) · Livre Y m³".
+- **Enquadramento por corrente:** os cards Produção (óleo), Injeção de gás e Injeção de água mostram uma linha "Enquadramento" com semáforo e texto: *Desenquadrado* se alguma análise da corrente está fora da especificação; *Atenção* se está perto do limite, sem resultado ou atrasada; *Enquadrado* se todas estão dentro; os parâmetros que entram aparecem na linha (detalhes no título).
+- **Análises (eplab) na Configuração:** tabela com limites, caixa **Na tela** (vai ou não para o card Resultados de Análises da coordenação) e **Enquadramento** (não entra, óleo, gás injetado ou água injetada) por análise; **Incluir análise** (coordenação, nome, unidade, casas, periodicidade, limites, corrente) e **Excluir/Reincluir** análises. A análise incluída ganha campo em Dados automáticos. Novas análises-base de exemplo: O₂ dissolvido na água de injeção e água no gás de injeção (limites PREMISSA).
+- **Semáforos com texto:** a janela meteo-oceanográfica passa a dizer "Mar dentro da janela / perto do limite / fora da janela" e o parâmetro mais próximo do limite (ex.: "Hs 1,8/2,5 m"); a coluna Segurança de processo ganha a palavra de status e as contagens; análises fora/perto do limite mostram "Fora"/"Limite"; chips de sistemas auxiliares e de segurança com o status no título.
+- **Histórico de 15 dias:** o exemplo passa a trazer 15 REDIAs encerradas antes do dia aberto (valores, listas, curadoria, demandas, tempos da reunião, pauta congelada e ata), para tendências, recorrência, visão semanal e Arquivo. Na nuvem, o administrador grava pelo botão **Gerar histórico de 15 dias** (Início); dias que já têm pauta congelada ou ata não são alterados.
+- **Arquivo:** tela nova no menu com uma linha por REDIA (pauta congelada, reaberturas, ata, participantes), filtro por mês, **Baixar PDF arquivado** (quando a ata foi arquivada com PDF), **Gerar PDF** (remonta a ata do dia) e **Abrir REDIA**.
+- Base: nova função `redia_arquivo`. **Reaplicar `supabase/00_instalar_tudo.sql`.**
+
 ## 1.9.1 · D-64 (2026-10-17)
 
 - **"Perda de produção"** no lugar de "Deferimento de produção" (rótulos da lista, do detalhe da COPROD e dos textos); o campo interno `oleo.deferimento` não muda.

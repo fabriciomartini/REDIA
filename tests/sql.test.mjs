@@ -107,6 +107,10 @@ const bus = (await como(U.cp, `select public.redia_buscar('P-83', 'fgru a', 50) 
 ok(Array.isArray(bus) && bus.some(r => r.tipo === 'sugestao' && r.data === '2026-09-20') && bus.every(r => r.uep === 'P-83'), 'redia_buscar encontra registros antigos por texto (TAG), só da UEP do usuário');
 ok((await como(U.cp, `select public.redia_buscar('P-83', 'f', 50) as r`)).rows[0].r.length === 0, 'redia_buscar ignora texto com menos de 2 caracteres');
 ok((await como(U.outra, `select public.redia_buscar('P-83', 'fgru', 50) as r`)).rows[0].r.length === 0, 'redia_buscar de outra UEP não vê os registros (RLS)');
+// D-65: arquivo das REDIAs (atas e congelamentos de todos os dias, sem o retrato da pauta)
+const arq = (await como(U.cp, `select public.redia_arquivo('P-83', 100) as r`)).rows[0].r;
+ok(Array.isArray(arq) && arq.length >= 2 && arq.every(r => ['ata', 'congelamento', 'reabertura'].includes(r.tipo)) && arq.every(r => !('snapshot' in r.payload)) && arq.every((r, i) => !i || arq[i - 1].data >= r.data), 'redia_arquivo lista congelamentos/reaberturas/atas por data, sem o retrato da pauta');
+ok((await como(U.outra, `select public.redia_arquivo('P-83', 100) as r`)).rows[0].r.length === 0, 'redia_arquivo de outra UEP não vê nada (RLS)');
 
 // configuração
 ok(/SEM_PERMISSAO/.test(await falha(U.cp, `select public.redia_config_salvar('P-83', '{"timeboxMin":6}'::jsonb)`) || ''), 'COPROD não altera a configuração da UEP');

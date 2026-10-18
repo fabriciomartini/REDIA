@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.9.1', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.10.0', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -75,11 +75,18 @@ const CFG_PADRAO = {
   temasPlataforma: ['Segurança', 'Saúde', 'Habitabilidade', 'Integridade', 'Conformidade', 'Auditorias', 'GDB', 'SL&R'],
   /* D-61 (proposta 24): metas dos indicadores de manutenção por UEP (linha de base), não fixas no código. Valores iniciais = exemplo (I-05). */
   metasManutencao: { ICPMe: 90, ICPMeIF6: 97, IARP: 95 },
+  /* D-65: análises incluídas/excluídas pela UEP e, por análise, se aparece no card da coordenação (tela) e em qual corrente entra no enquadramento */
+  labNovas: [], labRemovidas: [],
+  labCfg: {
+    'lab.COPROD.bsw_oleo': { corrente: 'oleo' }, 'lab.COPROD.sal_oleo': { corrente: 'oleo' },
+    'lab.COPROD.so4_urs': { corrente: 'agua' }, 'lab.COPROD.o2_inj': { corrente: 'agua', tela: false }, 'lab.COPROD.h2o_gas': { corrente: 'gas', tela: false },
+  },
   /* D-61 (proposta 13): limites de especificação das análises por parâmetro (vazio = sem semáforo, só a data).
      PREMISSA: referências públicas a confirmar pela coordenação — BSW/salinidade do óleo (especificação de exportação), TOG da água produzida
      (CONAMA 393, diário), TOG do slop (MARPOL), cloro e turbidez da água potável (portaria de potabilidade). */
   limitesLab: {
     'lab.COPROD.bsw_oleo': { max: 1 }, 'lab.COPROD.sal_oleo': { max: 570 }, 'lab.COPROD.tog_agua': { max: 42 },
+    'lab.COPROD.so4_urs': { max: 40 }, 'lab.COPROD.o2_inj': { max: 20 }, 'lab.COPROD.h2o_gas': { max: 60 },   // D-65 (PREMISSA: especificação de injeção a confirmar)
     'lab.COEMB.tog_slop': { max: 15 }, 'lab.COEMB.cl_pot': { min: 0.2, max: 5 }, 'lab.COEMB.turb_pot': { max: 5 },
   },
 };
@@ -216,6 +223,12 @@ const Store = {
     const tipos = new Set(['sugestao', 'item', 'demanda', 'servico', 'reuniao', 'decisao', 'valor', 'lista']);
     return [...this.cache.values()].filter(r => tipos.has(r.tipo) && JSON.stringify(r.payload).toLowerCase().includes(t)).sort((a, b) => String(b.data).localeCompare(String(a.data)) || ordem(b, a)).slice(0, limite);
   },
+  /* D-65: arquivo · atas, congelamentos e reaberturas de todos os dias (sem o retrato da pauta) */
+  async arquivo() {
+    if (this.modo === 'nuvem') return Nuvem.arquivo(CFG.uep);
+    return [...this.cache.values()].filter(r => r.escopo !== 'demandas' && ['ata', 'congelamento', 'reabertura'].includes(r.tipo)).map(r => { const { snapshot, ...p } = r.payload; return { ...r, payload: p }; })
+      .sort((a, b) => String(b.data).localeCompare(String(a.data)) || ordem(b, a));
+  },
   /* reset da demonstração (D-52): apaga todos os registros da UEP (na nuvem, para todos os usuários) */
   async resetar() {
     let n;
@@ -267,7 +280,7 @@ let ULTIMO_CARIMBO = 0;
 function carimbo() { const t = Math.max(Date.now(), ULTIMO_CARIMBO + 1); ULTIMO_CARIMBO = t; return new Date(t).toISOString(); }
 function mesclarCfg(c) {
   const base = JSON.parse(JSON.stringify(CFG_PADRAO)), r = deepMerge(base, c || {});
-  for (const k of ['metasManutencao', 'limitesLab', 'limitesOffloading', 'limitesEstabilidade']) if (c && c[k] && typeof c[k] === 'object') r[k] = JSON.parse(JSON.stringify(c[k]));   // D-61: tabelas por UEP substituem o padrão inteiro (remover uma linha vale)
+  for (const k of ['metasManutencao', 'limitesLab', 'limitesOffloading', 'limitesEstabilidade', 'labCfg']) if (c && c[k] && typeof c[k] === 'object') r[k] = JSON.parse(JSON.stringify(c[k]));   // D-61: tabelas por UEP substituem o padrão inteiro (remover uma linha vale)
   if (r.ativo === 'ATP-BUZ') r.ativo = 'ATP-BUZ III';   // D-64: nome do ativo corrigido também nas configurações já salvas (base e navegador)
   return r;
 }
