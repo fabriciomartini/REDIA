@@ -539,6 +539,7 @@ function abaDestaques(coord) {
     ${bloqueado() ? '<div class="banner">Pauta congelada: os destaques estão bloqueados para edição.</div>' : ''}
     <div class="pn"><h2>Destaques do ${geplat ? 'GEPLAT (tela de abertura)' : 'bloco ' + coord}</h2>
       <p class="note">${geplat ? 'Itens aprovados das sugestões e itens criados aqui aparecem na tela de abertura.' : `Sugestões aprovadas (PS) e itens criados pela coordenação (C) formam o bloco ${coord}. Marque “Abertura” nos muito importantes: o GEPLAT os apresenta na tela de abertura. Na abertura: <b>${nAb}</b> (recomendado até ${CFG.destaquesAberturaMax}).`}</p>
+      ${geplat ? '' : `<p class="note">Destaque não é ameaça: a linha <b>Ameaça</b> do card “Destaques e ameaças” da abertura vem da aba <a href="#/curadoria/${coord}/itens">Ameaças e oportunidades</a> (ou da caixa “Registrar também como ameaça” abaixo).</p>`}
       ${!geplat && nAb > CFG.destaquesAberturaMax ? `<div class="banner">${nAb} destaques marcados para a abertura. Na tela de abertura cabem ${CFG.destaquesAberturaMax} por coordenação; os demais ficam só no bloco ${coord}.</div>` : ''}
       <div class="tbw"><table class="tb"><thead><tr><th>Semáforo</th><th>Destaque</th><th>Origem</th><th>Abertura</th><th>Por</th><th></th></tr></thead><tbody>
       ${ds.map(linha).join('') || '<tr><td colspan="6" class="note">Nenhum destaque. Aprove sugestões dos supervisores ou crie um item abaixo.</td></tr>'}
@@ -556,6 +557,7 @@ function abaDestaques(coord) {
         <div class="seg">${['ok', 'at', 'nok'].map(s => `<label><input type="radio" name="d-sem" value="${s}" ${s === v.semaforo ? 'checked' : ''} ${dis}>${glyph(s, 14)}${SEM_NOME[s]}</label>`).join('')}</div></fieldset>
       <label class="lbl" for="d-ped">Pedido à base</label><textarea id="d-ped" class="in" rows="2" ${dis}>${esc(v.pedido || '')}</textarea>
       ${chkAbertura(coord, v.abertura, dis).replace('id="f-ab"', 'id="d-ab"')}${chkEscalar(v.escalar, dis, 'd-esc')}
+      ${!edit && !geplat ? `<label class="chk-ab am"><input type="checkbox" id="d-am" ${dis}><span><b>Registrar também como ameaça da ${coord}</b><span class="note">Cria a ameaça com o mesmo texto e semáforo: ela entra na linha “Ameaça” do card Destaques e ameaças da abertura e no bloco ${coord} (aba Ameaças e oportunidades).</span></span></label>` : ''}
       <div class="row end" style="margin-top:10px">${edit ? '<button class="btn" data-act="cancelar-dst">Cancelar</button>' : ''}<button class="btn pri" data-act="salvar-dst" ${dis}>${edit ? 'Salvar alterações' : 'Incluir na pauta'}</button></div>
     </div>
   </section>`;
@@ -572,6 +574,7 @@ function abaDestaques(coord) {
         if (!c.texto) { aviso('Informe o título.', 'erro'); tit.focus(); return; }
         const dest = c.abertura ? `no bloco ${coord} e na tela de abertura` : geplat ? 'na tela de abertura' : `no bloco ${coord}`;
         if (edit) { UI.edDst = null; salvarE('atualiza', { alvo: edit.id, campos: c }, {}, `Destaque atualizado (${dest}).`); }
+        else if ($('#d-am')?.checked) (async () => { try { if (!(await podeEditar('item'))) return; await registrar('item', { coord, tipo: 'destaque', ordem: own.length + 1, ...c }); await registrar('item', { coord, tipo: 'ameaca', texto: c.texto, detalhe: '', semaforo: c.semaforo === 'ok' ? 'at' : c.semaforo, ordem: itensDe(E, coord, 'ameaca').length + 1 }); atualizarEstado(); aviso(`Destaque incluído ${dest} e ameaça registrada (aparece em Destaques e ameaças da abertura).`, 'ok'); rerender(); } catch (e) { await tratarErroGravacao(e); } })();
         else salvarE('item', { coord, tipo: 'destaque', ordem: own.length + 1, ...c }, {}, `Destaque incluído ${dest}.`);
       };
     },

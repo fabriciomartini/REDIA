@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.9.1 · D-64 (2026-10-17)
+
+- **"Perda de produção"** no lugar de "Deferimento de produção" (rótulos da lista, do detalhe da COPROD e dos textos); o campo interno `oleo.deferimento` não muda.
+- **ATP-BUZ III** em todas as ocorrências do nome do ativo (padrão da configuração, rótulo do IUGA do ativo, fonte "Dados do ativo"); configurações já salvas com "ATP-BUZ" (base ou navegador) são corrigidas ao carregar.
+- **Destaques e ameaças (abertura):** a linha "Ameaça" vem da aba *Ameaças e oportunidades*, não dos destaques. Para evitar a confusão, a aba Destaques explica isso e ganha a caixa **"Registrar também como ameaça da coordenação"**, que cria a ameaça com o mesmo texto e semáforo (OK vira Atenção); a linha vazia passa a dizer "Sem ameaça registrada pela <coordenação>".
+
 ## 1.9.0 · D-63 (2026-10-17) · onda 3 das propostas de boas práticas
 
 Fecha as 30 propostas aprovadas. Campos novos com captura simulada (BDO/SITOP, SAP PM, dados do ativo, meteo-oceanografia); regras e limites são PREMISSA, configuráveis por UEP.

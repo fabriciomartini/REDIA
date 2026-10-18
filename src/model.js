@@ -23,7 +23,7 @@ const CAMPOS = [
   { id: 'iuga.real', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'IUGA realizado D-1', tipo: 'num', un: '%', dec: 2 },
   { id: 'iuga.meta', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Meta de IUGA', tipo: 'num', un: '%', dec: 2 },
   { id: 'iuga.proj', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'IUGA projetado D', tipo: 'num', un: '%', dec: 2 },
-  { id: 'iuga.atp', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'IUGA do ATP-BUZ', tipo: 'num', un: '%', dec: 2 },
+  { id: 'iuga.atp', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'IUGA do ATP-BUZ III', tipo: 'num', un: '%', dec: 2 },
   { id: 'iuga.buzios', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'IUGA de Búzios', tipo: 'num', un: '%', dec: 2 },
   { id: 'queima.proj', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Queima projetada D', tipo: 'num', un: 'Mm³/d' },
   { id: 'gas.prod_d1', coord: 'COPROD', grupo: 'IUGA e queima', rot: 'Gás produzido D-1 (SITOP)', tipo: 'num', un: 'm³' },
@@ -156,7 +156,7 @@ const CAMPO = Object.fromEntries(CAMPOS.map(c => [c.id, c]));
 /* ---- campos de lista (substituídos inteiros a cada edição) ---- */
 /* D-62 (proposta 1): classificação dos eventos de segurança de processo (API RP 754). Tier 1/2 = perda de contenção com consequência;
    Tier 3 = demanda a sistema de segurança (PSV, ESD, F&G) ou excursão de limite seguro; Tier 4 = barreira degradada / falha de teste. */
-/* D-63 (proposta 8): sistemas do deferimento de produção (lista fechada, PREMISSA) */
+/* D-63 (proposta 8): sistemas da perda de produção ("deferimento"; lista fechada, PREMISSA) */
 const SISTEMAS_DEF = ['Planta de processo', 'Poços e subsea', 'Escoamento / offloading', 'Restrição externa / mercado', 'Manutenção programada', 'Utilidades', 'Outros'];
 const TIERS = ['Tier 1', 'Tier 2', 'Tier 3 · demanda a sistema de segurança', 'Tier 4 · barreira degradada'];
 /* D-61 (proposta 10): classe da queima. Rotina = purga, gás de assistência, piloto; Extraordinária = emergência, parada de compressor, teste acima do previsto. */
@@ -170,7 +170,7 @@ const LISTAS = [
   { id: 'queima.eventos', coord: 'COPROD', rot: 'Últimas 24 h · maiores queimas (até 2)', max: 2, cols: [{ k: 'evento', rot: 'Evento', tipo: 'texto' }, { k: 'flare', rot: 'Flare', tipo: 'opcao', opcoes: ['HP', 'LP'] }, { k: 'volume', rot: 'Volume (Mm³)', tipo: 'num', dec: 1 }] },
   { id: 'queima.causas', coord: 'COPROD', rot: 'Queima projetada D por causa', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'valor', rot: 'Mm³/d', tipo: 'num' }, { k: 'evitavel', rot: 'Evitável', tipo: 'opcao', opcoes: ['sim', 'não'] }, { k: 'classe', rot: 'Classe', tipo: 'opcao', opcoes: QUEIMA_CLASSES }, { k: 'equipamento', rot: 'Equipamento indisponível (se houver)', tipo: 'texto' }] },   // D-63 (proposta 15)
   { id: 'queima.manobras', coord: 'COPROD', rot: 'Manobras previstas com queima estimada', cols: [{ k: 'manobra', rot: 'Manobra', tipo: 'texto' }, { k: 'data', rot: 'Data prevista', tipo: 'data' }, { k: 'queima', rot: 'Queima estimada (Mm³)', tipo: 'num', dec: 1 }, { k: 'situacao', rot: 'Situação', tipo: 'opcao', opcoes: ['Prevista', 'Realizada', 'Cancelada'] }] },   // D-63 (proposta 11)
-  { id: 'oleo.deferimento', coord: 'COPROD', rot: 'Deferimento de produção D-1 · por causa e sistema', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'sistema', rot: 'Sistema', tipo: 'opcao', opcoes: SISTEMAS_DEF }, { k: 'volume', rot: 'Volume (m³/d)', tipo: 'num' }, { k: 'obs', rot: 'Observação', tipo: 'texto' }] },   // D-63 (proposta 8)
+  { id: 'oleo.deferimento', coord: 'COPROD', rot: 'Perda de produção D-1 · por causa e sistema', cols: [{ k: 'causa', rot: 'Causa', tipo: 'texto' }, { k: 'sistema', rot: 'Sistema', tipo: 'opcao', opcoes: SISTEMAS_DEF }, { k: 'volume', rot: 'Volume (m³/d)', tipo: 'num' }, { k: 'obs', rot: 'Observação', tipo: 'texto' }] },   // D-63 (proposta 8)
   { id: 'tq.atencao', coord: 'COEMB', rot: 'Tanques em atenção', cols: [{ k: 'tanque', rot: 'Tanque', tipo: 'texto' }, { k: 'nota', rot: 'Situação', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ST_SIS }] },
   { id: 'util', coord: 'COEMB', rot: 'Utilidades · estoque × mínimo', cols: [{ k: 'nome', rot: 'Utilidade', tipo: 'texto' }, { k: 'estoque', rot: 'Estoque (m³)', tipo: 'num' }, { k: 'minimo', rot: 'Mínimo (m³)', tipo: 'num' }, { k: 'consumo', rot: 'Consumo (m³/d)', tipo: 'num' }, { k: 'producao', rot: 'Produção (m³/d)', tipo: 'num' }] },
   { id: 'ger.tgs', coord: 'COMAN', rot: 'Turbogeradores', cols: [{ k: 'tg', rot: 'TG', tipo: 'texto' }, { k: 'status', rot: 'Status', tipo: 'opcao', opcoes: ['Operando', 'Stand-by', 'Indisponível', 'Em manutenção'] }, { k: 'linha1', rot: 'Combustível · carga · limitador', tipo: 'texto' }, { k: 'linha2', rot: 'WHRU / observação', tipo: 'texto' }, { k: 'alerta', rot: 'Destacar observação', tipo: 'opcao', opcoes: ['não', 'sim'] }] },
@@ -517,7 +517,7 @@ function segurancaProcesso(E, hoje) {
   return { eventos: ev, t12, t3, t4, inib, maisAntiga: inib[0] || null, piorInib, crit, venc, v7, sem };
 }
 /* D-63 · onda 3 (PREMISSAS de regra, ver 40_Pendencias D-63a) */
-/* (8) deferimento D-1 por causa e sistema + Pareto do mês por sistema (soma das listas diárias) */
+/* (8) perda de produção D-1 por causa e sistema + Pareto do mês por sistema (soma das listas diárias) · campo oleo.deferimento */
 function deferimentoDe(E) { return L(E, 'oleo.deferimento').map(d => ({ ...d, volume: +d.volume || 0 })).sort((a, b) => b.volume - a.volume); }
 function acumuladoDeferimento(iso, regsDoDia) {
   const d = parseData(iso), porSistema = {}, porCausa = {}; let total = 0, dias = 0;

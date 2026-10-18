@@ -167,7 +167,7 @@ function telaAbertura(E, ctx) {
     if (c === 'GEPLAT' && !ds.length) return '';
     const linhas = ds.map(d => `<span class="dl${d.escalar ? ' esc' : ''}">${glyph(d.semaforo, 18)}<span>${d.escalar ? tagEsc + ' ' : ''}${T(d.titulo)}${tagRec(E, d.tag) ? ' ' + tagRec(E, d.tag) : ''}</span></span>`);
     if (c !== 'GEPLAT') for (const i of pfceoSelecao(E, c).abertura) linhas.push(`<span class="dl pfa">${glyph(PF.semDisp(i.disponibilidade), 18)}<span><span class="k2">PFCEO</span> ${T(i.funcao)} · ${esc(PF.curto(i.disponibilidade))}${i.nota ? ` <span class="sec">· ${T(i.nota)}</span>` : ''}</span></span>`);   // D-54: até 2 por coordenação
-    if (c !== 'GEPLAT') linhas.push(a ? `<span class="dl am">${glyph(a.payload.semaforo, 18)}<span><span class="k2">Ameaça</span> ${T(a.payload.texto)}</span></span>` : `<span class="dl am">${glyph('sd', 18)}<span class="sec">Sem ameaça registrada</span></span>`);
+    if (c !== 'GEPLAT') linhas.push(a ? `<span class="dl am">${glyph(a.payload.semaforo, 18)}<span><span class="k2">Ameaça</span> ${T(a.payload.texto)}</span></span>` : `<span class="dl am">${glyph('sd', 18)}<span class="sec">Sem ameaça registrada pela ${c}</span></span>`);
     return `<div class="li thr2"><b>${c}</b><div class="dls">${linhas.join('')}</div></div>`;
   }).join('');
   const atividades = ['COPROD', 'COEMB', 'COMAN'].map(c => {

@@ -274,7 +274,7 @@ async function checarPalco(page, nome) {
   ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Visão semanal/.test(t) && /Tendências · 7 e 30 dias/.test(t) && document.querySelectorAll('.stage .sem-r').length === 5 && /Recorrências · 30 dias/.test(t) && /FGRU A · Injection A/.test(t) && /Itens a escalar/.test(t) && /vencidas/.test(t); }), 'visão semanal: tendências 7 × 30 dias, ações vencidas, recorrências e itens a escalar (D-63)');
   await checarPalco(page, 'semana');
   await page.goto(URL + '#/apresentacao/2/indicadores'); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Deferimento de produção D-1/.test(t) && /Pareto do mês por sistema/.test(t) && /Cota de queima de Búzios/.test(t) && /Reserva do campo/.test(t); }), 'detalhe de indicadores da COPROD: deferimento por causa e sistema, Pareto do mês, cota e reserva do campo');
+  ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Perda de produção D-1/.test(t) && /Pareto do mês por sistema/.test(t) && /Cota de queima de Búzios/.test(t) && /Reserva do campo/.test(t); }), 'detalhe de indicadores da COPROD: perda de produção por causa e sistema, Pareto do mês, cota e reserva do campo');
   await page.goto(URL + '#/apresentacao/2/queima'); await page.waitForTimeout(300);
   ok(await page.evaluate(() => { const t = document.querySelector('.stage').textContent; return /Manobras previstas × reserva tática/.test(t) && /Cabem/.test(t) && /Gás queimado por equipamento indisponível/.test(t) && /TC-A/.test(t); }), 'detalhe da queima: manobras × reserva tática e custo da indisponibilidade por equipamento');
   await page.goto(URL + '#/apresentacao/3/indicadores'); await page.waitForTimeout(300);
@@ -448,6 +448,13 @@ async function checarPalco(page, nome) {
   ok(pe5.dono === '4º GEPLAT' && pe5.prazo === '2026-10-14' && pe5.esc && pe5.lig && pe5.dem === 1 && pe5.resp === '4º GEPLAT' && pe5.coord === 'GEPLAT' && pe5.origem === 'C', `pauta extra com dono e prazo gera demanda no Canal Base x Bordo (${JSON.stringify(pe5)})`);
   await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(300);
   ok(await page.evaluate(() => { const t = document.querySelector('.stage .card.col2').textContent; return /4º GEPLAT · até \d\d\/\d\d/.test(t) && /Habitabilidade/.test(t); }), 'abertura: pauta extra mostra dono e prazo');
+  /* D-64: destaque registrado também como ameaça (vai para a linha Ameaça da abertura) */
+  await page.goto(URL + '#/curadoria/COEMB/destaques'); await page.waitForTimeout(150);
+  const amAntes = await page.evaluate(() => itensDe(E, 'COEMB', 'ameaca').length);
+  await page.fill('#d-tit', 'Falha SG-1223001A'); await page.click('input[name="d-sem"][value="ok"]'); await page.click('#d-am'); await page.click('[data-act="salvar-dst"]'); await page.waitForTimeout(300);
+  const am64 = await page.evaluate(n => { const a = itensDe(E, 'COEMB', 'ameaca'); return { n: a.length - n, txt: a.at(-1)?.payload.texto, sem: a.at(-1)?.payload.semaforo, dst: destaquesDe(E, 'COEMB').some(d => d.titulo === 'Falha SG-1223001A'), nota: /Destaque não é ameaça/.test(document.querySelector('.ed').textContent) }; }, amAntes);
+  ok(am64.n === 1 && am64.txt === 'Falha SG-1223001A' && am64.sem === 'at' && am64.dst && am64.nota, `destaque com "Registrar também como ameaça" cria o destaque e a ameaça (semáforo OK vira Atenção) (${JSON.stringify(am64)})`);
+  ok(await page.evaluate(() => CFG.ativo === 'ATP-BUZ III' && mesclarCfg({ ativo: 'ATP-BUZ' }).ativo === 'ATP-BUZ III' && CAMPO['iuga.atp'].rot === 'IUGA do ATP-BUZ III'), 'nome do ativo: ATP-BUZ III no padrão, nos rótulos e nas configurações salvas com o nome antigo (D-64)');
   /* D-61 (proposta 7): selo "Escalar" no destaque e ordem (escalar primeiro) */
   await page.goto(URL + '#/curadoria/COPROD/destaques'); await page.waitForTimeout(150);
   await page.fill('#d-tit', 'Partida da Injection A depende de liberação da gerência'); await page.click('#d-esc'); await page.click('[data-act="salvar-dst"]'); await page.waitForTimeout(200);

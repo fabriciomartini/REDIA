@@ -18,7 +18,7 @@ const FONTES_CAPTURA = {
   PASSAGEM: { nome: 'Passagem de serviço', desc: 'Status dos equipamentos informado pelo operador do posto', pendencia: 'I-13' },
   SAP: { nome: 'SAP PM/MM', desc: 'Ordens de manutenção, preventivas e materiais', pendencia: 'I-06' },             // D-62
   INTEGRIDADE: { nome: 'Plano de inspeção', desc: 'Plano de inspeção de integridade da embarcação', pendencia: 'I-56' },   // D-62
-  ATIVO: { nome: 'Dados do ativo', desc: 'IUGA e queima do ATP-BUZ e do campo de Búzios', pendencia: 'I-04' },            // D-63
+  ATIVO: { nome: 'Dados do ativo', desc: 'IUGA e queima do ATP-BUZ III e do campo de Búzios', pendencia: 'I-04' },            // D-63
   METEO: { nome: 'Meteo-oceanografia', desc: 'Previsão de ondas, vento e corrente', pendencia: 'I-58' },                     // D-63
 };
 /* campos que nunca são capturados: correções manuais dos acumulados do mês (D-43) */

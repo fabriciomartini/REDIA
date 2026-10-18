@@ -135,11 +135,11 @@ const DETALHES = {
     return `<main class="m3 det" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
       <div class="colg">
         <div class="card">${hd('Indicadores · meta × realizado × projetado')}<div class="tbl big2">${linhasIndicadoresCoprod(E)}</div></div>
-        <div class="card col">${hd('Deferimento de produção D-1 · por causa e sistema', `<span class="cap nw">${vd ? tag(vd.origem) + ' ' + esc(vd.fonte || '') : ''} · total <b class="k">${fmtN(defTot)}</b> m³/d</span>`)}
-          <div class="bars">${def.slice(0, 4).map(d => `<span>${T(d.causa)} <span class="sec n">· ${esc(d.sistema || '—')}</span></span><div class="track"><div style="width:${defTot ? d.volume / defTot * 100 : 0}%;background:${COR_SIS[d.sistema] || '#75787B'}"></div></div><b>${fmtN(d.volume)}</b>`).join('') || '<span class="sec">Nenhum deferimento registrado para D-1</span>'}</div>
+        <div class="card col">${hd('Perda de produção D-1 · por causa e sistema', `<span class="cap nw">${vd ? tag(vd.origem) + ' ' + esc(vd.fonte || '') : ''} · total <b class="k">${fmtN(defTot)}</b> m³/d</span>`)}
+          <div class="bars">${def.slice(0, 4).map(d => `<span>${T(d.causa)} <span class="sec n">· ${esc(d.sistema || '—')}</span></span><div class="track"><div style="width:${defTot ? d.volume / defTot * 100 : 0}%;background:${COR_SIS[d.sistema] || '#75787B'}"></div></div><b>${fmtN(d.volume)}</b>`).join('') || '<span class="sec">Nenhuma perda de produção registrada para D-1</span>'}</div>
           ${E.def?.dias ? `<div class="row-sb mt6"><span class="gh">Pareto do mês por sistema · ${E.def.dias} dia${E.def.dias === 1 ? '' : 's'}</span><span class="cap"><b class="k">${fmtN(E.def.total)}</b> m³ no mês</span></div>
           <div class="bar b16">${E.def.porSistema.map(x => `<div style="width:${E.def.total ? x.v / E.def.total * 100 : 0}%;background:${COR_SIS[x.k] || '#75787B'}" title="${esc(x.k)}: ${fmtN(x.v)} m³"></div>`).join('')}</div>
-          <span class="cap lg2">${E.def.porSistema.slice(0, 4).map(x => `<span><i style="background:${COR_SIS[x.k] || '#75787B'}"></i>${esc(x.k)} ${fmtN(E.def.total ? x.v / E.def.total * 100 : 0, 0)}%</span>`).join('')}</span>` : '<span class="cap">Sem deferimento registrado nas REDIAs anteriores do mês</span>'}</div>
+          <span class="cap lg2">${E.def.porSistema.slice(0, 4).map(x => `<span><i style="background:${COR_SIS[x.k] || '#75787B'}"></i>${esc(x.k)} ${fmtN(E.def.total ? x.v / E.def.total * 100 : 0, 0)}%</span>`).join('')}</span>` : '<span class="cap">Sem perda de produção registrada nas REDIAs anteriores do mês</span>'}</div>
       </div>
       <div class="colg">
         <div class="card col">${hd('Equipamentos · status')}

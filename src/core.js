@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.9.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.9.1', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -50,7 +50,7 @@ const Relogio = {
 
 /* ---------- configuração da UEP (config/uep.json na pasta) ---------- */
 const CFG_PADRAO = {
-  uep: 'P-83', campo: 'Búzios', ativo: 'ATP-BUZ', modo: 'operacao',
+  uep: 'P-83', campo: 'Búzios', ativo: 'ATP-BUZ III', modo: 'operacao',
   horarios: { preenchimento: '08:10', preRedia: '08:10', congelamento: '08:40', inicio: '08:45', fim: '10:00' },
   timeboxMin: 5,
   destaquesPorBloco: 5,
@@ -268,6 +268,7 @@ function carimbo() { const t = Math.max(Date.now(), ULTIMO_CARIMBO + 1); ULTIMO_
 function mesclarCfg(c) {
   const base = JSON.parse(JSON.stringify(CFG_PADRAO)), r = deepMerge(base, c || {});
   for (const k of ['metasManutencao', 'limitesLab', 'limitesOffloading', 'limitesEstabilidade']) if (c && c[k] && typeof c[k] === 'object') r[k] = JSON.parse(JSON.stringify(c[k]));   // D-61: tabelas por UEP substituem o padrão inteiro (remover uma linha vale)
+  if (r.ativo === 'ATP-BUZ') r.ativo = 'ATP-BUZ III';   // D-64: nome do ativo corrigido também nas configurações já salvas (base e navegador)
   return r;
 }
 function deepMerge(a, b) { for (const k of Object.keys(b)) { if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object') deepMerge(a[k], b[k]); else a[k] = b[k]; } return a; }

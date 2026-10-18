@@ -105,7 +105,7 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | 9.1 | Apresentação › botão **Semana** | Tela com tendências de 7 e 30 dias, ações vencidas, itens a escalar e recorrências |
 | 9.2 | Curadoria › fila de sugestões | Sugestão com TAG repetida em 3 REDIAs em 30 dias mostra "Recorrente ×3" |
 | 9.3 | Menu › **Histórico** › buscar uma TAG | Resultados de REDIAs anteriores, mais recentes primeiro; "Abrir REDIA" muda o dia |
-| 9.4 | COPROD › detalhe Indicadores | Deferimento D-1 por causa e sistema, Pareto do mês, cota e reserva do campo |
+| 9.4 | COPROD › detalhe Indicadores | Perda de produção D-1 por causa e sistema, Pareto do mês, cota e reserva do campo |
 | 9.5 | COEMB › detalhe Indicadores | Janela meteo-oceanográfica e estabilidade com semáforo pelos limites da Configuração |
 
 ## Registro do resultado
