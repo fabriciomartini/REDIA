@@ -1087,6 +1087,7 @@ function telaUnidades() {
     ${USUARIO.adminSistema || ed.length ? `<div class="uni-x">${ed.length ? `<a class="uni-c sto-c0" href="#/studio"><span class="uni-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28"><rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 21h10M9 8h6M9 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><b>Studio de telas</b><span class="note">Editor de ${ed.map(u => esc(u.uep)).join(', ')}: ajuste os cards e rótulos das telas da unidade</span></a>` : ''}${USUARIO.adminSistema ? `<a class="uni-c adm" href="#/admin"><span class="uni-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5z" fill="currentColor"/><path d="M8.5 12l2.5 2.5 4.5-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b>Administração do sistema</b><span class="note">Usuários, lotações, papéis, unidades, autocadastro e auditoria</span></a>` : ''}</div>` : ''}
   </div>`);
   $$('[data-uep]').forEach(b => b.onclick = () => selecionarUnidade(b.dataset.uep));
+  if (UI.avisoProto) { UI.avisoProto = false; setTimeout(avisoPrototipo, 150); }   // D-71: a seleção de unidade é a tela inicial de quem tem mais de uma unidade
 }
 async function selecionarUnidade(uep) {
   if (Vivo.souCtrl) Vivo.encerrar();

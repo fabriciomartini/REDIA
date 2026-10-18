@@ -833,7 +833,9 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
     await b.goto(URL + '#/studio'); await b.waitForTimeout(400);
     ok(/Acesso restrito/.test(await b.textContent('#app')) && !(await b.$('.apph a[href="#/studio"]')), 'Studio: só para quem tem perfil de editor (sem link e sem acesso)');
     // administrador do sistema
-    await entrar('AD01'); await fecharAviso(b);
+    await entrar('AD01');
+    ok(!!(await b.waitForSelector('.mdl [data-mdl="entendi"]', { timeout: 2500 }).catch(() => null)) && await b.evaluate(() => location.hash === '#/unidades'), 'D-71: o aviso de protótipo aparece também na tela de seleção de unidade (tela inicial de quem tem mais de uma unidade)');
+    await fecharAviso(b);
     const un = await b.evaluate(() => ({ h: location.hash, n: document.querySelectorAll('.uni-g [data-uep]').length, adm: !!document.querySelector('.uni-x a[href="#/admin"]'), sto: !!document.querySelector('.uni-x a[href="#/studio"]') }));
     ok(un.h === '#/unidades' && un.n === 10 && un.adm && un.sto, `administrador do sistema: tela de seleção com as 10 unidades, a Administração e o Studio (${JSON.stringify(un)})`);
     await b.click('[data-uep="P-80"]'); await b.waitForTimeout(700);
