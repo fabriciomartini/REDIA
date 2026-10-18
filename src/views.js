@@ -1162,11 +1162,11 @@ const Vivo = {
         <li>Para terminar, use <b>Ao vivo · encerrar</b> na barra da apresentação (ou saia da apresentação).</li></ul></div>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Iniciar apresentação ao vivo', cls: 'pri' }] });
       if (r1.id !== 'ok') return;
       const ate = Date.now() + 5000;
-      this.enviar({ t: 'contagem', ctrl: this.eu(), ate, uep: CFG.uep });
+      this.enviar({ t: 'contagem', ctrl: this.eu(), dur: 5000, uep: CFG.uep });   // R-52: duração, não horário absoluto (relógios dos computadores diferem)
       const ok = await mostrarContagem({ nome: USUARIO.nome, souCtrl: true, ate });
       if (!ok) { this.enviar({ t: 'contagem-cancelada', ctrl: this.eu() }); return aviso('Apresentação ao vivo cancelada.', 'ok'); }
     }
-    this.souCtrl = true; this.ativo = true; this.seguindo = false; this.inicio = Date.now(); this.ctrl = this.eu();
+    this.souCtrl = true; this.ativo = true; this.seguindo = false; this.inicio = Math.max(Date.now(), (this.ult?.inicio || 0) + 1); this.ctrl = this.eu();   // R-52: quem assume fica sempre "depois" de quem controlava, mesmo com o relógio atrasado
     clearInterval(this.hb); this.hb = setInterval(() => this.transmitir(), 3000);
     if (ROTA_ATUAL?.id !== 'apresentacao') location.hash = '#/apresentacao/' + (UI.pres.bloco || 1); else { this.transmitir(); rerender(); }
     aviso('Apresentação ao vivo: os demais usuários acompanham a sua tela.', 'ok');
@@ -1183,7 +1183,7 @@ const Vivo = {
   receber(m) {
     if (!m || m.ctrl?.id === SESSAO_ID || m.de === SESSAO_ID) return;
     if (m.t === 'quem') { this.transmitir(); return; }
-    if (m.t === 'contagem') { if (USUARIO?.uep && (!m.uep || m.uep === CFG.uep)) mostrarContagem({ nome: m.ctrl.nome, souCtrl: false, ate: m.ate, id: m.ctrl.id }); return; }
+    if (m.t === 'contagem') { if (USUARIO?.uep && (!m.uep || m.uep === CFG.uep)) mostrarContagem({ nome: m.ctrl.nome, souCtrl: false, ate: Date.now() + Math.min(5000, Math.max(0, +m.dur || 5000)), id: m.ctrl.id }); return; }   // R-52: prazo no relógio de quem recebe
     if (m.t === 'contagem-cancelada') { fecharContagem(m.ctrl?.id); aviso(`${m.ctrl.nome} cancelou a apresentação ao vivo.`, 'ok'); return; }
     if (m.t === 'fim') {
       if (this.ctrl?.id !== m.ctrl?.id) return;
@@ -1201,7 +1201,7 @@ const Vivo = {
     if (m.dia && m.dia !== DIA) { try { await abrirDia(m.dia); } catch { } }
     const P = UI.pres, alvo = /^#\/apresentacao\/(semana|[1-5])/.exec(m.hash || '')?.[1];
     if (alvo && alvo !== 'semana') P.bloco = +alvo;
-    P.restante = m.pres.restante - (m.pres.rodando ? Math.floor((Date.now() - m.pres.ts) / 1000) : 0); P.rodando = m.pres.rodando; P.extra = m.pres.extra || 0; P.ult = Date.now(); P.inicio = null;
+    P.restante = m.pres.restante; P.rodando = m.pres.rodando; P.extra = m.pres.extra || 0; P.ult = Date.now(); P.inicio = null;   // R-52: o cronômetro chega pronto (enviado a cada 3 s e a cada mudança); não se desconta o tempo pelo relógio do outro computador
     if (m.hash && location.hash !== m.hash && /^#\/apresentacao\//.test(m.hash)) { document.activeElement?.blur?.(); this.navegando = true; location.hash = m.hash; }
     else if (forcar || ROTA_ATUAL?.id !== 'apresentacao') rerender(); else atualizarTimer();
   },

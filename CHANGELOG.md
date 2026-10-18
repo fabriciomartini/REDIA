@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 2.2.1 · correção R-52 (2026-10-18)
+
+- **Ao vivo com dois computadores:** a contagem de 5 s chegava aos outros usuários como um horário absoluto do relógio de quem iniciou; se o relógio do outro computador estivesse atrasado (ex.: 50 min), a contagem mostrava mais de 3000 s. O mesmo valia para o cronômetro de quem assiste e para "assumir o controle". Agora vai a duração (5 s), contada no relógio de quem recebe; o cronômetro chega pronto, sem desconto pelo relógio do outro computador; quem assume o controle fica sempre à frente de quem controlava. Teste novo com o relógio do segundo usuário 50 min atrasado.
+
 ## 2.2.0 · D-75 (2026-10-18)
 
 - **Ata automática das 23:59 (versão de teste):** todos os dias às 23:59 (Brasília), cada unidade sem ata arquivada recebe uma ata totalmente preenchida, para manter a base do período de teste atualizada. Se a REDIA não foi iniciada, ela é aberta e preenchida com o gerador do exemplo; se foi iniciada e não encerrada, só o que está vazio é preenchido (se a pauta ainda não estiver congelada), as sugestões pendentes são aprovadas, as coordenações concluídas, a pauta congelada, o de acordo registrado e a ata fechada. Tudo marcado como fictício e "automática", com autoria SISTEMA e registro na auditoria.

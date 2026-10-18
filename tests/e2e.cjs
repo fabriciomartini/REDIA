@@ -689,11 +689,17 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   ok(/Iniciar a apresentação ao vivo/.test(await page.textContent('.mdl')) && await page.$('.mdl [data-mdl="cancelar"]') && await page.$('.mdl [data-mdl="ok"]'), 'D-71 ao vivo: antes de iniciar, popup explica o que vai acontecer, com confirmar e cancelar');
   await page.click('.mdl [data-mdl="cancelar"]'); await page.waitForTimeout(300);
   ok(await page.evaluate(() => !Vivo.ativo && !document.querySelector('.ctg')), 'D-71 ao vivo: cancelar não inicia o modo nem a contagem');
+  await p2.evaluate(() => { const o = Date.now.bind(Date); Date.now = () => o() - 3000000; });   // R-52: relógio do outro computador 50 min atrasado
   await page.click('.apph [data-act="vivo-iniciar"]'); await page.waitForTimeout(300); await page.click('.mdl [data-mdl="ok"]'); await page.waitForTimeout(900);
+  const nP2 = await p2.evaluate(() => +(document.querySelector('.ctg .ctg-n')?.textContent || 0));
+  ok(nP2 >= 1 && nP2 <= 5, `R-52 ao vivo: com o relógio do outro computador 50 min atrasado, a contagem dele continua em 5 s (mostrou ${nP2})`);
   const ctg = { a: await page.evaluate(() => ({ on: !!document.querySelector('.ctg'), n: document.querySelector('.ctg .ctg-n')?.textContent, canc: !!document.querySelector('[data-ctg="cancelar"]') })), b: await p2.evaluate(() => ({ on: !!document.querySelector('.ctg'), canc: !!document.querySelector('[data-ctg="cancelar"]') })) };
   ok(ctg.a.on && ctg.b.on && ctg.a.canc && !ctg.b.canc, `D-71 ao vivo: contagem regressiva animada para quem aciona e para os demais logados da unidade; só quem aciona pode cancelar (${JSON.stringify(ctg)})`);
   await page.waitForTimeout(5200);
   ok(await page.evaluate(() => !document.querySelector('.ctg') && Vivo.ativo), 'D-71 ao vivo: depois de 5 s, a contagem fecha e o modo ao vivo começa');
+  await page.waitForTimeout(1200);
+  const tm = { a: await page.evaluate(() => UI.pres.restante), b: await p2.evaluate(() => ({ r: UI.pres.restante, ctg: !!document.querySelector('.ctg'), seg: Vivo.seguindo })) };
+  ok(!tm.b.ctg && tm.b.seg && Math.abs(tm.a - tm.b.r) <= 3, `R-52 ao vivo: quem assiste vê o mesmo cronômetro de quem controla, mesmo com o relógio diferente (${JSON.stringify(tm)})`);
   const hc = await page.evaluate(() => location.hash); const v1 = await p2.evaluate(hc => ({ hc, h: location.hash, seg: Vivo.seguindo, ctrl: Vivo.ctrl?.chave, off: document.querySelectorAll('#ctrl .btn.off').length, sair: [...document.querySelectorAll('#ctrl a.btn')].map(a => a.textContent), tip: document.querySelector('#ctrl .btn.off')?.dataset.tip || '' }), hc);
   ok(v1.h === v1.hc && v1.seg && v1.ctrl === 'CP01' && v1.off >= 10 && v1.sair.join() === 'Sair' && /Controle da reunião/.test(v1.tip) && /Usuário COPROD/.test(v1.tip), `ao vivo: quem estava na curadoria vai para a apresentação; só "Sair" ativo, demais comandos desabilitados com dica (${JSON.stringify({ ...v1, tip: v1.tip.slice(0, 40) })})`);
   await p2.hover('#ctrl .btn.off'); await p2.waitForTimeout(250);
