@@ -19,7 +19,10 @@ const ERROS_NUVEM = {
   SEM_LOTACAO: 'O usuário precisa de ao menos uma unidade de lotação.',
   SEM_ADMIN: 'O sistema precisa de ao menos um administrador do sistema ativo.',
   USUARIO_INEXISTENTE: 'Usuário não encontrado.',
-  SEM_PERMISSAO_RESET: 'Só o administrador da UEP pode resetar a demonstração.',
+  SEM_PERMISSAO_RESET_DIA: 'Só coordenador, GEPLAT ou administrador resetam a REDIA do dia.',
+  RESET_SO_HOJE: 'Só a REDIA do próprio dia pode ser resetada.',
+  SEM_PERMISSAO_RESET: 'Só o administrador do sistema pode resetar todos os dados de teste.',
+  PROPRIETARIO: 'O proprietário do sistema não perde o perfil de administrador, não é desativado nem excluído.',
   SEM_PERMISSAO: 'Só o GEPLAT ou o administrador alteram a configuração da UEP.',
   LOTE_INVALIDO: 'Lote de registros inválido.',
 };
@@ -134,6 +137,7 @@ const Nuvem = {
   novos(uep, seq) { return this.rpc('redia_novos', { p_uep: uep, p_seq: seq || 0 }); },
   gravar(regs) { return this.rpc('redia_gravar', { p_regs: regs.map(r => { const x = { ...r }; delete x._arq; delete x.seq; return x; }) }); },
   resetar(uep) { return this.rpc('redia_resetar', { p_uep: uep }); },
+  resetarDia(uep, iso) { return this.rpc('redia_resetar_dia', { p_uep: uep, p_data: iso }); },   // D-74
   arquivo(uep, limite = 400) { return this.rpc('redia_arquivo', { p_uep: uep, p_limite: limite }); },   // D-65: atas e congelamentos de todos os dias
   buscar(uep, texto, limite = 100, f = {}) { const a = { p_uep: uep, p_texto: texto, p_limite: limite }; if (f.de) a.p_de = f.de; if (f.ate) a.p_ate = f.ate; if (f.coord) a.p_coord = f.coord; if (f.tipos?.length) a.p_tipos = f.tipos; return this.rpc('redia_buscar', a); },   // só os filtros usados (os demais ficam no padrão da função)   // D-63: histórico pesquisável
   configLer(uep) { return this.rpc('redia_config_ler', { p_uep: uep }); },

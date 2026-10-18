@@ -33,12 +33,17 @@ function cabecalhoApp(rota) {
   const f = E ? fase() : { nome: '—', desc: '' };
   const item = (h, t, on) => `<a href="${h}" class="${on ? 'on' : ''}">${t}</a>`;
   const c = USUARIO?.coord || 'COPROD';
+  /* D-74: unidade num selo próprio (o título não quebra mais em várias linhas); itens de gestão (Configuração, Studio, Administração)
+     no menu "Mais", para a navegação caber ao lado da forma verde em telas de 1280–1920 px sem esconder "Ao vivo" e "Sair" */
+  const troca = USUARIO?.uep && (USUARIO.unidades.length > 1 || USUARIO.adminSistema);
+  const mais = USUARIO?.uep ? [['#/ata', 'Fechamento e ata', 'ata', 'm-estr'], ['#/arquivo', 'Arquivo', 'arquivo', 'm-estr'], ['#/config', 'Configuração', 'config'], ...(USUARIO.editor ? [['#/studio', 'Studio', 'studio']] : []), ...(USUARIO.adminSistema ? [['#/admin', 'Administração', 'admin']] : [])] : [];
+  const menuMais = mais.length ? `<span class="mais"><button type="button" class="mais-b${mais.some(m => m[2] === rota.id && !m[3]) ? ' on' : ''}" aria-haspopup="true" aria-expanded="false">${esc(mais.find(m => m[2] === rota.id && !m[3])?.[1] || 'Mais')}<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button><span class="mais-m" role="menu">${mais.map(([h, t, id, cl]) => `<a role="menuitem" href="${h}" class="${rota.id === id ? 'on' : ''} ${cl || ''}">${t}</a>`).join('')}</span></span>` : '';
   return `<header class="apph">
-    <div><span class="kick">REDIA Búzios${USUARIO?.uep ? ' · ' + esc(USUARIO.uep) : ''} · ${esc(APP.versao)}</span><div class="tit">${esc(rota.titulo)}</div><span class="dash"></span></div>
-    ${USUARIO?.uep && (USUARIO.unidades.length > 1 || USUARIO.adminSistema) ? `<a class="uni-tr" href="#/unidades" title="Trocar de unidade"><b>${esc(USUARIO.uep)}</b><span>Trocar unidade</span></a>` : ''}
+    <div class="apph-t"><span class="kick">REDIA Búzios · ${esc(APP.versao)}</span><div class="tit">${esc(rota.titulo)}</div><span class="dash"></span></div>
+    ${USUARIO?.uep ? (troca ? `<a class="uni-tr" href="#/unidades" title="Trocar de unidade"><b>${esc(USUARIO.uep)}</b><span>Trocar unidade</span></a>` : `<span class="uni-tr fixo" title="${esc(nomeUnidade(USUARIO.uep))}"><b>${esc(USUARIO.uep)}</b><span>${esc(unidadeAtiva()?.situacao === 'comissionamento' ? 'Em comissionamento' : 'Unidade')}</span></span>`) : ''}
     ${E && USUARIO?.uep && notificacoesAbertas(E, USUARIO.coord).length ? `<a class="ntf" href="#/curadoria/${USUARIO.coord}" title="Notificação do GEPLAT">Concluir ${esc(USUARIO.coord)}</a>` : ''}
     <nav aria-label="Seções">${USUARIO?.uep
-      ? `${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/arquivo', 'Arquivo', rota.id === 'arquivo')}${item('#/config', 'Configuração', rota.id === 'config')}${USUARIO.editor ? item('#/studio', 'Studio', rota.id === 'studio') : ''}${USUARIO.adminSistema ? item('#/admin', 'Administração', rota.id === 'admin') : ''}${['inicio', 'curadoria'].includes(rota.id) || Vivo.ativo ? botaoVivo('vivo-h') : ''}`
+      ? `${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata').replace('<a ', '<a data-larg ')}${item('#/arquivo', 'Arquivo', rota.id === 'arquivo').replace('<a ', '<a data-larg ')}${menuMais}${['inicio', 'curadoria'].includes(rota.id) || Vivo.ativo ? botaoVivo('vivo-h') : ''}`
       : `${item('#/unidades', 'Unidades', rota.id === 'unidades')}${USUARIO?.adminSistema ? item('#/admin', 'Administração', rota.id === 'admin') : ''}`}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
     <span class="armz">${textoArmaz()}</span>
     <div class="egp-sp"></div>
@@ -399,18 +404,18 @@ async function telaInicio() {
   const testes = [];
   if (Store.modo && EXEMPLO_DISPONIVEL && podeAdministrar()) testes.push(`<div class="tf"><button class="btn sm pri" data-act="preencher" ${!R || congelada() || ata ? 'disabled' : ''}>Preencher a REDIA aberta (fictício)</button><span class="note">${!R ? 'Inicie a REDIA do dia para usar.' : ata ? 'REDIA encerrada.' : congelada() ? 'Pauta congelada: reabra para preencher.' : 'Gera valores fictícios para todos os campos vazios das 3 coordenações e do GEPLAT, aprova as sugestões pendentes e conclui o preenchimento. Não apaga o que já foi preenchido; marcado como fictício.'}</span></div>`);
   if (Store.modo && !temDados && podeAdministrar() && EXEMPLO_DISPONIVEL) testes.push(`<div class="tf"><button class="btn sm sec" data-act="exemplo">Carregar dados de exemplo</button><span class="note">Dia sem registros: carrega o exemplo completo (P-75, sem nomes de pessoas)${nuvem ? ', gravado na base marcado como exemplo' : ''}, com 15 dias de histórico.</span></div>`);
-  if (Store.modo && EXEMPLO_DISPONIVEL && podeAdministrar()) testes.push(`<div class="tf"><button class="btn sm sec" data-act="historico15">Gerar histórico de 15 dias</button><span class="note">REDIAs de exemplo encerradas de ${ddmm(addDias(DIA, -15))} a ${ddmm(addDias(DIA, -1))}, para tendências, recorrência, visão semanal e Arquivo. Dias já tratados ficam como estão.</span></div>`);
+  if (Store.modo && hoje && (!nuvem || podeIniciarRedia() || USUARIO.admin)) { const nDia = regsDoDia().length; testes.push(`<div class="tf"><button class="btn sm sec" data-act="resetar-dia" ${nDia ? '' : 'disabled'}>Resetar a REDIA de hoje</button><span class="note">${nDia ? `Apaga só o preenchimento de ${ddmm(DIA)} (${nDia} registro${nDia === 1 ? '' : 's'}${nuvem ? ', para todos' : ''}): a REDIA volta a “não iniciada”. Histórico, demandas do Canal Base x Bordo e outros dias ficam.` : 'Nada a resetar: a REDIA de hoje ainda não tem registros.'}</span></div>`); }   // D-74
   if (Store.modo && (!nuvem || USUARIO.admin || Relogio.simulado())) testes.push(`<div class="tf"><span class="row" style="gap:6px"><label class="lbl" for="sim" style="margin:0">Simular horário</label><input id="sim" type="time" class="in" style="width:auto" value="${hhmm(Relogio.agora())}"><button class="btn sm sec" data-act="simular">Aplicar</button>${Relogio.simulado() ? '<button class="btn sm" data-act="real">Voltar ao horário real</button>' : ''}</span><span class="note">Muda o relógio do app neste navegador para testar as fases do dia.</span></div>`);
   if (Store.modo) testes.push(`<div class="tf"><span class="row" style="gap:6px"><button class="btn sm sec" data-act="exportar">Exportar registros (JSON)</button>${!nuvem || podeAdministrar() ? `<label class="btn sm sec" for="imp">Importar registros</label><input id="imp" type="file" accept=".json" hidden>` : ''}</span><span class="note">Cópia e migração dos registros entre ambientes de teste.</span></div>`);
-  if (Store.modo && (!nuvem || USUARIO.admin)) testes.push(`<div class="tf"><button class="btn sm perigo" data-act="resetar">Resetar demonstração</button><span class="note">Apaga os dados inseridos por usuários e testadores${nuvem ? ', para todos' : ' neste navegador'}.</span></div>`);
   render(cabecalhoApp({ id: 'inicio', titulo: 'Início' }) + `<div class="wrap ini">
     <section class="pn ses" aria-label="Sessão">
       <div class="ses-u"><span class="av" aria-hidden="true">${esc(iniU || '?')}</span><div><b class="ses-n">${esc(USUARIO.nome)}</b><span class="note">${esc(USUARIO.posto)} · ${esc(USUARIO.coord)} · chave <b>${esc(USUARIO.chave)}</b>${USUARIO.admin && nuvem ? ' · administrador' : ''}</span></div></div>
       <div class="ses-i"><span class="lbl">REDIA do dia</span>${R ? `<b class="mono">${esc(R.payload.codigo || codigoRedia(CFG.uep, DIA))}</b><span class="note">${ata ? 'encerrada · ata arquivada' : esc(f.nome)}</span>` : `<b>Não iniciada</b><span class="note">${ddmmaaaa(DIA)}</span>`}</div>
       <div class="ses-i"><span class="lbl">Armazenamento</span><span class="row-c">${stBase}</span></div>
-      <div class="ses-a">${nuvem ? '<button class="btn sm sec" data-act="sincronizar">Sincronizar</button>' : ''}${nuvem && !USUARIO.compartilhado ? '<button class="btn sm sec" data-act="senha">Alterar senha</button>' : ''}<a class="btn sm" href="#/curadoria/${USUARIO.coord}">Abrir minha curadoria</a><a class="btn sm sec" href="#/sair">Sair</a></div>
+      <div class="ses-a">${nuvem ? '<button class="btn sm sec" data-act="sincronizar">Sincronizar</button>' : ''}${nuvem && !USUARIO.compartilhado ? '<button class="btn sm sec" data-act="senha">Alterar senha</button>' : ''}<a class="btn sm" href="#/curadoria/${USUARIO.coord}">Abrir minha curadoria</a></div>
     </section>
-    ${Store.modo ? `<div class="grid2 g-dia">
+    <div class="g-ini${testes.length || (nuvem && USUARIO.admin) ? '' : ' so1'}"><div class="g-ini-p">
+    ${Store.modo ? `
       <section class="pn"><h2>REDIA do dia</h2>
         ${R ? `<div class="redia-id"><span class="lbl">Código</span><b class="mono">${esc(R.payload.codigo || codigoRedia(CFG.uep, DIA))}</b><span class="note">iniciada por ${esc(R.autor?.nome || '—')} às ${hhmm(R.criadoEm)}${ata ? ` · ata fechada às ${hhmm(ata.criadoEm)}` : ''}</span></div>` : htmlIniciar()}
         <div class="row"><b>${diaSemana(DIA)}, ${ddmmaaaa(DIA)}</b>
@@ -424,35 +429,26 @@ async function telaInicio() {
       </section>
       <section class="pn"><h2>Situação das coordenações</h2>
         <div class="tbw"><table class="tb"><thead><tr><th>Coordenação</th><th>Preenchimento</th><th>Sugestões</th><th>Destaques</th><th>Na abertura</th><th></th></tr></thead><tbody>${COORDS.map(linhaCoord).join('')}</tbody></table></div>
-        <div class="row" style="margin-top:12px"><a class="btn pri" href="#/apresentacao/1">Abrir a apresentação</a>${botaoVivo('btn')}<a class="btn sec" href="#/ata">Fechamento e ata</a></div>
-      </section>
-    </div>` : ''}
-    <div class="g-fim">
-      ${nuvem && USUARIO.admin ? '<section class="pn adm"><h2>Administração</h2><div class="pdsenha" data-pedidos-senha><b>Pedidos de nova senha</b><p class="note">Carregando…</p></div></section>' : '<span></span>'}
-      ${testes.length ? `<section class="pn tst" aria-label="Funções da versão de teste"><h2>Funções da versão de teste</h2><p class="note">Só para a fase de testes do sistema: saem da versão de operação.</p>${testes.join('')}</section>` : ''}
-    </div>
+        <div class="row ini-acts"><a class="btn pri" href="#/apresentacao/1">Abrir a apresentação</a><a class="btn sec" href="#/ata">Fechamento e ata</a><a class="btn sec" href="#/arquivo">Arquivo</a></div>
+      </section>` : ''}
+    </div><aside class="g-ini-l">
+      ${testes.length ? `<section class="pn tst" aria-label="Funções da versão de teste"><h2>Funções da versão de teste</h2><p class="note">Só para a fase de testes do sistema: saem da versão de operação.${USUARIO.adminSistema ? ' Reset total e histórico de 15 dias: Administração › Dados de teste.' : ''}</p>${testes.join('')}</section>` : ''}
+      ${nuvem && USUARIO.admin ? '<section class="pn adm"><h2>Pedidos de nova senha</h2><div class="pdsenha" data-pedidos-senha><p class="note">Carregando…</p></div></section>' : ''}
+    </aside></div>
   </div>`);
   const on = (a, fn) => { const b = $(`[data-act="${a}"]`); if (b) b.onclick = fn; };
   on('congelar-ini', congelarPauta);
   on('sincronizar', async () => { await sincronizarTela(); rerender(); });
   on('senha', () => trocarSenhaObrigatoria(true));
-  on('resetar', resetarDemonstracao);
-  on('historico15', async e => {   // D-65
-    const r0 = await modal({ titulo: 'Gerar histórico de 15 dias?', html: `<p>Grava REDIAs de exemplo encerradas de ${ddmm(addDias(DIA, -15))} a ${ddmm(addDias(DIA, -1))} ${Store.remoto() ? '<b>na base de dados, visíveis para todos</b>' : 'neste navegador'}, marcadas como exemplo. Dias que já têm pauta congelada ou ata ficam como estão.</p><p class="note">Para apagar depois, use Resetar demonstração.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Gerar histórico', cls: 'pri' }] });
-    if (r0.id !== 'ok') return;
-    e.target.disabled = true;
-    try { const r = await gravarHistorico(DIA, 15); if (Store.remoto()) await Store.carregar(DIA); atualizarEstado(); aviso(r.n ? `Histórico gravado: ${r.dias} dia(s), ${r.n} registros${r.pulados ? ` · ${r.pulados} dia(s) já encerrados foram mantidos` : ''}.` : 'Nada a gravar: os 15 dias anteriores já têm REDIA encerrada.', 'ok'); }
-    catch (x) { aviso('Não foi possível gravar o histórico: ' + x.message, 'erro'); }
-    rerender();
-  });
+  on('resetar-dia', resetarRediaHoje);   // D-74
   const ps = $('[data-pedidos-senha]');   // D-56: conferência dos pedidos de "Esqueci a senha" (só administrador)
   if (ps) Nuvem.pedidosSenha(CFG.uep).then(l => { if (!ps.isConnected) return; const SIT = { enviada: ['ok', 'senha enviada ao seu e-mail'], falha: ['nok', 'falha no envio'], ignorado: ['ne', 'ignorado (repetido)'] };
-    ps.innerHTML = `<b>Pedidos de nova senha</b>${l.length ? `<table class="tb"><tbody>${l.slice(0, 6).map(p => `<tr><td><b>${esc(p.chave)}</b></td><td>${ddmm(String(p.em).slice(0, 10))} ${hhmm(p.em)}</td><td><span class="chip ${(SIT[p.situacao] || SIT.ignorado)[0]}">${esc((SIT[p.situacao] || SIT.ignorado)[1])}</span></td></tr>`).join('')}</tbody></table>` : '<p class="note">Nenhum pedido. A senha temporária pedida em “Esqueci a senha” chega ao e-mail do administrador.</p>'}`; });
+    ps.innerHTML = `${l.length ? `<table class="tb"><tbody>${l.slice(0, 6).map(p => `<tr><td><b>${esc(p.chave)}</b></td><td>${ddmm(String(p.em).slice(0, 10))} ${hhmm(p.em)}</td><td><span class="chip ${(SIT[p.situacao] || SIT.ignorado)[0]}">${esc((SIT[p.situacao] || SIT.ignorado)[1])}</span></td></tr>`).join('')}</tbody></table>` : '<p class="note">Nenhum pedido. A senha temporária pedida em “Esqueci a senha” chega ao e-mail do administrador.</p>'}`; });
   on('descongelar', () => descongelarPauta());
   on('simular', () => { Relogio.simular($('#sim').value); rerender(); });
   on('real', () => { Relogio.real(); rerender(); });
   on('preencher', async e => {   // D-67: versão de teste
-    const r0 = await modal({ titulo: 'Preencher a REDIA aberta com dados fictícios?', html: `<p>Preenche ${Store.remoto() ? '<b>na base, para todos</b>,' : 'neste navegador'} os campos e listas vazios das coordenações e do GEPLAT, aprova as sugestões pendentes e conclui o preenchimento de todas as coordenações. O que já foi preenchido fica como está.</p><p class="note">Os registros ficam marcados como fictícios; para apagar, use Resetar demonstração.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Preencher', cls: 'pri' }] });
+    const r0 = await modal({ titulo: 'Preencher a REDIA aberta com dados fictícios?', html: `<p>Preenche ${Store.remoto() ? '<b>na base, para todos</b>,' : 'neste navegador'} os campos e listas vazios das coordenações e do GEPLAT, aprova as sugestões pendentes e conclui o preenchimento de todas as coordenações. O que já foi preenchido fica como está.</p><p class="note">Os registros ficam marcados como fictícios; para apagar, use Resetar a REDIA de hoje.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Preencher', cls: 'pri' }] });
     if (r0.id !== 'ok') return;
     e.target.disabled = true;
     try { if (Store.remoto()) { await Store.sincronizar(); atualizarEstado(); } const r = await preencherFicticio(DIA, E); atualizarEstado(); aviso(r.n ? `REDIA preenchida: ${r.valores} valores, ${r.listas} listas, ${r.aprovadas} sugestões aprovadas e todas as coordenações concluídas.` : 'Nada a preencher: a REDIA já está completa.', 'ok'); }
@@ -483,6 +479,20 @@ async function resetarDemonstracao() {
     UI.captura = {}; UI.sel = {}; UI.det = {};
     atualizarEstado(); aviso(`Demonstração resetada: ${n} registro(s) apagado(s).`, 'ok'); rerender();
   } catch (e) { aviso('Não foi possível resetar: ' + e.message, 'erro'); }
+}
+/* D-74: reset só do preenchimento da REDIA de hoje (versão de teste); o reset total fica na Administração */
+async function resetarRediaHoje() {
+  const nuvem = Store.remoto(), n = regsDoDia().length;
+  const r = await modal({
+    titulo: 'Resetar a REDIA de hoje?',
+    html: `<p>Apaga <b>só o preenchimento de ${ddmmaaaa(DIA)}</b> da ${esc(CFG.uep)} (${n} registro${n === 1 ? '' : 's'}) ${nuvem ? '<b>na base de dados, para todos os usuários</b>' : 'neste navegador'}: início da REDIA, valores, sugestões aprovadas, destaques, conclusões, congelamento, de acordo e ata do dia.</p>
+      <p>Continuam: os dias anteriores (histórico e Arquivo), as demandas do Canal Base x Bordo, usuários e configuração. Depois, a REDIA de hoje pode ser iniciada de novo.</p>
+      <p><b>Não dá para desfazer.</b></p>`,
+    botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Resetar a REDIA de hoje', cls: 'perigo' }],
+  });
+  if (r.id !== 'ok') return;
+  try { const k = await Store.resetarDia(DIA); UI.captura = {}; UI.sel = {}; atualizarEstado(); aviso(`REDIA de ${ddmm(DIA)} resetada: ${k} registro(s) apagado(s).`, 'ok'); rerender(); }
+  catch (e) { await tratarErroGravacao(e); }
 }
 async function abrirDia(iso) {
   DIA = iso; LS.set('dia', DIA);
@@ -1687,6 +1697,12 @@ async function iniciar() {
   matchMedia('(max-width: 900px)').addEventListener?.('change', () => { if (ROTA_ATUAL && ROTA_ATUAL.id !== 'apresentacao' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) rerender(); });
   document.addEventListener('mousemove', () => { if (ROTA_ATUAL?.id === 'apresentacao') mostrarCtrl(); });
   iniciarDicas();
+  document.addEventListener('click', e => {   // D-74: menu "Mais" do cabeçalho (abre e fecha; fecha ao clicar fora ou escolher)
+    const b = e.target.closest?.('.mais-b'), aberto = $('.mais.aberto');
+    if (b) { const m = b.parentElement, abrir = !m.classList.contains('aberto'); aberto?.classList.remove('aberto'); m.classList.toggle('aberto', abrir); b.setAttribute('aria-expanded', abrir); return; }
+    if (aberto) { aberto.classList.remove('aberto'); aberto.querySelector('.mais-b')?.setAttribute('aria-expanded', 'false'); }
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('.mais.aberto')?.classList.remove('aberto'); });
   document.addEventListener('click', e => {   // D-67
     const t = e.target.closest?.('[data-act]'); if (!t) return;
     const a = t.dataset.act;

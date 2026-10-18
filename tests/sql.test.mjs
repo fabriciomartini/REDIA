@@ -157,6 +157,10 @@ await como(U.gp, `select public.redia_admin_salvar_usuario($1::jsonb)`, [JSON.st
 const ucp2 = (await como(U.gp, `select public.redia_admin_usuarios() as r`)).rows[0].r.find(x => x.chave === 'CP01');
 ok(ucp2.lotacoes.map(l => l.uep + (l.editor ? '*' : '')).join() === 'P-75*,P-83' && ucp2.uep === 'P-75' && ucp2.posto === 'COPROD', 'administrador do sistema altera posto, lotações e o papel de editor por unidade');
 ok(/AUTO_BLOQUEIO/.test(await falha(U.gp, `select public.redia_admin_salvar_usuario($1::jsonb)`, [JSON.stringify({ userId: U.gp, adminSistema: false, lotacoes: [{ uep: 'P-83' }] })]) || ''), 'administrador não retira o próprio perfil de administrador');
+await db.query(`update public.perfis set proprietario = true where chave = 'CP01'`);
+ok(/PROPRIETARIO/.test(await falha(U.gp, `select public.redia_admin_salvar_usuario($1::jsonb)`, [JSON.stringify({ userId: U.cp, ativo: false, lotacoes: [{ uep: 'P-83' }] })]) || ''), 'D-74: o proprietário do sistema não é desativado por outro administrador');
+ok((await como(U.gp, `select public.redia_admin_usuarios() as r`)).rows[0].r.find(x => x.chave === 'CP01').proprietario === true, 'administração identifica o proprietário do sistema');
+await db.query(`update public.perfis set proprietario = false where chave = 'CP01'`);
 ok(/SEM_LOTACAO/.test(await falha(U.gp, `select public.redia_admin_salvar_usuario($1::jsonb)`, [JSON.stringify({ userId: U.cp, lotacoes: [] })]) || ''), 'usuário precisa de ao menos uma unidade de lotação');
 await como(U.gp, `select public.redia_admin_revisar($1::uuid)`, [U.cp]);
 const au = (await como(U.gp, `select public.redia_admin_auditoria(50) as r`)).rows[0].r;
@@ -195,13 +199,24 @@ ok((await como(U.outra, `select public.redia_config_ler('P-83') as c`)).rows[0].
 ok(/LOTE_INVALIDO/.test(await falha(U.cp, `select public.redia_gravar('[]'::jsonb)`) || ''), 'lote vazio recusado');
 ok(/violates check|tipo/.test(await falha(U.cp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('invasao', {})])]) || ''), 'tipo de registro desconhecido recusado');
 
-// reset da demonstração (D-52)
-ok(/SEM_PERMISSAO_RESET/.test(await falha(U.cp, `select public.redia_resetar('P-83')`) || ''), 'reset: só o administrador da UEP pode resetar');
-ok(/SEM_PERMISSAO_RESET/.test(await falha(U.gp, `select public.redia_resetar('P-99')`) || ''), 'reset: administrador não reseta outra UEP');
+// D-74 · reset só da REDIA de hoje (registros do dia; demandas e outros dias ficam)
+const hojeSP = (await db.query(`select to_char((now() at time zone 'America/Sao_Paulo')::date, 'YYYY-MM-DD') d`)).rows[0].d;
+await gravar(U.gp, [reg('valor', { campo: 'oleo.real', valor: 7, origem: 'M' }, { data: hojeSP }), reg('valor', { campo: 'gas.real', valor: 8, origem: 'M' }, { data: hojeSP })]);
+const antesDia = (await db.query(`select count(*)::int n from public.registros where uep = 'P-83' and data <> $1`, [hojeSP])).rows[0].n;
+ok(/SEM_PERMISSAO_RESET_DIA/.test(await falha(U.em, `select public.redia_resetar_dia('P-83', $1::date)`, [hojeSP]) || ''), 'reset do dia: SUEMB (supervisor, não coordenador) não reseta');
+ok(/RESET_SO_HOJE/.test(await falha(U.gp, `select public.redia_resetar_dia('P-83', '2026-10-14'::date)`) || ''), 'reset do dia: só a REDIA de hoje (dias anteriores, não)');
+const nDia = (await como(U.gp, `select public.redia_resetar_dia('P-83', $1::date) as n`, [hojeSP])).rows[0].n;
+ok(nDia === 2 && (await db.query(`select count(*)::int n from public.registros where uep = 'P-83' and data = $1`, [hojeSP])).rows[0].n === 0 && (await db.query(`select count(*)::int n from public.registros where uep = 'P-83' and data <> $1`, [hojeSP])).rows[0].n === antesDia, `reset do dia: GEPLAT apaga só os registros de hoje (${nDia}); os outros dias ficam`);
+ok((await db.query(`select count(*)::int n from public.auditoria where acao = 'teste.resetar_dia'`)).rows[0].n === 1, 'reset do dia fica na auditoria');
+// reset total da demonstração (D-52; D-74: só o administrador do sistema)
+ok(/SEM_PERMISSAO_RESET/.test(await falha(U.cp, `select public.redia_resetar('P-83')`) || ''), 'reset total: usuário comum não reseta');
+ok(/SEM_PERMISSAO_RESET/.test(await falha(U.gp, `select public.redia_resetar('P-83')`) || ''), 'reset total: administrador da unidade não reseta (só o administrador do sistema)');
+await db.query(`update public.perfis set admin_sistema = true where chave = 'GP01'`);
 const antesP99 = (await db.query(`select count(*)::int n from public.registros where uep = 'P-99'`)).rows[0].n;
 const seqAntes = (await como(U.cp, `select public.redia_carregar('P-83', '2026-10-14', '{}') as r`)).rows[0].r.seq;
 const apagados = (await como(U.gp, `select public.redia_resetar('P-83') as n`)).rows[0].n;
 const restantes = (await db.query(`select count(*)::int n from public.registros where uep = 'P-83'`)).rows[0].n;
+await db.query(`update public.perfis set admin_sistema = false where chave = 'GP01'`);
 ok(apagados > 10 && restantes === 0 && (await db.query(`select count(*)::int n from public.registros where uep = 'P-99'`)).rows[0].n === antesP99, `reset apaga só os registros da UEP (${apagados} apagados)`);
 const pos = (await como(U.cp, `select public.redia_novos('P-83', $1) as r`, [seqAntes])).rows[0].r;
 ok(pos.max === 0 && pos.max < seqAntes, 'redia_novos devolve max menor que a sequência do app: outras sessões detectam o reset');

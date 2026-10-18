@@ -22,14 +22,15 @@ const DiretorioDemo = {
   base() {
     if (this._base) return this._base;
     const t0 = '2026-10-01T08:00:00.000Z', u = (chave, nome, posto, lotacoes, extra = {}) => ({ userId: chave, chave, nome, posto, coord: POSTO_COORD[posto] || 'GEPLAT', email: '', adminSistema: false, ativo: true, compartilhado: true, trocarSenha: false, criadoEm: t0, revisadoEm: null, lotacoes, ...extra });
-    const l = [u('AD01', 'Administrador do sistema (demo)', 'GEPLAT', UNIDADES.map(x => ({ uep: x.uep, admin: true, editor: true })), { adminSistema: true, compartilhado: false })];
+    const l = [u('AD01', 'Administrador do sistema (demo)', 'GEPLAT', UNIDADES.map(x => ({ uep: x.uep, admin: true, editor: true })), { adminSistema: true, compartilhado: false, proprietario: true })];   // na demonstração, AD01 faz o papel do proprietário do sistema
     // GEPLAT de cada unidade: administrador da unidade e editor do Studio; os demais, só lotados
     Object.entries(ACESSO_DEMO).forEach(([c, a]) => l.push(u(c, a.nome, a.posto, [{ uep: 'P-83', admin: a.posto === 'GEPLAT', editor: a.posto === 'GEPLAT' }])));
     UNIDADES.forEach(x => Object.entries(POSTOS_TESTE).forEach(([pf, posto]) => l.push(u(pf + x.uep.slice(2), `Teste ${nomePosto(posto)} ${x.uep} (demo)`, posto, [{ uep: x.uep, admin: pf === 'GP', editor: pf === 'GP' }]))));
     return (this._base = l);
   },
   extras() { return LS.get('demo.usuarios', {}); },
-  todos() { const ex = this.extras(), b = this.base().map(x => ex[x.chave] ? { ...x, ...ex[x.chave] } : x); return [...b, ...Object.values(ex).filter(x => !b.some(y => y.chave === x.chave))].sort((a, b) => a.chave < b.chave ? -1 : 1); },
+  todos() { const ex = this.extras(), b = this.base().map(x => ex[x.chave] ? { ...x, ...ex[x.chave] } : x); return [...b, ...Object.values(ex).filter(x => !b.some(y => y.chave === x.chave))].filter(x => !x.excluido).sort((a, b) => a.chave < b.chave ? -1 : 1); },
+  excluir(c) { const ex = this.extras(); ex[c] = { chave: c, excluido: true }; LS.set('demo.usuarios', ex); const m = LS.get('demo.senhas', {}); delete m[c]; LS.set('demo.senhas', m); },
   achar(c) { return this.todos().find(x => x.chave === c) || null; },
   gravar(u) { const ex = this.extras(); ex[u.chave] = { ...u, userId: u.chave }; LS.set('demo.usuarios', ex); },
   async conferirSenha(c, s) { const h = LS.get('demo.senhas', {})[c]; return h ? h === await resumoSenha(s) : s === SENHA_GENERICA; },
@@ -48,6 +49,7 @@ const AdminDemo = {
   async salvarUsuario(p) {
     const antes = DiretorioDemo.achar(p.userId); if (!antes) throw erroAdm('USUARIO_INEXISTENTE');
     if (p.userId === USUARIO.chave && (p.adminSistema === false || p.ativo === false)) throw erroAdm('AUTO_BLOQUEIO');
+    if (antes.proprietario && (p.adminSistema === false || p.ativo === false)) throw erroAdm('PROPRIETARIO');
     if (!p.lotacoes?.length) throw erroAdm('SEM_LOTACAO');
     const depois = { ...antes, nome: p.nome || antes.nome, posto: p.posto || antes.posto, coord: POSTO_COORD[p.posto || antes.posto] || 'GEPLAT', email: p.email ?? antes.email, adminSistema: !!p.adminSistema, ativo: !!p.ativo, compartilhado: !!p.compartilhado, trocarSenha: !!p.trocarSenha, lotacoes: p.lotacoes };
     if (!DiretorioDemo.todos().some(u => (u.chave === depois.chave ? depois : u).adminSistema && (u.chave === depois.chave ? depois : u).ativo)) throw erroAdm('SEM_ADMIN');
@@ -73,6 +75,13 @@ const AdminDemo = {
     await DiretorioDemo.definirSenha(p.chave, senha); return { ok: true };
   },
   async acao(acao, b) {
+    if (acao === 'excluir') {   // D-74
+      const u = DiretorioDemo.achar(b.userId); if (!u) throw new Error('Usuário não encontrado.');
+      if (u.proprietario) throw new Error('A conta do proprietário do sistema não pode ser excluída.');
+      if (u.chave === USUARIO.chave) throw new Error('Você não pode excluir a sua própria conta.');
+      if (u.adminSistema && !DiretorioDemo.todos().some(x => x.chave !== u.chave && x.adminSistema && x.ativo)) throw erroAdm('SEM_ADMIN');
+      DiretorioDemo.excluir(u.chave); DiretorioDemo.auditar('usuario.excluir', u.chave, { nome: u.nome, posto: u.posto, lotacoes: u.lotacoes }); return { ok: true };
+    }
     if (acao === 'criar') { const s = senhaProvisoria(), r = await this.criar(b, s, !b.compartilhado); if (r.erro) throw new Error(r.existe ? 'Esta chave já está cadastrada.' : r.erro); DiretorioDemo.auditar('usuario.criar', b.chave, { posto: b.posto, lotacoes: b.lotacoes, envio: 'tela' }); return { ok: true, envio: 'tela', senhaTemporaria: s }; }
     if (acao === 'redefinir') { const u = DiretorioDemo.achar(b.userId); if (!u) throw new Error('Usuário não encontrado.'); const s = senhaProvisoria(); await DiretorioDemo.definirSenha(u.chave, s); DiretorioDemo.gravar({ ...u, trocarSenha: !u.compartilhado }); DiretorioDemo.auditar('usuario.redefinir_senha', u.chave, { envio: 'tela' }); return { ok: true, envio: 'tela', senhaTemporaria: s }; }
     const peds = LS.get('demo.pedidosCadastro', []), q = peds.find(x => x.id === b.pedidoId && x.situacao === 'aguardando');
@@ -158,12 +167,12 @@ const dataCurta = ts => ts ? `${ddmmaaaa(isoData(new Date(ts)))} ${hhmm(ts)}` : 
 const revisaoVencida = u => u.ativo && (diasDesdeTs(u.revisadoEm) === null || diasDesdeTs(u.revisadoEm) > DIAS_REVISAO);
 const semAcesso = u => u.ativo && !u.compartilhado && (diasDesdeTs(u.ultimoAcesso || u.criadoEm) ?? 0) > DIAS_INATIVO;
 function filtrosAdm() { return UI.adm || (UI.adm = { aba: 'painel', q: '', uep: '', papel: '', sit: 'ativos' }); }
-const ABAS_ADM = [['painel', 'Painel'], ['usuarios', 'Usuários'], ['unidades', 'Unidades'], ['cadastro', 'Cadastro e senhas'], ['auditoria', 'Auditoria'], ['praticas', 'Boas práticas']];
+const ABAS_ADM = [['painel', 'Painel'], ['usuarios', 'Usuários'], ['unidades', 'Unidades'], ['cadastro', 'Cadastro e senhas'], ['testes', 'Dados de teste'], ['auditoria', 'Auditoria'], ['praticas', 'Boas práticas']];
 
 async function telaAdmin() {
   if (!USUARIO?.adminSistema) { render(cabecalhoApp({ id: 'admin', titulo: 'Administração' }) + '<div class="wrap"><div class="banner erro"><b>Acesso restrito.</b> A Administração é só para o administrador do sistema.</div></div>'); return; }
   const F = filtrosAdm();
-  render(cabecalhoApp({ id: 'admin', titulo: 'Administração do sistema' }) + `<div class="wrap adm">
+  render(cabecalhoApp({ id: 'admin', titulo: 'Administração' }) + `<div class="wrap adm">
     <section class="adm-h"><div><span class="kick">REDIA Búzios · administração do sistema</span><h2>Administração</h2></div>
       <p class="note">${MODO_NUVEM ? 'Alterações gravadas na base e registradas na auditoria.' : 'Demonstração: o diretório de usuários é fictício e as alterações ficam só neste navegador.'}</p></section>
     <nav class="adm-abas" role="tablist">${ABAS_ADM.map(([id, rot]) => `<button role="tab" class="adm-ab${F.aba === id ? ' on' : ''}" aria-selected="${F.aba === id}" data-aba="${id}">${rot}</button>`).join('')}</nav>
@@ -174,7 +183,7 @@ async function telaAdmin() {
     const [us, rs] = await Promise.all([A.usuarios(), A.resumo()]);
     UI.admDados = { us, rs };
     const c = $('#adm-c'); if (!c) return;
-    ({ painel: admPainel, usuarios: admUsuarios, unidades: admUnidades, cadastro: admCadastro, auditoria: admAuditoria, praticas: admPraticas })[F.aba](c, us, rs);
+    ({ painel: admPainel, usuarios: admUsuarios, unidades: admUnidades, cadastro: admCadastro, testes: admTestes, auditoria: admAuditoria, praticas: admPraticas })[F.aba](c, us, rs);
   } catch (e) { const c = $('#adm-c'); if (c) c.innerHTML = `<div class="banner erro"><b>Não foi possível carregar a administração.</b> ${esc(e.message)}${MODO_NUVEM ? ' Confira se o SQL da versão 2.0 foi aplicado na base.' : ''}</div>`; }
 }
 function indicadores(us, rs) {
@@ -228,12 +237,13 @@ function admUsuarios(c, us) {
     const l = filtrarUsuarios(us, F);
     $('#adm-lista', c).innerHTML = `<p class="note">${l.length} de ${us.length} usuário${us.length === 1 ? '' : 's'}</p><div class="tbw"><table class="tb adm-tb"><thead><tr><th>Chave</th><th>Nome</th><th>Função</th><th>Lotação</th><th>Papéis</th><th>Último acesso</th><th>Revisão</th><th>Situação</th><th></th></tr></thead><tbody>
       ${l.slice(0, 300).map(u => `<tr${u.ativo ? '' : ' class="adm-off"'}><td><b class="mono">${esc(u.chave)}</b></td><td>${esc(u.nome)}${u.email ? `<br><span class="note">${esc(u.email)}</span>` : ''}</td><td>${esc(nomePosto(u.posto))}<br><span class="note">${esc(u.coord || POSTO_COORD[u.posto] || '')}</span></td>
-        <td>${lotTxt(u)}</td><td>${[u.adminSistema ? '<span class="chip nok">Adm. sistema</span>' : '', u.lotacoes.some(x => x.admin) ? '<span class="chip ne">Adm. unidade</span>' : '', u.lotacoes.some(x => x.editor) ? '<span class="chip ok">Editor</span>' : ''].filter(Boolean).join(' ') || '<span class="note">Usuário</span>'}</td>
+        <td>${lotTxt(u)}</td><td>${[u.proprietario ? '<span class="chip prop">Proprietário</span>' : '', u.adminSistema ? '<span class="chip nok">Adm. sistema</span>' : '', u.lotacoes.some(x => x.admin) ? '<span class="chip ne">Adm. unidade</span>' : '', u.lotacoes.some(x => x.editor) ? '<span class="chip ok">Editor</span>' : ''].filter(Boolean).join(' ') || '<span class="note">Usuário</span>'}</td>
         <td>${u.compartilhado ? '<span class="note">conta compartilhada</span>' : u.ultimoAcesso ? `${dataCurta(u.ultimoAcesso)}${semAcesso(u) ? ' <span class="chip at">sem uso</span>' : ''}` : '<span class="note">nunca</span>'}</td>
         <td>${u.revisadoEm ? ddmmaaaa(isoData(new Date(u.revisadoEm))) : '<span class="note">nunca</span>'}${revisaoVencida(u) ? ' <span class="chip at">vencida</span>' : ''}</td>
         <td>${u.ativo ? (u.trocarSenha ? '<span class="chip at">Troca de senha pendente</span>' : '<span class="chip ok">Ativo</span>') : '<span class="chip sd">Desativado</span>'}${u.compartilhado ? ' <span class="chip ne">Compartilhada</span>' : ''}</td>
-        <td><button class="btn sm" data-ed="${esc(u.userId)}">Editar</button></td></tr>`).join('') || '<tr><td colspan="9" class="note">Nenhum usuário com estes filtros.</td></tr>'}</tbody></table></div>${l.length > 300 ? '<p class="note">Mostrando os 300 primeiros: refine a busca.</p>' : ''}`;
+        <td class="nw"><button class="btn sm" data-ed="${esc(u.userId)}">Editar</button>${podeExcluir(u) ? ` <button class="btn sm lnk perigo-l" data-ex="${esc(u.userId)}" title="Excluir a conta de ${esc(u.chave)}">Excluir</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="9" class="note">Nenhum usuário com estes filtros.</td></tr>'}</tbody></table></div>${l.length > 300 ? '<p class="note">Mostrando os 300 primeiros: refine a busca.</p>' : ''}`;
     $$('[data-ed]', c).forEach(b => b.onclick = () => editarUsuario(us.find(u => String(u.userId) === b.dataset.ed)));
+    $$('[data-ex]', c).forEach(b => b.onclick = () => excluirUsuario(us.find(u => String(u.userId) === b.dataset.ex)));
   };
   desenhar();
   const q = $('#af-q', c); q.oninput = () => { F.q = q.value; desenhar(); };
@@ -251,7 +261,7 @@ const lerLotacoes = r => UNIDADES.filter(x => r['lot:' + x.uep] || r['adm:' + x.
 async function editarUsuario(u) {
   const novo = !u, A = Admin();
   const ck = (k, rot, val, nota = '', dis = '') => `<label class="adm-ck"><input type="checkbox" data-mdl-in="${k}" ${val ? 'checked' : ''} ${dis}><span><b>${rot}</b>${nota ? `<span class="note">${nota}</span>` : ''}</span></label>`;
-  const eu = !novo && u.chave === USUARIO.chave;
+  const eu = !novo && (u.chave === USUARIO.chave || !!u.proprietario);   // D-74: proprietário nunca perde o perfil nem é desativado
   const r = await modal({
     titulo: novo ? 'Novo usuário' : `Usuário ${esc(u.chave)}`, largo: true,
     html: `<div class="fgrid">
@@ -268,10 +278,11 @@ async function editarUsuario(u) {
         ${novo ? '' : ck('trocarSenha', 'Exigir troca de senha no próximo acesso', u.trocarSenha)}</div>
       ${novo ? `<p class="note">Ao criar, o sistema gera uma <b>senha provisória</b> e a envia ao e-mail informado${MODO_NUVEM ? '' : ' (na demonstração, ela aparece na tela)'}; sem e-mail, ela aparece uma vez para você repassar.</p>` : `<p class="note">Criado em ${dataCurta(u.criadoEm)} · último acesso ${dataCurta(u.ultimoAcesso)} · revisão de acesso ${dataCurta(u.revisadoEm)}</p>`}`,
     botoes: novo ? [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Criar usuário', cls: 'pri' }]
-      : [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'senha', txt: 'Redefinir senha' }, { id: 'revisar', txt: 'Marcar acesso revisado' }, { id: 'ok', txt: 'Salvar', cls: 'pri' }],
+      : [...(podeExcluir(u) ? [{ id: 'excluir', txt: 'Excluir conta', cls: 'perigo' }] : []), { id: 'cancelar', txt: 'Cancelar' }, { id: 'senha', txt: 'Redefinir senha' }, { id: 'revisar', txt: 'Marcar acesso revisado' }, { id: 'ok', txt: 'Salvar', cls: 'pri' }],
   });
   if (r.id === 'cancelar') return;
   try {
+    if (r.id === 'excluir') return excluirUsuario(u);
     if (r.id === 'revisar') { await A.revisar(u.userId); aviso(`Acesso de ${u.chave} marcado como revisado.`, 'ok'); return telaAdmin(); }
     if (r.id === 'senha') {
       const c = await modal({ titulo: 'Redefinir senha', html: `<p>Gerar uma nova senha provisória para <b>${esc(u.chave)}</b>? A senha atual deixa de valer${u.compartilhado ? ' para todos que usam esta conta compartilhada' : ' e o usuário troca a senha no próximo acesso'}.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Gerar senha provisória', cls: 'pri' }] });
@@ -295,6 +306,51 @@ async function editarUsuario(u) {
     }
     telaAdmin();
   } catch (e) { aviso(e.message, 'erro'); }
+}
+/* D-74 · exclusão de conta: nunca o proprietário do sistema nem a própria conta; confirmação digitando a chave */
+const podeExcluir = u => !!u && !u.proprietario && u.chave !== USUARIO?.chave;
+async function excluirUsuario(u) {
+  if (!podeExcluir(u)) return aviso(u?.proprietario ? 'A conta do proprietário do sistema não pode ser excluída.' : 'Você não pode excluir a sua própria conta.', 'erro');
+  const r = await modal({ titulo: `Excluir a conta ${esc(u.chave)}?`, html: `<p>Exclui definitivamente a conta de <b>${esc(u.nome)}</b> (${esc(u.chave)}): acesso, perfil e lotações em ${u.lotacoes.map(l => esc(l.uep)).join(', ') || '—'}.</p>
+      <p>Os registros e as atas em que a pessoa aparece continuam (guardam o nome do autor) e a exclusão fica na auditoria. A chave pode ser cadastrada de novo depois.</p>
+      <p class="note">Se a pessoa pode voltar, prefira <b>desativar</b> a conta (Editar › Conta ativa): o histórico de acesso continua.</p>
+      <label class="lbl" for="mdl-exc">Para confirmar, digite a chave ${esc(u.chave)}</label><input id="mdl-exc" class="in mono" data-mdl-in="conf" autocomplete="off" maxlength="4">`,
+    botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Excluir definitivamente', cls: 'perigo' }] });
+  if (r.id !== 'ok') return;
+  if (String(r.conf || '').toUpperCase() !== u.chave) return aviso('Exclusão cancelada: a chave digitada não confere.', 'erro');
+  try { await Admin().acao('excluir', { userId: u.userId }); aviso(`Conta ${u.chave} excluída.`, 'ok'); telaAdmin(); } catch (e) { aviso(e.message, 'erro'); }
+}
+/* D-74 · dados de teste por unidade (só administrador do sistema): histórico de 15 dias e reset total */
+async function abrirUnidadeAdm(uep) {
+  if (USUARIO.uep === uep && Store.modo) return;
+  aplicarUnidade(uep); await iniciarSessao(true);
+}
+function admTestes(c, us, rs) {
+  const F = filtrosAdm(); F.uepT = F.uepT || USUARIO.uep || 'P-83';
+  const u = (rs.unidades || []).find(x => x.uep === F.uepT) || {};
+  c.innerHTML = `<section class="pn adm-ts"><div class="pn-h"><h2>Dados de teste</h2><span class="note">Ações que mexem em muitos registros de uma unidade: só o administrador do sistema</span></div>
+    <div class="adm-bar"><label class="lbl" for="at-un" style="margin:0">Unidade</label><select id="at-un" class="in">${UNIDADES.map(x => `<option value="${esc(x.uep)}"${x.uep === F.uepT ? ' selected' : ''}>${esc(x.uep)} · ${esc(x.nome)}</option>`).join('')}</select>
+      <span class="note">${fmtN(u.registros || 0)} registros · última REDIA ${u.ultimaRedia ? ddmmaaaa(String(u.ultimaRedia).slice(0, 10)) : '—'} · ${u.atas || 0} ata(s)</span></div>
+    <div class="adm-tsg">
+      ${EXEMPLO_DISPONIVEL ? `<div class="adm-tsc"><h3>Gerar histórico de 15 dias</h3><p>Grava REDIAs de exemplo encerradas dos 15 dias anteriores a hoje na ${esc(F.uepT)} ${MODO_NUVEM ? '(na base, visíveis para todos)' : '(neste navegador)'}, para tendências, recorrência, visão semanal e Arquivo. Dias que já têm pauta congelada ou ata ficam como estão.</p><button class="btn sec" data-t="hist">Gerar histórico de 15 dias</button></div>` : ''}
+      <div class="adm-tsc perigo"><h3>Resetar todos os dados de teste</h3><p>Apaga <b>todos os registros da ${esc(F.uepT)}</b>, de todos os dias ${MODO_NUVEM ? '(na base, para todos os usuários)' : '(neste navegador)'}. Usuários, configuração e layout do Studio continuam. Para apagar só o dia, use “Resetar a REDIA de hoje” no Início.</p><button class="btn perigo" data-t="reset">Resetar todos os dados da ${esc(F.uepT)}</button></div>
+    </div></section>`;
+  $('#at-un', c).onchange = e => { F.uepT = e.target.value; telaAdmin(); };
+  $('[data-t="hist"]', c) && ($('[data-t="hist"]', c).onclick = async e => {
+    const r0 = await modal({ titulo: `Gerar histórico de 15 dias na ${esc(F.uepT)}?`, html: `<p>Grava REDIAs de exemplo encerradas de ${ddmm(addDias(isoData(Relogio.agora()), -15))} a ${ddmm(addDias(isoData(Relogio.agora()), -1))} ${MODO_NUVEM ? '<b>na base de dados, visíveis para todos</b>' : 'neste navegador'}, marcadas como exemplo.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Gerar histórico', cls: 'pri' }] });
+    if (r0.id !== 'ok') return;
+    e.target.disabled = true;
+    try { await abrirUnidadeAdm(F.uepT); const r = await gravarHistorico(DIA, 15); if (Store.remoto()) await Store.carregar(DIA); atualizarEstado(); if (!MODO_NUVEM) DiretorioDemo.auditar('teste.historico', F.uepT, { dias: r.dias, registros: r.n });
+      aviso(r.n ? `Histórico gravado na ${F.uepT}: ${r.dias} dia(s), ${r.n} registros${r.pulados ? ` · ${r.pulados} dia(s) já encerrados foram mantidos` : ''}.` : 'Nada a gravar: os 15 dias anteriores já têm REDIA encerrada.', 'ok'); }
+    catch (x) { aviso('Não foi possível gravar o histórico: ' + x.message, 'erro'); }
+    telaAdmin();
+  });
+  $('[data-t="reset"]', c).onclick = async () => {
+    try { await abrirUnidadeAdm(F.uepT); } catch (x) { return aviso('Não foi possível abrir a ' + F.uepT + ': ' + x.message, 'erro'); }
+    const antes = Store.cache.size; await resetarDemonstracao();
+    if (!MODO_NUVEM && Store.cache.size < antes) DiretorioDemo.auditar('teste.resetar_tudo', F.uepT, { registros: antes });
+    telaAdmin();
+  };
 }
 async function importarTeste() {
   const r = await modal({
@@ -357,7 +413,7 @@ function admCadastro(c, us, rs) {
   $$('[data-ap]', c).forEach(b => b.onclick = async () => { try { const p = pc.find(x => String(x.id) === b.dataset.ap); const o = await Admin().acao('aprovar', { pedidoId: +b.dataset.ap }); if (o.senhaTemporaria) await mostrarSenha(p.chave, o.senhaTemporaria); else aviso(`Cadastro de ${p.chave} aprovado. Senha provisória enviada ao e-mail do usuário.`, 'ok'); telaAdmin(); } catch (e) { aviso(e.message, 'erro'); } });
   $$('[data-rc]', c).forEach(b => b.onclick = async () => { try { await Admin().acao('recusar', { pedidoId: +b.dataset.rc }); aviso('Pedido recusado.', 'ok'); telaAdmin(); } catch (e) { aviso(e.message, 'erro'); } });
 }
-const ACOES_AUD = { 'usuario.alterar': 'Usuário alterado', 'usuario.criar': 'Usuário criado', 'usuario.revisar_acesso': 'Acesso revisado', 'usuario.redefinir_senha': 'Senha redefinida', 'usuario.importar': 'Contas de teste importadas', 'usuario.autocadastro': 'Autocadastro', 'cadastro.aprovar': 'Cadastro aprovado', 'cadastro.recusar': 'Cadastro recusado', 'unidade.alterar': 'Unidade alterada', 'parametro.alterar': 'Parâmetro alterado', 'layout.publicar': 'Layout publicado (Studio)', 'layout.restaurar': 'Layout restaurado (Studio)' };
+const ACOES_AUD = { 'usuario.alterar': 'Usuário alterado', 'usuario.criar': 'Usuário criado', 'usuario.revisar_acesso': 'Acesso revisado', 'usuario.redefinir_senha': 'Senha redefinida', 'usuario.importar': 'Contas de teste importadas', 'usuario.autocadastro': 'Autocadastro', 'cadastro.aprovar': 'Cadastro aprovado', 'cadastro.recusar': 'Cadastro recusado', 'unidade.alterar': 'Unidade alterada', 'parametro.alterar': 'Parâmetro alterado', 'layout.publicar': 'Layout publicado (Studio)', 'layout.restaurar': 'Layout restaurado (Studio)', 'usuario.excluir': 'Conta excluída', 'teste.resetar_tudo': 'Dados de teste resetados (tudo)', 'teste.resetar_dia': 'REDIA do dia resetada', 'teste.historico': 'Histórico de 15 dias gerado' };
 function resumoDetalhe(a) {
   const d = a.detalhe || {};
   if (a.acao === 'usuario.alterar' && d.depois) {

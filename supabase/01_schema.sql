@@ -59,7 +59,8 @@ insert into public.unidades (uep, nome, ordem) values
 on conflict (uep) do nothing;
 alter table public.perfis add column if not exists admin_sistema boolean not null default false;   -- administrador do sistema (todas as unidades + Administração)
 alter table public.perfis add column if not exists email text;                                     -- e-mail de contato (autocadastro, senha temporária)
-alter table public.perfis add column if not exists revisado_em timestamptz;                        -- última revisão de acesso pelo administrador
+alter table public.perfis add column if not exists revisado_em timestamptz;
+alter table public.perfis add column if not exists proprietario boolean not null default false;   -- D-74: proprietário do sistema (nunca excluído, nunca perde o perfil de administrador); marcado no SQL Editor                        -- última revisão de acesso pelo administrador
 create table if not exists public.lotacoes (
   user_id    uuid not null references public.perfis (user_id) on delete cascade,
   uep        text not null references public.unidades (uep),
@@ -390,11 +391,32 @@ language plpgsql volatile security definer set search_path = public as $$
 declare p public.perfis; n integer;
 begin
   select * into p from public.perfis where user_id = auth.uid() and ativo;
-  if not found or not public.redia_admin_uep(p_uep) then
-    raise exception 'SEM_PERMISSAO_RESET' using errcode = 'P0001', hint = 'Só o administrador da UEP reseta a demonstração.';
+  if not found or not public.redia_admin_sistema() then   -- D-74: reset total só pelo administrador do sistema (área de administração)
+    raise exception 'SEM_PERMISSAO_RESET' using errcode = 'P0001', hint = 'Só o administrador do sistema reseta todos os dados de teste.';
   end if;
   delete from public.registros where uep = p_uep;
   get diagnostics n = row_count;
+  perform public.redia_auditar('teste.resetar_tudo', p_uep, jsonb_build_object('registros', n));
+  return n;
+end $$;
+
+-- D-74: reseta só o preenchimento da REDIA de hoje da unidade (registros do dia; demandas do Canal Base x Bordo ficam)
+-- quem pode: lotado na unidade com função de coordenador/GEPLAT, administrador da unidade ou do sistema
+create or replace function public.redia_resetar_dia(p_uep text, p_data date) returns integer
+language plpgsql volatile security definer set search_path = public as $$
+declare p public.perfis; n integer;
+begin
+  select * into p from public.perfis where user_id = auth.uid() and ativo;
+  if not found or not public.redia_pode_uep(p_uep)
+     or not (public.redia_admin_uep(p_uep) or upper(p.posto) in ('GEOP', 'GEPLAT', 'GESTÃO', 'COPROD', 'COEMB', 'COMAN')) then
+    raise exception 'SEM_PERMISSAO_RESET_DIA' using errcode = 'P0001', hint = 'Só coordenador, GEPLAT ou administrador resetam a REDIA do dia.';
+  end if;
+  if p_data <> (now() at time zone 'America/Sao_Paulo')::date then
+    raise exception 'RESET_SO_HOJE' using errcode = 'P0001', hint = 'Só a REDIA do próprio dia pode ser resetada.';
+  end if;
+  delete from public.registros where uep = p_uep and data = p_data and escopo = 'dia';
+  get diagnostics n = row_count;
+  perform public.redia_auditar('teste.resetar_dia', p_uep, jsonb_build_object('data', p_data, 'registros', n));
   return n;
 end $$;
 
@@ -509,7 +531,7 @@ language plpgsql stable security definer set search_path = public, auth as $$
 begin
   perform public.redia_exigir_admin_sistema();
   return coalesce((select jsonb_agg(jsonb_build_object('userId', p.user_id, 'chave', p.chave, 'nome', p.nome, 'posto', p.posto, 'coord', p.coord, 'email', p.email,
-      'uep', p.uep, 'adminSistema', p.admin_sistema, 'ativo', p.ativo, 'compartilhado', p.compartilhado, 'trocarSenha', p.trocar_senha,
+      'uep', p.uep, 'adminSistema', p.admin_sistema, 'proprietario', p.proprietario, 'ativo', p.ativo, 'compartilhado', p.compartilhado, 'trocarSenha', p.trocar_senha,
       'criadoEm', p.criado_em, 'revisadoEm', p.revisado_em, 'ultimoAcesso', u.last_sign_in_at,
       'ultimoRegistro', (select max(r.gravado_em) from public.registros r where r.autor_id = p.user_id),
       'lotacoes', coalesce((select jsonb_agg(jsonb_build_object('uep', l.uep, 'admin', l.admin, 'editor', l.editor) order by l.uep) from public.lotacoes l where l.user_id = p.user_id), '[]'::jsonb))
@@ -526,6 +548,9 @@ begin
   if antes is null then raise exception 'USUARIO_INEXISTENTE' using errcode = 'P0001'; end if;
   if u = auth.uid() and (coalesce((p ->> 'adminSistema')::boolean, true) = false or coalesce((p ->> 'ativo')::boolean, true) = false) then
     raise exception 'AUTO_BLOQUEIO' using errcode = 'P0001', hint = 'Você não pode retirar o seu próprio perfil de administrador nem se desativar.';
+  end if;
+  if (antes ->> 'proprietario')::boolean and (coalesce((p ->> 'adminSistema')::boolean, true) = false or coalesce((p ->> 'ativo')::boolean, true) = false) then
+    raise exception 'PROPRIETARIO' using errcode = 'P0001', hint = 'O proprietário do sistema não perde o perfil de administrador nem é desativado.';
   end if;
   if jsonb_typeof(p -> 'lotacoes') <> 'array' or jsonb_array_length(p -> 'lotacoes') = 0 then
     raise exception 'SEM_LOTACAO' using errcode = 'P0001', hint = 'O usuário precisa de ao menos uma unidade de lotação.';
@@ -721,7 +746,7 @@ revoke execute on function
   public.redia_coord_do_posto(text), public.redia_uep_atual(), public.redia_pode_uep(text), public.redia_admin_uep(text), public.redia_admin_sistema(), public.redia_json(public.registros),
   public.redia_registros_antes_inserir(), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
-  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
+  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text), public.redia_resetar_dia(text, date),
   public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer, date, date, text, text[]), public.redia_arquivo(text, integer), public.redia_codigo(text, date), public.redia_responsaveis(text, date)
     , public.redia_auditar(text, text, jsonb), public.redia_exigir_admin_sistema(), public.redia_admin_usuarios(), public.redia_admin_salvar_usuario(jsonb), public.redia_admin_revisar(uuid), public.redia_admin_auditoria(integer), public.redia_admin_resumo(), public.redia_admin_salvar_unidade(jsonb), public.redia_admin_parametro(text, jsonb)
     , public.redia_editor_uep(text), public.redia_layout_ler(text), public.redia_layout_salvar(text, jsonb, boolean), public.redia_layout_restaurar(text, integer)
@@ -729,7 +754,7 @@ revoke execute on function
 grant execute on function
   public.redia_uep_atual(), public.redia_pode_uep(text), public.redia_admin_uep(text), public.redia_admin_sistema(), public.redia_json(public.registros), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
-  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
+  public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text), public.redia_resetar_dia(text, date),
   public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer, date, date, text, text[]), public.redia_arquivo(text, integer), public.redia_codigo(text, date), public.redia_responsaveis(text, date)
     , public.redia_admin_usuarios(), public.redia_admin_salvar_usuario(jsonb), public.redia_admin_revisar(uuid), public.redia_admin_auditoria(integer), public.redia_admin_resumo(), public.redia_admin_salvar_unidade(jsonb), public.redia_admin_parametro(text, jsonb)
     , public.redia_editor_uep(text), public.redia_layout_ler(text), public.redia_layout_salvar(text, jsonb, boolean), public.redia_layout_restaurar(text, integer)

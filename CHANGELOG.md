@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 2.1.0 · D-74 (2026-10-18)
+
+- **Administração › Usuários · excluir conta:** botão Excluir na lista e no editor do usuário, com confirmação digitando a chave. Exclui acesso, perfil e lotações; registros e atas guardam o nome do autor; a exclusão fica na auditoria. A conta do **proprietário do sistema** (`perfis.proprietario`) nunca é excluída, desativada nem perde o perfil de administrador, nem a própria conta de quem exclui.
+- **Cabeçalho corrigido (erros da 2.0):** o título quebrava em 4 linhas ("REDIA Búzios · P-80 · 2.0.0") e os itens novos (Studio, Administração, selo da unidade) empurravam "Ao vivo" e "Sair" para baixo da forma verde em telas até 1366 px. Agora: título numa linha, unidade em selo próprio, **Configuração, Studio e Administração no menu "Mais"**, "Ao vivo" compacto e Fechamento/Arquivo no "Mais" abaixo de 1180 px. Teste automático em 1920, 1366 e 1100 px.
+- **Início reorganizado:** coluna principal com REDIA do dia e Situação das coordenações; coluna lateral com Funções da versão de teste e pedidos de senha (sem espaço vazio); sem "Sair" e "Ao vivo" repetidos; atalho para o Arquivo.
+- **Resetar a REDIA de hoje** nas Funções da versão de teste: apaga só os registros do dia (demandas e outros dias ficam); coordenador, GEPLAT ou administrador; só o próprio dia.
+- **Administração › Dados de teste:** o reset total e o histórico de 15 dias saíram do Início e ficam só com o administrador do sistema, por unidade.
+- Base: **reaplicar `supabase/00_instalar_tudo.sql`** e republicar a Edge Function `redia-admin`.
+
 ## 2.0.0 · D-70 a D-73 · REDIA Búzios (2026-10-18)
 
 - **REDIA Búzios:** o sistema passa a atender as 10 plataformas do campo de Búzios (P-74, P-75, P-76, P-77, P-78, P-79, P-80, P-82, P-83 e P-91). Todas as telas da P-83 valem para as demais, mudando só as referências à unidade (cabeçalho, código REDIA-‹UEP›-‹DDMMAAAA›, ata, PDF). Na tela de acesso, só **Búzios** sobre REDIA, alinhado ao R.

@@ -138,6 +138,14 @@ export async function iniciarServidor({ estatico, porta = 0, supabase = false, e
         await serial(() => db.query('update auth.users set senha = $1 where id = $2', [senha, p.user_id])); await serial(() => db.query('update public.perfis set trocar_senha = $1 where user_id = $2', [!p.compartilhado, p.user_id]));
         await aud('usuario.redefinir_senha', p.chave, {}); return json(res, 200, { ok: true, envio: 'tela', senhaTemporaria: senha });
       }
+      if (b.acao === 'excluir') {   // D-74
+        const p = (await serial(() => db.query('select user_id, chave, proprietario from public.perfis where user_id = $1', [b.userId]))).rows[0];
+        if (!p) return json(res, 404, { ok: false, mensagem: 'Usuário não encontrado.' });
+        if (p.proprietario) return json(res, 403, { ok: false, mensagem: 'A conta do proprietário do sistema não pode ser excluída.' });
+        if (p.user_id === t.uid) return json(res, 403, { ok: false, mensagem: 'Você não pode excluir a sua própria conta.' });
+        await serial(() => db.query('delete from auth.users where id = $1', [p.user_id])); await aud('usuario.excluir', p.chave, {});
+        return json(res, 200, { ok: true });
+      }
       return json(res, 400, { ok: false, mensagem: 'Ação desconhecida.' });
     }
     if (rota === '/rest/v1/lotacoes' && req.method === 'POST') {   // D-70: lotação gravada pelo provisionar_usuarios.py

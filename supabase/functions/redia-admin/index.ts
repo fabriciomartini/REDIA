@@ -5,6 +5,7 @@
 //   aprovar    { pedidoId }                           · aprova um pedido de autocadastro (quando a aprovação está ligada)
 //   recusar    { pedidoId, motivo? }
 //   importar   { usuarios:[{chave, nome, posto, uep}], senha }   · contas de teste compartilhadas (senha única digitada pelo administrador)
+//   excluir    { userId }                            · D-74: exclui a conta (Auth + perfil + lotações); nunca o proprietário do sistema nem a própria conta
 // Senha provisória: vai por e-mail ao usuário quando há e-mail e o envio funciona; senão, volta UMA VEZ para a tela do administrador.
 // Tudo vai para a auditoria (sem senha). A chave do servidor fica só no ambiente da função.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -144,6 +145,23 @@ Deno.serve(async req => {
       }
       await auditar('usuario.importar', `${us.length} linhas`, { criados: res.criados, existentes: res.existentes, erros: res.erros.length });
       return resposta({ ok: true, ...res });
+    }
+    case 'excluir': {   // D-74: os registros da REDIA guardam o nome do autor e continuam; a auditoria guarda o retrato da conta excluída
+      const uid = String(b.userId || '');
+      const { data: p } = await sb.from('perfis').select('user_id, chave, nome, posto, proprietario, admin_sistema').eq('user_id', uid).maybeSingle();
+      if (!p) return resposta({ ok: false, mensagem: 'Usuário não encontrado.' }, 404);
+      if (p.proprietario) return resposta({ ok: false, mensagem: 'A conta do proprietário do sistema não pode ser excluída.' }, 403);
+      if (uid === quem.user.id) return resposta({ ok: false, mensagem: 'Você não pode excluir a sua própria conta.' }, 403);
+      if (p.admin_sistema) {
+        const { count } = await sb.from('perfis').select('user_id', { count: 'exact', head: true }).eq('admin_sistema', true).eq('ativo', true).neq('user_id', uid);
+        if (!count) return resposta({ ok: false, mensagem: 'O sistema precisa de ao menos um administrador do sistema ativo.' }, 400);
+      }
+      const { data: lot } = await sb.from('lotacoes').select('uep, admin, editor').eq('user_id', uid);
+      const { error } = await sb.auth.admin.deleteUser(uid);   // perfil e lotações saem em cascata
+      if (error) return resposta({ ok: false, mensagem: 'Conta não excluída: ' + error.message }, 500);
+      await sb.from('perfis').delete().eq('user_id', uid);
+      await auditar('usuario.excluir', p.chave, { nome: p.nome, posto: p.posto, lotacoes: lot || [] });
+      return resposta({ ok: true });
     }
     default: return resposta({ ok: false, mensagem: 'Ação desconhecida.' }, 400);
   }

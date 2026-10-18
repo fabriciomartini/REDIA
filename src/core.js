@@ -1,6 +1,6 @@
 /* ===================== REDIA Búzios · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA Búzios', versao: '2.0.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA Búzios', versao: '2.1.0', fase: 'piloto', uep: 'P-83' };
 /* D-70 · REDIA Búzios: todas as plataformas do campo; cada usuário acessa as unidades em que está lotado */
 const UNIDADES = [['P-74', 'FPSO P-74'], ['P-75', 'FPSO P-75'], ['P-76', 'FPSO P-76'], ['P-77', 'FPSO P-77'], ['P-78', 'FPSO P-78'], ['P-79', 'FPSO P-79'], ['P-80', 'FPSO P-80'], ['P-82', 'FPSO P-82'], ['P-83', 'FPSO P-83'], ['P-91', 'FPSO P-91']].map(([uep, nome], i) => ({ uep, nome, ordem: i + 1, situacao: 'operacao' }));
 const ATIVO_UEP = { 'P-83': 'ATP-BUZ III' };   // ativo de cada unidade (os demais: definir na Configuração da unidade)
@@ -270,6 +270,13 @@ const Store = {
     let n;
     if (this.modo === 'nuvem') { n = await Nuvem.resetar(CFG.uep); this.cache.clear(); this.seq = 0; await this.carregar(DIA); }
     else { n = this.cache.size; this.cache.clear(); this.salvarMemoria(); }
+    return n;
+  },
+  /* D-74: apaga só os registros da REDIA do dia (escopo dia); demandas do Canal Base x Bordo ficam */
+  async resetarDia(iso) {
+    let n;
+    if (this.modo === 'nuvem') { n = await Nuvem.resetarDia(CFG.uep, iso); this.cache.clear(); this.seq = 0; await this.carregar(iso); }
+    else { const fora = [...this.cache.entries()].filter(([, r]) => r.data === iso && r.escopo !== 'demandas'); fora.forEach(([k]) => this.cache.delete(k)); n = fora.length; this.salvarMemoria(); }
     return n;
   },
   validoParaImportar(r) {

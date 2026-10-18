@@ -180,8 +180,14 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   ok(await c.$('[data-act="resetar"]') === null, 'reset: botão não aparece para quem não é administrador');
   ok(await c.evaluate(async () => { try { await Nuvem.resetar(CFG.uep); return 'resetou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO_RESET', 'reset: servidor recusa pedido de quem não é administrador');
   await c.evaluate(() => sincronizarTela()); const antesC = await c.evaluate(() => Store.cache.size);
-  await g.goto(URL + '#/inicio'); await g.waitForTimeout(300);
-  await g.click('[data-act="resetar"]'); await g.waitForTimeout(200); await g.fill('[data-mdl-in="conf"]', 'RESETAR'); await g.click('[data-mdl="ok"]'); await g.waitForTimeout(1200);
+  // D-74: reset do dia (Início) só por coordenador/GEPLAT/administrador; reset total só pelo administrador do sistema (Administração)
+  ok(await c.evaluate(async () => { try { await Nuvem.resetarDia(CFG.uep, DIA); return 'resetou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO_RESET_DIA', 'reset do dia: servidor recusa SUPROD (não coordenador)');
+  ok(await g.evaluate(async () => { try { await Nuvem.resetar(CFG.uep); return 'resetou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO_RESET', 'reset total: servidor recusa administrador da unidade (só o administrador do sistema)');
+  await srv.sql(`update public.perfis set admin_sistema = true where chave = 'GP01'`);
+  await g.goto(URL + '#/sair'); await g.waitForTimeout(400); await login(g, 'GP01', 'Nova2026a');
+  await g.click('[data-uep="P-83"]'); await g.waitForTimeout(1200); await g.goto(URL + '#/admin'); await g.waitForTimeout(900); await g.click('[data-aba="testes"]'); await g.waitForTimeout(600); await g.selectOption('#at-un', 'P-83'); await g.waitForTimeout(800);
+  await g.click('[data-t="reset"]'); await g.waitForTimeout(300); await g.fill('[data-mdl-in="conf"]', 'RESETAR'); await g.click('[data-mdl="ok"]'); await g.waitForTimeout(1500);
+  await srv.sql(`update public.perfis set admin_sistema = false where chave = 'GP01'`);
   const totalBase = await nReg();
   ok(totalBase === 0 && await g.evaluate(() => Store.cache.size) === 0, `reset na nuvem: a base da UEP fica vazia para todos (${totalBase} registros)`);
   await c.evaluate(() => sincronizarTela()); await c.waitForTimeout(800);
@@ -210,7 +216,7 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   await r2.goto(URL + '#/inicio'); await r2.waitForTimeout(400);
   ok(await r2.$('[data-act="senha"]') === null, 'conta genérica não oferece "Alterar senha" (senha comum a todos)');
   await g.goto(URL + '#/config'); await g.waitForTimeout(300); await g.goto(URL + '#/inicio'); await g.waitForTimeout(900);
-  ok(/Pedidos de nova senha/.test(await g.textContent('[data-pedidos-senha]')) && /CP01/.test(await g.textContent('[data-pedidos-senha]')) && /enviada/.test(await g.textContent('[data-pedidos-senha]')), 'administrador acompanha os pedidos de nova senha no Início');
+  ok(/Pedidos de nova senha/.test(await g.textContent('.pn.adm')) && /CP01/.test(await g.textContent('.pn.adm')) && /enviada/.test(await g.textContent('.pn.adm')), 'administrador acompanha os pedidos de nova senha no Início');
   await r1.context().close(); await r2.context().close();
 
   /* ---- sessão expirada ---- */
@@ -241,8 +247,11 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
     await a.fill('#au-ch', 'NV01'); await a.fill('#au-no', 'Usuário Novo Teste'); await a.selectOption('#au-po', 'COEMB'); await a.fill('#au-em', 'novo@exemplo.com'); await a.check('[data-mdl-in="lot:P-79"]'); await a.click('.mdl [data-mdl="ok"]'); await a.waitForTimeout(900);
     const nv = (await srv.sql(`select p.coord, p.trocar_senha, l.uep from public.perfis p join public.lotacoes l using (user_id) where p.chave = 'NV01'`)).rows[0];
     ok(nv && nv.coord === 'COEMB' && nv.trocar_senha && nv.uep === 'P-79' && srv.emails.some(e => e.para === 'novo@exemplo.com' && e.chave === 'NV01'), 'nuvem: administrador cria usuário (Edge Function redia-admin) e a senha provisória vai ao e-mail informado');
+    const idNv = (await srv.sql(`select user_id from public.perfis where chave = 'NV01'`)).rows[0].user_id;
+    await a.fill('#af-q', 'NV01'); await a.waitForTimeout(200); await a.click(`[data-ex="${idNv}"]`); await a.waitForTimeout(300); await a.fill('[data-mdl-in="conf"]', 'NV01'); await a.click('.mdl [data-mdl="ok"]'); await a.waitForTimeout(1200);
+    ok((await srv.sql(`select count(*)::int n from public.perfis where chave = 'NV01'`)).rows[0].n === 0 && (await srv.sql(`select count(*)::int n from auth.users where email = 'nv01@redia.local'`)).rows[0].n === 0, 'nuvem: D-74 administrador exclui a conta (Auth, perfil e lotações)');
     const au = (await srv.sql(`select string_agg(acao, ',') a from public.auditoria where por = 'GP01'`)).rows[0].a || '';
-    ok(/usuario\.alterar/.test(au) && /usuario\.criar/.test(au), `nuvem: alterações e criação na auditoria (${au})`);
+    ok(/usuario\.alterar/.test(au) && /usuario\.criar/.test(au) && /usuario\.excluir/.test(au), `nuvem: alterações e criação na auditoria (${au})`);
     await ca.close();
     // autocadastro pela tela de login
     const { c: cc, p: n } = await novo('autocadastro');

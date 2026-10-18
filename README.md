@@ -75,10 +75,10 @@ O comando roda cinco conjuntos de testes:
 
 | Conjunto | O que verifica |
 |---|---|
-| SQL/RLS (85) | schema em PostgreSQL local (PGlite), lotação por unidade, administração e Studio |
+| SQL/RLS (91) | schema em PostgreSQL local (PGlite), lotação por unidade, administração e Studio |
 | Cadastro (11) | script de cadastro de usuários e lista de contas de teste de Búzios |
-| Ponta a ponta, demonstração (313) | fluxo completo no modo demonstração e o deck publicado |
-| Ponta a ponta, nuvem (81) | fluxo completo contra um Supabase simulado que roda o mesmo schema |
+| Ponta a ponta, demonstração (323) | fluxo completo no modo demonstração e o deck publicado |
+| Ponta a ponta, nuvem (83) | fluxo completo contra um Supabase simulado que roda o mesmo schema |
 | Telas móveis (60) | smartphone, tablet e notebook |
 
 ## Documentos

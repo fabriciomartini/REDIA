@@ -630,8 +630,7 @@ async function checarPalco(page, nome) {
   await page.goto(URL + '#/historico'); await page.waitForTimeout(300);
   ok(await page.evaluate(() => ROTA_ATUAL.id === 'arquivo'), 'endereço antigo da tela Histórico abre o Arquivo');
   await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
-  page.once('dialog', d => d.accept());
-  await page.click('[data-act="historico15"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(800);
+  await page.evaluate(async () => { await gravarHistorico(DIA, 15); atualizarEstado(); }); await page.waitForTimeout(300);   // D-74: o botão foi para a Administração › Dados de teste
   ok(await page.evaluate(() => [...Store.cache.values()].filter(r => r.tipo === 'ata' && r.payload.historico).length === 15), 'Gerar histórico de novo não duplica: dias já encerrados ficam como estão');
   /* D-67: fechamento final · congelar, de acordo dos responsáveis, ata em PDF; depois, nada mais é alterado no dia */
   await page.goto(URL + '#/inicio'); await page.waitForTimeout(200); await page.click('[data-act="congelar-ini"]'); await page.waitForTimeout(250); if (await page.$('.mdl')) { await page.click('.mdl [data-mdl]:last-child'); await page.waitForTimeout(250); }
@@ -668,14 +667,14 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   const vd0 = await page.evaluate(() => ({ cal: !!document.querySelector('#dia') || !!document.querySelector('[data-act="dia"]'), ini: !!document.querySelector('[data-act="iniciar-redia"]'), cod: document.querySelector('.redia-id')?.textContent || '' }));
   ok(!vd0.cal && !vd0.ini && /REDIA-P83-\d{8}/.test(vd0.cod), `Início sem calendário/Abrir; com a ata do dia encerrada não aparece "Iniciar elaboração" (${JSON.stringify(vd0)})`);
   const hojeR = await page.evaluate(async o => { HOJE_VISTO = o; await viradaDoDia(); return DIA; }, ontemR); await page.waitForTimeout(300);
-  ok(hojeR === await page.evaluate(() => isoData(Relogio.agora())) && await page.evaluate(() => !!document.querySelector('.g-dia [data-act="iniciar-redia"]')), 'virada da meia-noite: o Início passa ao novo dia e oferece "Iniciar elaboração"');
+  ok(hojeR === await page.evaluate(() => isoData(Relogio.agora())) && await page.evaluate(() => !!document.querySelector('.g-ini-p [data-act="iniciar-redia"]')), 'virada da meia-noite: o Início passa ao novo dia e oferece "Iniciar elaboração"');
   await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(300);
   const g0 = await page.evaluate(async () => { const ok = await podeEditar('valor'); return { ok, banner: !!document.querySelector('.banner.ini-redia [data-act="iniciar-redia"]'), dis: !!document.querySelector('[data-act="capturar-todos"][disabled]') }; });
   ok(!g0.ok && g0.banner && g0.dis, `antes de "Iniciar elaboração" a curadoria fica bloqueada, com o botão para iniciar (${JSON.stringify(g0)})`);
   await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => /Não iniciada/.test(document.querySelector('.ses').textContent) && document.querySelector('.ses').getBoundingClientRect().width > 1000 && document.querySelector('.tst h2').textContent === 'Funções da versão de teste' && !!document.querySelector('.tst [data-act="resetar"]') && !!document.querySelector('.tst [data-act="simular"]') && !document.querySelector('.g-dia [data-act="simular"]')), 'Início: sessão em barra no topo; funções de teste reunidas em "Funções da versão de teste"');
-  ok(await page.evaluate(() => { const t = document.querySelector('.tst').getBoundingClientRect(), d = document.querySelector('.g-dia').getBoundingClientRect(); return t.top > d.bottom && t.right >= d.right - 2 && t.left > d.left + 200; }), 'Funções da versão de teste no canto inferior direito, abaixo de REDIA do dia e Situação das coordenações');
-  await page.click('.g-dia [data-act="iniciar-redia"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(400);
+  ok(await page.evaluate(() => /Não iniciada/.test(document.querySelector('.ses').textContent) && document.querySelector('.ses').getBoundingClientRect().width > 1000 && document.querySelector('.tst h2').textContent === 'Funções da versão de teste' && !!document.querySelector('.tst [data-act="resetar-dia"]') && !!document.querySelector('.tst [data-act="simular"]') && !document.querySelector('.g-ini-p [data-act="simular"]') && !document.querySelector('[data-act="resetar"]') && !document.querySelector('[data-act="historico15"]')), 'Início: sessão em barra no topo; funções de teste em "Funções da versão de teste" (com "Resetar a REDIA de hoje"; reset total e histórico de 15 dias saem do Início)');
+  ok(await page.evaluate(() => { const t = document.querySelector('.tst').getBoundingClientRect(), d = document.querySelector('.g-ini-p').getBoundingClientRect(); return t.left >= d.right && Math.abs(t.top - d.top) < 4 && !document.querySelector('.ses a[href="#/sair"]'); }), 'D-74 Início: REDIA do dia e Situação das coordenações na coluna principal; Funções da versão de teste na coluna lateral direita, sem espaço vazio; sem "Sair" repetido na barra da sessão');
+  await page.click('.g-ini-p [data-act="iniciar-redia"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(400);
   const cod = await page.evaluate(() => ({ c: E.redia?.payload.codigo, ses: document.querySelector('.ses').textContent, dup: (() => { try { regrasDemo(novoRegistro('redia', {})); return ''; } catch (e) { return e.codigo; } })() }));
   ok(cod.c === 'REDIA-P83-' + hojeR.split('-').reverse().join('') && cod.ses.includes(cod.c) && cod.dup === 'REDIA_JA_INICIADA', `REDIA iniciada com código único REDIA-<UEP>-<DDMMAAAA>; segunda abertura recusada (${JSON.stringify({ c: cod.c, dup: cod.dup })})`);
   await page.click('[data-act="preencher"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(800);
@@ -756,16 +755,27 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   const r2 = await q.evaluate(async () => { const orig = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === 'redia.memoria.registros') throw new DOMException('cheio', 'QuotaExceededError'); return orig.call(this, k, v); };
     const n0 = Store.cache.size; await salvarE('valor', { campo: 'oleo.real', valor: 22222, origem: 'M' }); const r = { n: Store.cache.size - n0, v: E.valores['oleo.real'].valor, erro: !!document.querySelector('.toast.erro') }; Storage.prototype.setItem = orig; return r; });
   ok(r2.n === 0 && r2.v === 11111 && r2.erro, `armazenamento cheio: erro visível e registro não fica pela metade (${JSON.stringify(r2)})`);
-  /* ---- D-52: resetar a demonstração ---- */
+  /* ---- D-74: resetar só a REDIA de hoje (Início) e reset total (Administração › Dados de teste) ---- */
   await q.goto(URL + '#/inicio'); await q.waitForTimeout(300);
-  await q.click('[data-act="resetar"]'); await q.waitForTimeout(200);
+  const dd0 = await q.evaluate(() => ({ hoje: regsDoDia().length, total: Store.cache.size, dem: [...Store.cache.values()].filter(r => r.escopo === 'demandas').length }));
+  await q.click('[data-act="resetar-dia"]'); await q.waitForTimeout(200);
+  const txtDia = await q.textContent('.mdl'); await q.click('[data-mdl="ok"]'); await q.waitForTimeout(400);
+  const dd1 = await q.evaluate(() => ({ hoje: regsDoDia().length, total: Store.cache.size, dem: [...Store.cache.values()].filter(r => r.escopo === 'demandas').length, redia: !!E.redia }));
+  ok(/só o preenchimento/.test(txtDia) && dd0.hoje > 0 && dd1.hoje === 0 && !dd1.redia && dd1.total === dd0.total - dd0.hoje && dd1.dem === dd0.dem, `Resetar a REDIA de hoje: apaga só os registros do dia; demandas e outros dias ficam (${JSON.stringify({ dd0, dd1 })})`);
+  ok(await q.evaluate(() => !!document.querySelector('[data-act="resetar-dia"][disabled]')), 'depois do reset do dia, o botão fica desabilitado (nada a resetar)');
+  await q.goto(URL + '#/sair'); await q.waitForTimeout(300); await q.fill('#lg-chave', 'AD01'); await q.fill('#lg-senha', '1234'); await q.click('.lg-btn'); await q.waitForTimeout(900); await fecharAviso(q);
+  await q.click('[data-uep="P-83"]'); await q.waitForTimeout(700); await q.goto(URL + '#/admin'); await q.waitForTimeout(500); await q.click('[data-aba="testes"]'); await q.waitForTimeout(400); await q.selectOption('#at-un', 'P-83'); await q.waitForTimeout(400);
+  ok(!!(await q.$('[data-t="hist"]')) && !!(await q.$('[data-t="reset"]')), 'Administração › Dados de teste: histórico de 15 dias e reset total por unidade');
+  await q.click('[data-t="reset"]'); await q.waitForTimeout(300);
   const txtReset = await q.textContent('.mdl');
   await q.fill('[data-mdl-in="conf"]', 'apagar'); await q.click('[data-mdl="ok"]'); await q.waitForTimeout(300);
   const n1 = await q.evaluate(() => Store.cache.size);
-  await q.click('[data-act="resetar"]'); await q.waitForTimeout(200); await q.fill('[data-mdl-in="conf"]', 'RESETAR'); await q.click('[data-mdl="ok"]'); await q.waitForTimeout(400);
+  await q.click('[data-t="reset"]'); await q.waitForTimeout(300); await q.fill('[data-mdl-in="conf"]', 'RESETAR'); await q.click('[data-mdl="ok"]'); await q.waitForTimeout(500);
   const n2 = await q.evaluate(() => ({ n: Store.cache.size, sug: E.sugestoes.length, ls: JSON.parse(localStorage.getItem('redia.memoria.registros') || '[]').length }));
-  ok(/Não dá para desfazer/.test(txtReset) && /todos os registros/.test(txtReset) && n1 > 0, 'reset: aviso explica o contexto e exige digitar RESETAR');
-  ok(n2.n === 0 && n2.sug === 0 && n2.ls === 0, `reset: apaga todos os registros da demonstração (${JSON.stringify(n2)})`);
+  ok(/Não dá para desfazer/.test(txtReset) && /todos os registros/.test(txtReset) && n1 > 0, 'reset total: aviso explica o contexto e exige digitar RESETAR');
+  ok(n2.n === 0 && n2.sug === 0 && n2.ls === 0, `reset total: apaga todos os registros da unidade (${JSON.stringify(n2)})`);
+  await q.click('[data-aba="testes"]').catch(() => {}); await q.waitForTimeout(300); await q.click('[data-t="hist"]'); await q.waitForTimeout(300); await q.click('[data-mdl="ok"]'); await q.waitForTimeout(1500);
+  ok(await q.evaluate(() => [...Store.cache.values()].filter(r => r.tipo === 'ata' && r.payload.historico).length === 15), 'Administração › Dados de teste: gera o histórico de 15 dias da unidade escolhida');
   await rc.close();
 
   /* ---- deck de explicação publicado junto com o app ---- */
@@ -788,7 +798,7 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   await dk.goto(srv.url + '/apresentacao/#1'); await dk.waitForTimeout(1500);
   const capa = await dk.evaluate(async () => { const imgs = [...document.querySelectorAll('img')]; await Promise.all(imgs.map(i => i.decode().catch(() => null))); const v = document.querySelector('.capa video'); const bg = getComputedStyle(document.querySelector('.capa .bg')).backgroundImage.match(/url\("?([^")]+)/)?.[1]; return { ok: imgs.filter(i => i.complete && i.naturalWidth > 0).length, total: imgs.length, video: v ? v.readyState : -1, err: v?.error?.code || 0, bg: bg ? await new Promise(res => { const im = new Image(); im.onload = () => res(200); im.onerror = () => res(404); im.src = bg; }) : 0, texto: document.body.innerText }; });
   ok(capa.ok === capa.total && capa.total >= 20 && capa.video >= 2 && capa.bg === 200 && !http404.length, `deck: capa com vídeo, imagem de fundo, marca e todas as capturas carregadas (${capa.ok}/${capa.total} imagens, vídeo ${capa.video}, fundo ${capa.bg}) ${http404.join(' ')}`);
-  ok(!/75 minutos/.test(capa.texto) && /versão 2\.0/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
+  ok(!/75 minutos/.test(capa.texto) && /versão 2\.1/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
   await dk.close();
 
   /* ---- D-70 a D-73: REDIA Búzios · unidades, administração, autocadastro e Studio ---- */
@@ -805,7 +815,7 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
     ok(!!(await b.$('.mdl [data-mdl="entendi"]')) && /protótipo em desenvolvimento/i.test(await b.textContent('.mdl')) && /fictícios/.test(await b.textContent('.mdl')), 'D-71: depois do login, popup avisa que é protótipo e que os dados são fictícios, gerados por IA');
     await fecharAviso(b);
     const u74 = await b.evaluate(() => ({ uep: USUARIO.uep, cfg: CFG.uep, h: location.hash, kick: document.querySelector('.apph')?.textContent || '', cod: codigoRedia(CFG.uep, DIA) }));
-    ok(u74.uep === 'P-74' && u74.cfg === 'P-74' && u74.h === '#/inicio' && /REDIA Búzios · P-74/.test(u74.kick) && /^REDIA-P74-\d{8}$/.test(u74.cod), `lotado só na P-74: entra direto na REDIA da P-74, com as referências da unidade (${JSON.stringify({ ...u74, kick: '' })})`);
+    ok(u74.uep === 'P-74' && u74.cfg === 'P-74' && u74.h === '#/inicio' && /REDIA Búzios/.test(u74.kick) && /P-74/.test(u74.kick) && /^REDIA-P74-\d{8}$/.test(u74.cod), `lotado só na P-74: entra direto na REDIA da P-74, com as referências da unidade (${JSON.stringify({ ...u74, kick: '' })})`);
     await b.click('[data-act="exemplo"]'); await b.waitForTimeout(600);
     const n74 = await b.evaluate(() => Store.cache.size);
     await entrar('GP75'); await fecharAviso(b);
@@ -840,8 +850,18 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
     ok(un.h === '#/unidades' && un.n === 10 && un.adm && un.sto, `administrador do sistema: tela de seleção com as 10 unidades, a Administração e o Studio (${JSON.stringify(un)})`);
     await b.click('[data-uep="P-80"]'); await b.waitForTimeout(700);
     ok(await b.evaluate(() => USUARIO.uep === 'P-80' && location.hash === '#/inicio' && !!document.querySelector('.uni-tr')), 'seleciona a unidade e abre a REDIA dela; "Trocar unidade" no cabeçalho');
+    const hdr = [];
+    for (const w of [1920, 1366, 1100]) for (const r of ['#/inicio', '#/curadoria/GEPLAT', '#/admin', '#/config']) {
+      await b.setViewportSize({ width: w, height: 800 }); await b.goto(URL + r); await b.waitForTimeout(350);
+      const o = await b.evaluate(() => { const g = document.querySelector('.apph .egp').getBoundingClientRect(); return [...document.querySelectorAll('.apph nav > a, .apph nav > .mais, .apph nav > button, .apph .uni-tr, .apph .apph-t')].filter(e => getComputedStyle(e).display !== 'none' && (e.getBoundingClientRect().right > g.left + 30 || e.getBoundingClientRect().height > 70)).map(e => e.textContent.trim().slice(0, 16)); });
+      if (o.length) hdr.push(`${w} ${r}: ${o.join(', ')}`);
+    }
+    await b.setViewportSize({ width: 1600, height: 1000 });
+    ok(!hdr.length, `D-74 cabeçalho: título numa linha e nenhum item da navegação (Ao vivo, Sair, menu Mais) por baixo da forma verde em 1920, 1366 e 1100 px ${hdr.join(' | ')}`);
+    await b.goto(URL + '#/inicio'); await b.waitForTimeout(300); await b.click('.mais-b'); await b.waitForTimeout(150);
+    ok(await b.evaluate(() => [...document.querySelectorAll('.mais.aberto .mais-m a')].filter(a => getComputedStyle(a).display !== 'none').map(a => a.textContent).join() === 'Configuração,Studio,Administração'), 'cabeçalho: Configuração, Studio e Administração no menu "Mais"');
     await b.goto(URL + '#/admin'); await b.waitForTimeout(500);
-    ok(await b.$$eval('.adm-ab', x => x.length) === 6 && await b.$$eval('.adm-k', x => x.length) >= 8, 'Administração: painel com indicadores e abas Usuários, Unidades, Cadastro e senhas, Auditoria e Boas práticas');
+    ok(await b.$$eval('.adm-ab', x => x.length) === 7 && await b.$$eval('.adm-k', x => x.length) >= 8, 'Administração: painel com indicadores e abas Usuários, Unidades, Cadastro e senhas, Auditoria e Boas práticas');
     await b.click('[data-aba="usuarios"]'); await b.waitForTimeout(400);
     ok(/de 1[3-4]\d usuários/.test(await b.textContent('#adm-lista .note')), 'Administração: lista todos os usuários (13 contas de teste por unidade + P-83 + autocadastrados)');
     await b.selectOption('#af-uep', 'P-76'); await b.selectOption('#af-sit', 'todos'); await b.waitForTimeout(200);
@@ -855,8 +875,16 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
     await b.click('.mdl [data-mdl="cancelar"]'); await b.waitForTimeout(200);
     await b.fill('#af-q', 'CE74'); await b.selectOption('#af-uep', ''); await b.waitForTimeout(200); await b.click('[data-ed="CE74"]'); await b.waitForTimeout(300);
     await b.uncheck('[data-mdl-in="ativo"]'); await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(400);
+    await b.fill('#af-q', 'AD01'); await b.waitForTimeout(200);
+    ok(await b.$('[data-ex="AD01"]') === null && /Proprietário/.test(await b.textContent('#adm-lista')), 'D-74: a conta do proprietário do sistema não tem a opção de excluir');
+    await b.fill('#af-q', 'EM79'); await b.waitForTimeout(200); await b.click('[data-ex="EM79"]'); await b.waitForTimeout(300);
+    await b.fill('[data-mdl-in="conf"]', 'XXXX'); await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(300);
+    ok(!!(await b.evaluate(() => DiretorioDemo.achar('EM79'))), 'excluir conta: chave digitada errada cancela');
+    await b.click('[data-ex="EM79"]'); await b.waitForTimeout(300); await b.fill('[data-mdl-in="conf"]', 'em79'); await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(500);
+    ok(!(await b.evaluate(() => DiretorioDemo.achar('EM79'))) && await b.$('[data-ed="EM79"]') === null, 'D-74: administrador exclui a conta (confirmação digitando a chave)');
+    ok(await b.evaluate(async () => { try { await AdminDemo.acao('excluir', { userId: 'AD01' }); return 'excluiu'; } catch (e) { return e.message; } }) !== 'excluiu', 'a exclusão do proprietário é recusada também pela regra (não só pela tela)');
     await b.click('[data-aba="auditoria"]'); await b.waitForTimeout(500);
-    ok(/Usuário alterado/.test(await b.textContent('#aa-l')) && /Q1W2/.test(await b.textContent('#aa-l')) && /Autocadastro/.test(await b.textContent('#aa-l')), 'Auditoria: alterações de lotação e o autocadastro registrados com autor e hora');
+    ok(/Usuário alterado/.test(await b.textContent('#aa-l')) && /Q1W2/.test(await b.textContent('#aa-l')) && /Autocadastro/.test(await b.textContent('#aa-l')) && /Conta excluída/.test(await b.textContent('#aa-l')), 'Auditoria: alterações de lotação e o autocadastro registrados com autor e hora');
     await b.click('[data-aba="cadastro"]'); await b.waitForTimeout(400); await b.check('#pc-ap'); await b.click('#pc-sv'); await b.waitForTimeout(400);
     await b.click('[data-aba="praticas"]'); await b.waitForTimeout(400);
     ok(await b.$$eval('.adm-bp li', x => x.length) >= 8 && /NIST SP 800-53/.test(await b.textContent('.adm-bp')) && /Aberto com aprovação/.test(await b.textContent('.adm-bp')), 'Boas práticas: menor privilégio, revisão periódica, contas sem uso, auditoria e autocadastro, com a situação atual e referências');
