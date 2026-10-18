@@ -1,6 +1,6 @@
 /* ===================== REDIA P-83 · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.12.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA P-83', versao: '1.12.1', fase: 'piloto', uep: 'P-83' };
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -133,7 +133,7 @@ function sair() { USUARIO = null; SS.del('sessao'); if (MODO_NUVEM) Nuvem.sair()
 /* D-67: a REDIA do dia é iniciada por coordenador ou GEPLAT (ou administrador na base) · código único por UEP e dia */
 const POSTOS_COORDENADOR = ['GEOP', 'GEPLAT', 'GESTÃO', 'COPROD', 'COEMB', 'COMAN'];
 const podeIniciarRedia = () => !!USUARIO && (POSTOS_COORDENADOR.includes(USUARIO.posto) || (MODO_NUVEM && !!USUARIO.admin));
-const codigoRedia = (uep, iso) => 'REDIA-' + String(uep).replace(/[^A-Za-z0-9]/g, '').toUpperCase() + '-' + String(iso).replace(/-/g, '');
+const codigoRedia = (uep, iso) => { const [a, m, d] = String(iso).split('-'); return 'REDIA-' + String(uep).replace(/[^A-Za-z0-9]/g, '').toUpperCase() + '-' + d + m + a; };   // D-68: data em ddmmaaaa
 const podeAdministrar = () => !MODO_NUVEM || !!USUARIO?.admin || USUARIO?.coord === 'GEPLAT';
 function coordDoPapel(p) { if (USUARIO?.coord && p === USUARIO.papel) return USUARIO.coord; const m = /(COPROD|COEMB|COMAN|GEPLAT)/.exec(p || ''); return m ? m[1] : (POSTO_COORD[p] || null); }
 

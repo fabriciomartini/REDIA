@@ -132,10 +132,10 @@ language sql stable set search_path = public as $$
     'autor', r.autor, 'payload', r.payload, 'escopo', r.escopo, 'seq', r.seq) as o) x
 $$;
 
--- D-67: código único da REDIA · REDIA-<UEP sem separadores>-<AAAAMMDD> (ISO 8601 básico), ex.: REDIA-P83-20261018
+-- D-67/D-68: código único da REDIA · REDIA-<UEP sem separadores>-<DDMMAAAA>, ex.: REDIA-P83-18102026
 create or replace function public.redia_codigo(p_uep text, p_data date) returns text
 language sql immutable set search_path = public as $$
-  select 'REDIA-' || upper(regexp_replace(p_uep, '[^A-Za-z0-9]', '', 'g')) || '-' || to_char(p_data, 'YYYYMMDD')
+  select 'REDIA-' || upper(regexp_replace(p_uep, '[^A-Za-z0-9]', '', 'g')) || '-' || to_char(p_data, 'DDMMYYYY')
 $$;
 
 -- D-67: responsáveis pelo "de acordo" da ata · por coordenação, quem concluiu o preenchimento (última conclusão)

@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.12.1 · D-68 (2026-10-18)
+
+- **Início:** sai o calendário e o botão "Abrir" do card REDIA do dia; o card mostra sempre o dia corrente (dias anteriores ficam no Arquivo). O login abre a REDIA de hoje também no modo demonstração.
+- **Virada do dia:** às 00:00, quem está na REDIA do dia passa automaticamente para o novo dia, que oferece **Iniciar elaboração**. Com a REDIA do dia já realizada e a ata encerrada, o botão não aparece.
+- **Código da REDIA com data em ddmmaaaa:** REDIA-‹UEP›-‹DDMMAAAA›, ex.: REDIA-P83-18102026. Base: **reaplicar `supabase/00_instalar_tudo.sql`**.
+
 ## 1.12.0 · D-67 (2026-10-18)
 
 - **REDIA do dia como objeto único e rastreável:** a REDIA só existe depois de **Iniciar elaboração**, clicado por um coordenador ou pelo GEPLAT no próprio dia (a partir da meia-noite). Ela recebe o código **REDIA-‹UEP›-‹AAAAMMDD›** (ex.: REDIA-P83-20261018), atribuído pela base; uma por UEP e dia. Todos os usuários passam a editar a REDIA aberta; antes disso, a curadoria fica bloqueada (as sugestões das passagens continuam chegando). O código aparece no Início, na ata, no PDF e no Arquivo.

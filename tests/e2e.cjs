@@ -68,7 +68,7 @@ async function checarPalco(page, nome) {
   ok(u && u.posto === 'COPROD' && u.coord === 'COPROD' && u.chave === 'CP01' && page.url().endsWith('#/inicio'), `login com chave e senha genérica (${u && u.posto}/${u && u.coord})`);
   ok(await page.evaluate(() => Store.modo === 'memoria' && !MODO_NUVEM), 'sem config.js do Supabase, abre direto no modo demonstração');
   ok(await page.evaluate(() => typeof ACESSO === 'undefined' && Object.keys(ACESSO_DEMO).every(c => /^[A-Z]{2}01$/.test(c)) && Object.values(ACESSO_DEMO).every(a => /\(demo\)$/.test(a.nome))), 'demonstração só com usuários fictícios (sem lista de chaves reais no código)');
-  await page.fill('#dia', '2026-10-09'); await page.click('[data-act="dia"]'); await page.waitForTimeout(200);
+  await page.evaluate(async () => { await abrirDia('2026-10-09'); }); await page.waitForTimeout(200);   // D-68: o Início não tem mais calendário
   await page.fill('#sim', '07:30'); await page.click('[data-act="simular"]'); await page.waitForTimeout(100);
   await page.click('[data-act="exemplo"]'); await page.waitForTimeout(400);
   const nReg = await page.evaluate(() => Store.cache.size);
@@ -614,11 +614,11 @@ async function checarPalco(page, nome) {
   const hst = await page.evaluate(() => { const dias = new Set(), atas = []; for (const r of Store.cache.values()) { if (r.payload?.historico) dias.add(r.data); if (r.tipo === 'ata' && r.payload.historico) atas.push(r.data); } return { dias: dias.size, atas: atas.length, min: [...dias].sort()[0] }; });
   ok(hst.atas === 15 && hst.min === '2026-09-24', `histórico de 15 dias gravado com o exemplo (REDIAs encerradas de 24/09 a 08/10) (${JSON.stringify(hst)})`);
   await page.goto(URL + '#/arquivo'); await page.waitForTimeout(500);
-  const arq = await page.evaluate(() => ({ linhas: document.querySelectorAll('table.arq tbody tr').length, pdf: document.querySelectorAll('table.arq [data-arq-pdf]').length, so: [...document.querySelectorAll('table.arq tbody tr')].every(tr => /REDIA-P83-2026/.test(tr.textContent)), busca: !!document.querySelector('#aq-q'), menuHist: !!document.querySelector('.apph nav a[href="#/historico"]') }));
+  const arq = await page.evaluate(() => ({ linhas: document.querySelectorAll('table.arq tbody tr').length, pdf: document.querySelectorAll('table.arq [data-arq-pdf]').length, so: [...document.querySelectorAll('table.arq tbody tr')].every(tr => /REDIA-P83-\d{8}/.test(tr.textContent)), busca: !!document.querySelector('#aq-q'), menuHist: !!document.querySelector('.apph nav a[href="#/historico"]') }));
   ok(arq.linhas === 15 && arq.pdf === 15 && arq.so && arq.busca && !arq.menuHist, `Arquivo: só as atas fechadas, com o código da REDIA e o PDF; busca no topo; sem a tela Histórico (${JSON.stringify(arq)})`);
   const [dlA] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }).catch(() => null), page.click('[data-arq-pdf="2026-10-08"]')]);
   await page.waitForTimeout(500);
-  ok(!!dlA && /ata_REDIA-P83-20261008\.pdf/.test(dlA.suggestedFilename()) && await page.evaluate(() => DIA === '2026-10-09'), `Arquivo: Baixar PDF da ata arquivada e volta ao dia aberto (${dlA && dlA.suggestedFilename()})`);
+  ok(!!dlA && /ata_REDIA-P83-08102026\.pdf/.test(dlA.suggestedFilename()) && await page.evaluate(() => DIA === '2026-10-09'), `Arquivo: Baixar PDF da ata arquivada e volta ao dia aberto (${dlA && dlA.suggestedFilename()})`);
   await page.fill('#aq-q', 'FGRU A'); await page.press('#aq-q', 'Enter'); await page.waitForTimeout(600);
   const abq = await page.evaluate(() => ({ n: UI.arqRes.length, lista: !!document.querySelector('table.arq'), grupos: document.querySelectorAll('.arq-g').length, ordem: UI.arqRes.every((r, i, a) => !i || a[i - 1].data >= r.data), pdf: document.querySelectorAll('.arq-g [data-arq-pdf]').length }));
   ok(abq.n >= 3 && !abq.lista && abq.grupos >= 2 && abq.ordem && abq.pdf >= 1, `Arquivo: com busca, a lista de atas some e aparecem os resultados por REDIA, mais recentes primeiro (${JSON.stringify(abq)})`);
@@ -640,7 +640,7 @@ async function checarPalco(page, nome) {
   await page.fill('#at-part', 'GEPLAT de bordo\nCOPROD de bordo\n4º COPROD (base)'); await page.fill('#at-obs', 'Priorizar retorno da FGRU A.');
   /* D-55: ata em PDF = relatório (retrato) + print de todas as telas da apresentação (paisagem), capturadas no fechamento */
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }).catch(() => null), page.click('[data-act="fechar-ata"]')]);
-  ok(!!dl && /^ata_REDIA-P83-20261009\.pdf$/.test(dl.suggestedFilename()), `ata gerada em PDF e baixada no modo demonstração (${dl && dl.suggestedFilename()})`);
+  ok(!!dl && /^ata_REDIA-P83-09102026\.pdf$/.test(dl.suggestedFilename()), `ata gerada em PDF e baixada no modo demonstração (${dl && dl.suggestedFilename()})`);
   if (dl) {
     const f = path.join(OUT, 'ata.pdf'); await dl.saveAs(f);
     const info = JSON.parse(execFileSync('python3', ['-c', `import pypdf,json,sys
@@ -651,17 +651,23 @@ print(json.dumps({'n':len(pg),'land':land,'p1':pg[0].extract_text(),'pl':pg[land
     const infoTxt = JSON.parse(execFileSync('python3', ['-c', `import pypdf,json,sys
 r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p in r.pages[:4])))`, f]).toString());
     ok(/Decisões tomadas na reunião/.test(infoTxt) && /GEOP/.test(infoTxt) && /Aprendizados do dia/.test(infoTxt) && /Tempo por bloco/.test(infoTxt) && /Abertura · GEPLAT/.test(infoTxt) && /fechadas no prazo/.test(infoTxt), 'PDF: relatório traz decisões, aprendizados, taxa no prazo e tempo por bloco (D-61)');
-    ok(/Ata de sexta, 09\/10\/2026/.test(info.p1) && /código de integridade [0-9a-f]{8}/.test(info.p1) && /GEPLAT de bordo/.test(info.p1) && /Ata REDIA-P83-20261009/.test(info.titulo) && /Código REDIA-P83-20261009/.test(info.p1), 'PDF: relatório com data, pauta congelada e participantes');
+    ok(/Ata de sexta, 09\/10\/2026/.test(info.p1) && /código de integridade [0-9a-f]{8}/.test(info.p1) && /GEPLAT de bordo/.test(info.p1) && /Ata REDIA-P83-09102026/.test(info.titulo) && /Código REDIA-P83-09102026/.test(info.p1), 'PDF: relatório com data, pauta congelada e participantes');
     ok(nTel === 28 && info.land.length === nTel && info.imgs === nTel && info.land.every((p, k) => k === 0 || p === info.land[k - 1] + 1) && info.land[info.land.length - 1] === info.n, `PDF: depois do relatório, uma página em paisagem com o print de cada tela (${info.land.length} telas, ${info.n} páginas)`);
     ok(/Bloco 1 · GEPLAT · Abertura/.test(info.pl) && /Dados de referência: REDIA de 09\/10\/2026/.test(info.pl) && /realizado D-1 = 08\/10\/2026/.test(info.pl) && /Pauta congelada às .* código de integridade/.test(info.pl) && /capturada em 09\/10\/2026 às/.test(info.pl), 'PDF: cada tela com os dados de referência da REDIA e a hora da captura');
     ok(await page.evaluate(() => { const a = E.atas.at(-1).payload; return a.formato === 'pdf' && a.telas === 28 && a.paginas > 28; }), 'registro da ata guarda formato, páginas e telas');
   }
   const fim = await page.evaluate(async () => { let cod = ''; try { await registrar('item', { coord: 'COPROD', tipo: 'ameaca', texto: 'x', semaforo: 'at' }); } catch (e) { cod = e.codigo; } return { cod, bloq: bloqueado(), btn: !!document.querySelector('[data-act="fechar-ata"]'), codigo: E.atas[0].payload.codigo, acordos: E.atas[0].payload.acordos.length }; });
-  ok(fim.cod === 'ATA_FECHADA' && fim.bloq && !fim.btn && fim.codigo === 'REDIA-P83-20261009' && fim.acordos === 4, `ata fechada: documento final com o código da REDIA e os de acordo; nada mais é gravado no dia (${JSON.stringify(fim)})`);
+  ok(fim.cod === 'ATA_FECHADA' && fim.bloq && !fim.btn && fim.codigo === 'REDIA-P83-09102026' && fim.acordos === 4, `ata fechada: documento final com o código da REDIA e os de acordo; nada mais é gravado no dia (${JSON.stringify(fim)})`);
   await page.goto(URL + '#/arquivo'); await page.waitForTimeout(500);
-  ok(await page.evaluate(() => document.querySelectorAll('table.arq tbody tr').length === 16 && /REDIA-P83-20261009/.test(document.querySelector('table.arq tbody tr').textContent)), 'Arquivo: a ata fechada hoje entra no topo da lista');
+  ok(await page.evaluate(() => document.querySelectorAll('table.arq tbody tr').length === 16 && /REDIA-P83-09102026/.test(document.querySelector('table.arq tbody tr').textContent)), 'Arquivo: a ata fechada hoje entra no topo da lista');
   /* D-67: REDIA de hoje · só existe depois de "Iniciar elaboração" (código único) · preenchimento fictício (versão de teste) */
-  const hojeR = await page.evaluate(async () => { const h = isoData(Relogio.agora()); await abrirDia(h); return h; });
+  /* D-68: Início sem calendário; dia com ata encerrada não oferece "Iniciar elaboração"; à meia-noite o novo dia passa a oferecer */
+  const ontemR = await page.evaluate(async () => { const h = isoData(Relogio.agora()), o = addDias(h, -1); if (![...Store.cache.values()].some(r => r.data === o && r.tipo === 'ata')) await Store.gravarLote(montarHistorico(h, 1)); await abrirDia(o); return o; });
+  await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
+  const vd0 = await page.evaluate(() => ({ cal: !!document.querySelector('#dia') || !!document.querySelector('[data-act="dia"]'), ini: !!document.querySelector('[data-act="iniciar-redia"]'), cod: document.querySelector('.redia-id')?.textContent || '' }));
+  ok(!vd0.cal && !vd0.ini && /REDIA-P83-\d{8}/.test(vd0.cod), `Início sem calendário/Abrir; com a ata do dia encerrada não aparece "Iniciar elaboração" (${JSON.stringify(vd0)})`);
+  const hojeR = await page.evaluate(async o => { HOJE_VISTO = o; await viradaDoDia(); return DIA; }, ontemR); await page.waitForTimeout(300);
+  ok(hojeR === await page.evaluate(() => isoData(Relogio.agora())) && await page.evaluate(() => !!document.querySelector('.g-dia [data-act="iniciar-redia"]')), 'virada da meia-noite: o Início passa ao novo dia e oferece "Iniciar elaboração"');
   await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(300);
   const g0 = await page.evaluate(async () => { const ok = await podeEditar('valor'); return { ok, banner: !!document.querySelector('.banner.ini-redia [data-act="iniciar-redia"]'), dis: !!document.querySelector('[data-act="capturar-todos"][disabled]') }; });
   ok(!g0.ok && g0.banner && g0.dis, `antes de "Iniciar elaboração" a curadoria fica bloqueada, com o botão para iniciar (${JSON.stringify(g0)})`);
@@ -670,7 +676,7 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   ok(await page.evaluate(() => { const t = document.querySelector('.tst').getBoundingClientRect(), d = document.querySelector('.g-dia').getBoundingClientRect(); return t.top > d.bottom && t.right >= d.right - 2 && t.left > d.left + 200; }), 'Funções da versão de teste no canto inferior direito, abaixo de REDIA do dia e Situação das coordenações');
   await page.click('.g-dia [data-act="iniciar-redia"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(400);
   const cod = await page.evaluate(() => ({ c: E.redia?.payload.codigo, ses: document.querySelector('.ses').textContent, dup: (() => { try { regrasDemo(novoRegistro('redia', {})); return ''; } catch (e) { return e.codigo; } })() }));
-  ok(cod.c === 'REDIA-P83-' + hojeR.replace(/-/g, '') && cod.ses.includes(cod.c) && cod.dup === 'REDIA_JA_INICIADA', `REDIA iniciada com código único REDIA-<UEP>-<AAAAMMDD>; segunda abertura recusada (${JSON.stringify({ c: cod.c, dup: cod.dup })})`);
+  ok(cod.c === 'REDIA-P83-' + hojeR.split('-').reverse().join('') && cod.ses.includes(cod.c) && cod.dup === 'REDIA_JA_INICIADA', `REDIA iniciada com código único REDIA-<UEP>-<DDMMAAAA>; segunda abertura recusada (${JSON.stringify({ c: cod.c, dup: cod.dup })})`);
   await page.click('[data-act="preencher"]'); await page.waitForTimeout(200); await page.click('[data-mdl="ok"]'); await page.waitForTimeout(800);
   const pf = await page.evaluate(() => ({ v: Object.keys(E.valores).length, l: Object.keys(E.listas).length, pend: COORDS.reduce((a, c) => a + pendentes(E, c).length, 0), concl: naoConcluidas(E).length, fic: [...Store.cache.values()].filter(r => r.data === DIA && r.payload?.ficticio).length, resp: responsaveisDe(regsDoDia()).map(x => x.coord + ':' + (x.chave || '-')).join() }));
   ok(pf.v > 80 && pf.l > 20 && pf.pend === 0 && pf.concl === 0 && pf.fic > 100 && pf.resp === 'GEPLAT:-', `preenchimento fictício: valores e listas de todas as coordenações, sugestões aprovadas e coordenações concluídas; marcado como fictício e fora do de acordo (${JSON.stringify(pf)})`);

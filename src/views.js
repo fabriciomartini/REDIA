@@ -318,6 +318,7 @@ async function iniciarSessao0(novoLogin) {
     await Store.carregar(DIA);
     Nuvem.tempoReal(CFG.uep, sincronizarTela);
   } else {
+    if (novoLogin) { DIA = isoData(Relogio.agora()); LS.set('dia', DIA); }   // D-68: sem calendário no Início, o login abre a REDIA de hoje
     await Store.usarMemoria();
     await Store.carregar(DIA);
   }
@@ -388,7 +389,7 @@ async function telaInicio() {
     ${Store.modo ? `<div class="grid2 g-dia">
       <section class="pn"><h2>REDIA do dia</h2>
         ${R ? `<div class="redia-id"><span class="lbl">Código</span><b class="mono">${esc(R.payload.codigo || codigoRedia(CFG.uep, DIA))}</b><span class="note">iniciada por ${esc(R.autor?.nome || '—')} às ${hhmm(R.criadoEm)}${ata ? ` · ata fechada às ${hhmm(ata.criadoEm)}` : ''}</span></div>` : htmlIniciar()}
-        <div class="row"><label class="lbl" for="dia" style="margin:0">Data</label><input id="dia" type="date" class="in" style="width:auto" value="${DIA}"><button class="btn sm sec" data-act="dia">Abrir</button>
+        <div class="row"><b>${diaSemana(DIA)}, ${ddmmaaaa(DIA)}</b>
           <span class="chip ${ata ? 'ok' : f.id === 'congelada' || f.id === 'reuniao' ? 'ok' : f.id === 'congelar' ? 'at' : 'ne'}">${ata ? 'Encerrada' : esc(f.nome)}</span>${!hoje ? '<span class="note">dia anterior · só consulta</span>' : ''}</div>
         <div class="tl" role="img" aria-label="Linha do tempo do dia: agora ${hhmm(Relogio.agora())}">${seg.map(([a, b, n], i) => `<span class="sg s${i}" style="left:${pos(horaMin(a))}%;width:${pos(horaMin(b)) - pos(horaMin(a))}%">${n}</span>`).join('')}<i class="now" style="left:${pos(Relogio.minutos())}%"></i></div>
         <p class="note">06:00 passagem de turno · até ${H.preenchimento} preenchimento · ${H.preenchimento}–${H.congelamento} pré-REDIA · ${H.congelamento} congelamento · ${H.inicio}–${H.fim} REDIA · depois, de acordo e ata.</p>
@@ -408,7 +409,6 @@ async function telaInicio() {
     </div>
   </div>`);
   const on = (a, fn) => { const b = $(`[data-act="${a}"]`); if (b) b.onclick = fn; };
-  on('dia', async () => { try { await abrirDia($('#dia').value); } catch (e) { aviso(e.message, 'erro'); } });
   on('congelar-ini', congelarPauta);
   on('sincronizar', async () => { await sincronizarTela(); rerender(); });
   on('senha', () => trocarSenhaObrigatoria(true));
@@ -1040,6 +1040,15 @@ function abaAceite() {
   return { html, dois: true, bind: () => { const b = $('[data-act="aceite"]'); if (b) b.onclick = () => salvarE('aceite', { nota: $('#ac-nota').value.trim() }, {}, 'Aceite registrado.'); } };
 }
 
+/* D-68 · virada do dia: o Início não tem mais calendário; quem está na REDIA de hoje passa ao novo dia às 00:00 */
+let HOJE_VISTO = null;
+async function viradaDoDia() {
+  const h = isoData(Relogio.agora()); if (HOJE_VISTO === null) { HOJE_VISTO = h; return; }
+  if (h === HOJE_VISTO) return;
+  const ontem = HOJE_VISTO; HOJE_VISTO = h;
+  if (!USUARIO || !Store.modo || DIA !== ontem) return;
+  try { await abrirDia(h); aviso(`Novo dia: ${ddmmaaaa(h)}. A REDIA de hoje pode ser iniciada em “Iniciar elaboração”.`, 'ok'); } catch (e) { Store.erros.push('virada do dia: ' + e.message); }
+}
 /* ======================= Apresentação ao vivo (D-67) =======================
    Quem aciona passa a controlar: os demais usuários logados (Início, Curadoria ou Apresentação) vão para a apresentação e acompanham
    a tela e o cronômetro de quem controla. Quem assiste só tem "Sair" na barra; os demais comandos ficam visíveis e desabilitados.
@@ -1619,6 +1628,7 @@ async function iniciar() {
   setInterval(() => {
     const P = UI.pres;
     if (P.rodando) { const agora = Date.now(); if (agora - P.ult >= 1000) { P.restante -= Math.floor((agora - P.ult) / 1000); P.ult = agora - ((agora - P.ult) % 1000); atualizarTimer(); } }
+    viradaDoDia();   // D-68: à meia-noite, quem estava na REDIA de hoje passa para o novo dia (com "Iniciar elaboração")
     $$('[data-clk]').forEach(c => { const t = hhmm(Relogio.agora()); if (c.textContent !== t) c.textContent = t; });
   }, 250);
   // leitura periódica da base: a cada 15 s sem tempo real; a cada 60 s com tempo real (rede de segurança)
