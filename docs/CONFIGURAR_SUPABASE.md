@@ -125,6 +125,21 @@ Na tela de acesso, **Esqueci a senha** pede a chave. A função do servidor gera
 
 > A chave do Resend e a secret do Supabase ficam só nos segredos do Supabase. Nunca no app, no GitHub ou em conversa.
 
+## 8. REDIA Búzios · autocadastro e administração (V2.0)
+
+A V2.0 atende as 10 plataformas de Búzios. Cada usuário é lotado em uma ou mais unidades; o **administrador do sistema** cuida de usuários, lotações, papéis, unidades e do autocadastro na tela **Administração**; o **editor** de cada unidade ajusta as telas no **Studio**.
+
+1. **Base:** reaplique `supabase/00_instalar_tudo.sql` (cria `unidades`, `lotacoes`, `auditoria`, `parametros`, `pedidos_cadastro`, `layouts` e as funções `redia_admin_*` e `redia_layout_*`; lota cada perfil existente na própria unidade).
+2. **Administrador do sistema:** no SQL Editor, como `postgres`, marque a(s) sua(s) chave(s):
+   `update public.perfis set admin_sistema = true where chave = '<CHAVE>';`
+   Para ser também editor de todas as unidades: `insert into public.lotacoes (user_id, uep, admin, editor) select user_id, u.uep, true, true from public.perfis, public.unidades u where chave = '<CHAVE>' on conflict (user_id, uep) do update set admin = true, editor = true;`
+3. **Funções:** publique, como no passo 7.3:
+   - `redia-cadastro` (autocadastro da tela de acesso) com **"Verify JWT" desligado**;
+   - `redia-admin` (criar usuário, redefinir senha, aprovar autocadastro, importar contas de teste) com **"Verify JWT" ligado**: a função confere se quem chama é administrador do sistema.
+   As duas usam os mesmos segredos do passo 7. Opcionais: `REDIA_APP_URL` (endereço do app no e-mail) e `REDIA_EMAIL_DE` (remetente).
+4. **E-mail ao usuário:** sem domínio verificado, o Resend só entrega ao e-mail da própria conta. Até verificar um domínio (ou usar outro serviço aprovado pela TIC), a senha provisória do autocadastro vai ao **e-mail do administrador**, que a repassa; na Administração, a senha de um usuário criado sem e-mail aparece uma vez na tela.
+5. **Contas de teste das novas plataformas:** na Administração › Usuários › **Importar contas de teste** (13 funções por unidade, senha única digitada por você) ou `python tools/provisionar_usuarios.py tools/testes_buzios.csv --compartilhado --senha-fixa`.
+
 ## Se algo não funcionar
 
 | Sintoma | Causa provável | O que fazer |
@@ -136,6 +151,8 @@ Na tela de acesso, **Esqueci a senha** pede a chave. A função do servidor gera
 | Cabeçalho sem "tempo real" | WebSocket bloqueado pelo proxy | O app segue funcionando, com atualização a cada 15 s |
 | "A recuperação de senha ainda não está configurada" | Faltam os segredos do passo 7 | Criar `RESEND_API_KEY` e `REDIA_EMAIL_ADMIN` |
 | "A recuperação de senha ainda não está instalada" | Função não publicada | Passo 7.3 |
+| "Esta função ainda não está instalada na base (redia-cadastro)" | Função do autocadastro não publicada | Passo 8.3 |
+| "Só o administrador do sistema" | Perfil sem `admin_sistema` | Passo 8.2 |
 | Projeto pausado | Plano gratuito pausa após cerca de 7 dias sem uso | Supabase › projeto › **Resume project** |
 
 Para limpar os dados de teste:

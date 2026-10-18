@@ -1,0 +1,118 @@
+chave;nome;posto;admin;uep
+GO74;Teste GEOP P-74 (conta genérica);GEOP;não;P-74
+GP74;Teste GEPLAT P-74 (conta genérica);GEPLAT;não;P-74
+CP74;Teste COPROD P-74 (conta genérica);COPROD;não;P-74
+CM74;Teste COMAN P-74 (conta genérica);COMAN;não;P-74
+CE74;Teste COEMB P-74 (conta genérica);COEMB;não;P-74
+SP74;Teste SUPROD P-74 (conta genérica);SUPROD;não;P-74
+SM74;Teste SUMEC P-74 (conta genérica);SUMEC;não;P-74
+SI74;Teste SUEIN P-74 (conta genérica);SUEIN;não;P-74
+SE74;Teste SUEMB P-74 (conta genérica);SUEMB;não;P-74
+EE74;Teste Eng. manutenção elétrica (base) P-74 (conta genérica);ENG ELETRICISTA;não;P-74
+EM74;Teste Eng. manutenção mecânica P-74 (conta genérica);ENG MECÂNICO;não;P-74
+EQ74;Teste Eng. processamento P-74 (conta genérica);ENG PROCESSAMENTO;não;P-74
+EP74;Teste Eng. petróleo P-74 (conta genérica);ENG PETRÓLEO;não;P-74
+GO75;Teste GEOP P-75 (conta genérica);GEOP;não;P-75
+GP75;Teste GEPLAT P-75 (conta genérica);GEPLAT;não;P-75
+CP75;Teste COPROD P-75 (conta genérica);COPROD;não;P-75
+CM75;Teste COMAN P-75 (conta genérica);COMAN;não;P-75
+CE75;Teste COEMB P-75 (conta genérica);COEMB;não;P-75
+SP75;Teste SUPROD P-75 (conta genérica);SUPROD;não;P-75
+SM75;Teste SUMEC P-75 (conta genérica);SUMEC;não;P-75
+SI75;Teste SUEIN P-75 (conta genérica);SUEIN;não;P-75
+SE75;Teste SUEMB P-75 (conta genérica);SUEMB;não;P-75
+EE75;Teste Eng. manutenção elétrica (base) P-75 (conta genérica);ENG ELETRICISTA;não;P-75
+EM75;Teste Eng. manutenção mecânica P-75 (conta genérica);ENG MECÂNICO;não;P-75
+EQ75;Teste Eng. processamento P-75 (conta genérica);ENG PROCESSAMENTO;não;P-75
+EP75;Teste Eng. petróleo P-75 (conta genérica);ENG PETRÓLEO;não;P-75
+GO76;Teste GEOP P-76 (conta genérica);GEOP;não;P-76
+GP76;Teste GEPLAT P-76 (conta genérica);GEPLAT;não;P-76
+CP76;Teste COPROD P-76 (conta genérica);COPROD;não;P-76
+CM76;Teste COMAN P-76 (conta genérica);COMAN;não;P-76
+CE76;Teste COEMB P-76 (conta genérica);COEMB;não;P-76
+SP76;Teste SUPROD P-76 (conta genérica);SUPROD;não;P-76
+SM76;Teste SUMEC P-76 (conta genérica);SUMEC;não;P-76
+SI76;Teste SUEIN P-76 (conta genérica);SUEIN;não;P-76
+SE76;Teste SUEMB P-76 (conta genérica);SUEMB;não;P-76
+EE76;Teste Eng. manutenção elétrica (base) P-76 (conta genérica);ENG ELETRICISTA;não;P-76
+EM76;Teste Eng. manutenção mecânica P-76 (conta genérica);ENG MECÂNICO;não;P-76
+EQ76;Teste Eng. processamento P-76 (conta genérica);ENG PROCESSAMENTO;não;P-76
+EP76;Teste Eng. petróleo P-76 (conta genérica);ENG PETRÓLEO;não;P-76
+GO77;Teste GEOP P-77 (conta genérica);GEOP;não;P-77
+GP77;Teste GEPLAT P-77 (conta genérica);GEPLAT;não;P-77
+CP77;Teste COPROD P-77 (conta genérica);COPROD;não;P-77
+CM77;Teste COMAN P-77 (conta genérica);COMAN;não;P-77
+CE77;Teste COEMB P-77 (conta genérica);COEMB;não;P-77
+SP77;Teste SUPROD P-77 (conta genérica);SUPROD;não;P-77
+SM77;Teste SUMEC P-77 (conta genérica);SUMEC;não;P-77
+SI77;Teste SUEIN P-77 (conta genérica);SUEIN;não;P-77
+SE77;Teste SUEMB P-77 (conta genérica);SUEMB;não;P-77
+EE77;Teste Eng. manutenção elétrica (base) P-77 (conta genérica);ENG ELETRICISTA;não;P-77
+EM77;Teste Eng. manutenção mecânica P-77 (conta genérica);ENG MECÂNICO;não;P-77
+EQ77;Teste Eng. processamento P-77 (conta genérica);ENG PROCESSAMENTO;não;P-77
+EP77;Teste Eng. petróleo P-77 (conta genérica);ENG PETRÓLEO;não;P-77
+GO78;Teste GEOP P-78 (conta genérica);GEOP;não;P-78
+GP78;Teste GEPLAT P-78 (conta genérica);GEPLAT;não;P-78
+CP78;Teste COPROD P-78 (conta genérica);COPROD;não;P-78
+CM78;Teste COMAN P-78 (conta genérica);COMAN;não;P-78
+CE78;Teste COEMB P-78 (conta genérica);COEMB;não;P-78
+SP78;Teste SUPROD P-78 (conta genérica);SUPROD;não;P-78
+SM78;Teste SUMEC P-78 (conta genérica);SUMEC;não;P-78
+SI78;Teste SUEIN P-78 (conta genérica);SUEIN;não;P-78
+SE78;Teste SUEMB P-78 (conta genérica);SUEMB;não;P-78
+EE78;Teste Eng. manutenção elétrica (base) P-78 (conta genérica);ENG ELETRICISTA;não;P-78
+EM78;Teste Eng. manutenção mecânica P-78 (conta genérica);ENG MECÂNICO;não;P-78
+EQ78;Teste Eng. processamento P-78 (conta genérica);ENG PROCESSAMENTO;não;P-78
+EP78;Teste Eng. petróleo P-78 (conta genérica);ENG PETRÓLEO;não;P-78
+GO79;Teste GEOP P-79 (conta genérica);GEOP;não;P-79
+GP79;Teste GEPLAT P-79 (conta genérica);GEPLAT;não;P-79
+CP79;Teste COPROD P-79 (conta genérica);COPROD;não;P-79
+CM79;Teste COMAN P-79 (conta genérica);COMAN;não;P-79
+CE79;Teste COEMB P-79 (conta genérica);COEMB;não;P-79
+SP79;Teste SUPROD P-79 (conta genérica);SUPROD;não;P-79
+SM79;Teste SUMEC P-79 (conta genérica);SUMEC;não;P-79
+SI79;Teste SUEIN P-79 (conta genérica);SUEIN;não;P-79
+SE79;Teste SUEMB P-79 (conta genérica);SUEMB;não;P-79
+EE79;Teste Eng. manutenção elétrica (base) P-79 (conta genérica);ENG ELETRICISTA;não;P-79
+EM79;Teste Eng. manutenção mecânica P-79 (conta genérica);ENG MECÂNICO;não;P-79
+EQ79;Teste Eng. processamento P-79 (conta genérica);ENG PROCESSAMENTO;não;P-79
+EP79;Teste Eng. petróleo P-79 (conta genérica);ENG PETRÓLEO;não;P-79
+GO80;Teste GEOP P-80 (conta genérica);GEOP;não;P-80
+GP80;Teste GEPLAT P-80 (conta genérica);GEPLAT;não;P-80
+CP80;Teste COPROD P-80 (conta genérica);COPROD;não;P-80
+CM80;Teste COMAN P-80 (conta genérica);COMAN;não;P-80
+CE80;Teste COEMB P-80 (conta genérica);COEMB;não;P-80
+SP80;Teste SUPROD P-80 (conta genérica);SUPROD;não;P-80
+SM80;Teste SUMEC P-80 (conta genérica);SUMEC;não;P-80
+SI80;Teste SUEIN P-80 (conta genérica);SUEIN;não;P-80
+SE80;Teste SUEMB P-80 (conta genérica);SUEMB;não;P-80
+EE80;Teste Eng. manutenção elétrica (base) P-80 (conta genérica);ENG ELETRICISTA;não;P-80
+EM80;Teste Eng. manutenção mecânica P-80 (conta genérica);ENG MECÂNICO;não;P-80
+EQ80;Teste Eng. processamento P-80 (conta genérica);ENG PROCESSAMENTO;não;P-80
+EP80;Teste Eng. petróleo P-80 (conta genérica);ENG PETRÓLEO;não;P-80
+GO82;Teste GEOP P-82 (conta genérica);GEOP;não;P-82
+GP82;Teste GEPLAT P-82 (conta genérica);GEPLAT;não;P-82
+CP82;Teste COPROD P-82 (conta genérica);COPROD;não;P-82
+CM82;Teste COMAN P-82 (conta genérica);COMAN;não;P-82
+CE82;Teste COEMB P-82 (conta genérica);COEMB;não;P-82
+SP82;Teste SUPROD P-82 (conta genérica);SUPROD;não;P-82
+SM82;Teste SUMEC P-82 (conta genérica);SUMEC;não;P-82
+SI82;Teste SUEIN P-82 (conta genérica);SUEIN;não;P-82
+SE82;Teste SUEMB P-82 (conta genérica);SUEMB;não;P-82
+EE82;Teste Eng. manutenção elétrica (base) P-82 (conta genérica);ENG ELETRICISTA;não;P-82
+EM82;Teste Eng. manutenção mecânica P-82 (conta genérica);ENG MECÂNICO;não;P-82
+EQ82;Teste Eng. processamento P-82 (conta genérica);ENG PROCESSAMENTO;não;P-82
+EP82;Teste Eng. petróleo P-82 (conta genérica);ENG PETRÓLEO;não;P-82
+GO91;Teste GEOP P-91 (conta genérica);GEOP;não;P-91
+GP91;Teste GEPLAT P-91 (conta genérica);GEPLAT;não;P-91
+CP91;Teste COPROD P-91 (conta genérica);COPROD;não;P-91
+CM91;Teste COMAN P-91 (conta genérica);COMAN;não;P-91
+CE91;Teste COEMB P-91 (conta genérica);COEMB;não;P-91
+SP91;Teste SUPROD P-91 (conta genérica);SUPROD;não;P-91
+SM91;Teste SUMEC P-91 (conta genérica);SUMEC;não;P-91
+SI91;Teste SUEIN P-91 (conta genérica);SUEIN;não;P-91
+SE91;Teste SUEMB P-91 (conta genérica);SUEMB;não;P-91
+EE91;Teste Eng. manutenção elétrica (base) P-91 (conta genérica);ENG ELETRICISTA;não;P-91
+EM91;Teste Eng. manutenção mecânica P-91 (conta genérica);ENG MECÂNICO;não;P-91
+EQ91;Teste Eng. processamento P-91 (conta genérica);ENG PROCESSAMENTO;não;P-91
+EP91;Teste Eng. petróleo P-91 (conta genérica);ENG PETRÓLEO;não;P-91

@@ -1,4 +1,4 @@
-/* ===================== REDIA P-83 · telas da apresentação (1920×1080) ===================== */
+/* ===================== REDIA Búzios · telas da apresentação (1920×1080) ===================== */
 'use strict';
 /* Vocabulário de status (D-45, HIG Apple atual): símbolos no estilo SF Symbols, sempre forma + cor + texto.
    OK = checkmark.circle.fill · Atenção = exclamationmark.triangle.fill · Não OK = xmark.octagon.fill · Sem dado = minus.circle.fill */
@@ -641,7 +641,7 @@ function telaSemana(E, ctx) {
       <span class="cap mt-auto">Pontos = valores gravados nas REDIAs anteriores; dias sem REDIA ficam sem ponto.</span></div>
     <div class="colg">
       <div class="card col">${hd('Canal Base x Bordo · ações', pill(venc.length ? 'nok' : hoje24.length ? 'at' : 'ok', venc.length ? `${venc.length} vencida${venc.length === 1 ? '' : 's'}` : 'Sem vencidas', true, TIP.demandas(venc, hoje24)))}
-        <div class="tiles">${tileVencidas(venc.length)}${tileHoje(hoje24.length)}${tileTaxa(tx)}</div>
+        ${cardsAcoesHig(venc.length, hoje24.length, tx)}
         ${venc.slice(0, 6).map(d => `<div class="li"><span class="col"><b>${T(d.payload.titulo)}</b><span class="cap">${esc(d.payload.coord)} · ${esc(d.payload.sentido)} · ${T(d.payload.responsavel)}</span></span><span class="v nw">${-diffDias(d.payload.prazo, ctx.dia)}${NBSP}d</span></div>`).join('') || '<div class="li n0"><span class="sec">Nenhuma ação vencida</span></div>'}</div>
       <div class="card col fill">${hd('Itens a escalar', `<span class="cap">${escl.length}</span>`)}
         ${escl.slice(0, 5).map(d => `<div class="li"><span class="col"><span>${tagEsc} ${T(d.titulo)}</span><span class="cap">${esc(d.coord)}${d.tag ? ' · ' + T(d.tag) : ''}</span></span>${pill(d.semaforo, semNome(d.semaforo), true, TIP.curado(d))}</div>`).join('') || '<div class="li n0"><span class="sec">Nenhum item marcado para escalar</span></div>'}</div>
@@ -658,6 +658,26 @@ const TAXA_REF = 80;
 const tileVencidas = n => `<div class="tile ${n ? 'ac-nok' : 'ac-zero'}"><b class="big b48">${n}</b><span>vencida${n === 1 ? '' : 's'}</span></div>`;
 const tileHoje = n => `<div class="tile ${n ? 'ac-at' : 'ac-zero'}"><b class="big b48">${n}</b><span>vence${n === 1 ? '' : 'm'} hoje</span></div>`;
 const tileTaxa = (tx, rot = 'no prazo') => `<div class="tile ac-ok ac-tx"${tx.pct != null && tx.pct < TAXA_REF ? dTip('at', [`Ações do mês fechadas no prazo: ${tx.ok} de ${tx.n} (${fmtN(tx.pct, 0)}%)`, `Referência: ${TAXA_REF}% no prazo`]) : ''}><b class="big b48">${tx.pct != null ? fmtN(tx.pct, 0) + '%' : '—'}</b><span>${rot}${tx.n && rot !== 'no prazo' ? ` · ${tx.ok} de ${tx.n}` : ''}</span>${tx.pct != null && tx.pct < TAXA_REF ? `<em class="ref">abaixo de ${TAXA_REF}%</em>` : ''}</div>`;
+/* D-71 · cards de ações da visão semanal no padrão Apple (HIG): fundo agrupado claro e cantos arredondados, símbolo no estilo SF Symbols
+   na cor semântica (vermelho = vencida, laranja = vence hoje, verde = no prazo), número grande em fonte do sistema e rótulo secundário.
+   Cor só onde há o que agir: zero fica neutro, com o símbolo de ok. A taxa no prazo é um anel de progresso verde com a marca da referência. */
+const HIG = { red: '#FF3B30', orange: '#FF9500', green: '#34C759', gray: '#8E8E93' };
+const SF = {
+  alerta: c => `<svg width="22" height="22" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="${c}"/><rect x="9" y="4.8" width="2" height="7" rx="1" fill="#fff"/><circle cx="10" cy="14.6" r="1.25" fill="#fff"/></svg>`,
+  relogio: c => `<svg width="22" height="22" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="${c}"/><path d="M10 5.2V10l3.2 2.1" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  ok: c => `<svg width="22" height="22" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="${c}"/><path d="M5.8 10.3l2.8 2.8 5.6-6" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
+function cardsAcoesHig(nV, nH, tx) {
+  const c = (cls, ic, n, rot, sub) => `<div class="hig ${cls}"><div class="hig-h">${ic}<span>${rot}</span></div><b class="hig-n">${n}</b><span class="hig-s">${sub}</span></div>`;
+  const p = tx.pct, R = 30, L = 2 * Math.PI * R, ref = TAXA_REF, abaixo = p != null && p < ref;
+  const anel = `<svg class="hig-ring" width="64" height="64" viewBox="0 0 76 76" aria-hidden="true"><circle cx="38" cy="38" r="${R}" fill="none" stroke="#E5E5EA" stroke-width="8"/><circle cx="38" cy="38" r="${R}" fill="none" stroke="${HIG.green}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${L.toFixed(1)}" stroke-dashoffset="${(L * (1 - Math.min(100, p || 0) / 100)).toFixed(1)}" transform="rotate(-90 38 38)"/><line x1="${(38 + (R - 6) * Math.sin(ref / 100 * 2 * Math.PI)).toFixed(1)}" y1="${(38 - (R - 6) * Math.cos(ref / 100 * 2 * Math.PI)).toFixed(1)}" x2="${(38 + (R + 6) * Math.sin(ref / 100 * 2 * Math.PI)).toFixed(1)}" y2="${(38 - (R + 6) * Math.cos(ref / 100 * 2 * Math.PI)).toFixed(1)}" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round"/></svg>`;
+  return `<div class="higs">
+    ${c(nV ? 'v-red' : 'v-zero', SF[nV ? 'alerta' : 'ok'](nV ? HIG.red : HIG.green), nV, 'Vencidas', nV ? 'Agir hoje' : 'Nenhuma vencida')}
+    ${c(nH ? 'v-orange' : 'v-zero', SF[nH ? 'relogio' : 'ok'](nH ? HIG.orange : HIG.green), nH, 'Vencem hoje', nH ? 'Prazo termina hoje' : 'Nenhuma hoje')}
+    <div class="hig v-ring"${abaixo ? dTip('at', [`Ações do mês fechadas no prazo: ${tx.ok} de ${tx.n} (${fmtN(p, 0)}%)`, `Referência: ${ref}%`]) : ''}><div class="hig-h">${SF.ok(HIG.green)}<span>No prazo</span></div>
+      <div class="hig-rw">${anel}<b class="hig-n">${p != null ? fmtN(p, 0) + '<small>%</small>' : '—'}</b></div><span class="hig-s${abaixo ? ' hig-warn' : ''}">${p == null ? 'Sem ações no mês' : abaixo ? `Abaixo da referência (${ref}%)` : `Referência ${ref}%`}</span></div>
+  </div>`;
+}
 const tagRecN = n => `<span class="o recr">×${n}</span>`;
 const TELAS = [telaAbertura, telaCoprod, telaCoemb, telaComan, telaFechamento];
 

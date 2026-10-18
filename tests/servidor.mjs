@@ -10,7 +10,7 @@ import { randomUUID, randomBytes } from 'node:crypto';
 const P = path.dirname(fileURLToPath(import.meta.url));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webm': 'video/webm', '.txt': 'text/plain' };
 export const CHAVE_SERVICO_TESTE = 'service-teste';
-const TIPOS_ARG = { p_regs: 'jsonb', p_config: 'jsonb', p_campos_mes: 'text[]', p_seq: 'bigint', p_data: 'date', p_uep: 'text', p_texto: 'text', p_limite: 'integer', p_de: 'date', p_ate: 'date', p_coord: 'text', p_tipos: 'text[]' };
+const TIPOS_ARG = { p_regs: 'jsonb', p_config: 'jsonb', p_campos_mes: 'text[]', p_seq: 'bigint', p_data: 'date', p_uep: 'text', p_texto: 'text', p_limite: 'integer', p_de: 'date', p_ate: 'date', p_coord: 'text', p_tipos: 'text[]', p: 'jsonb', p_user: 'uuid', p_chave: 'text', p_valor: 'jsonb', p_layout: 'jsonb', p_publicar: 'boolean', p_versao: 'integer' };
 
 export async function iniciarServidor({ estatico, porta = 0, supabase = false, emailAdmin = 'admin@exemplo.test' } = {}) {
   let db = null;
@@ -95,6 +95,57 @@ export async function iniciarServidor({ estatico, porta = 0, supabase = false, e
       await reg('enviada', 'senha temporária enviada ao administrador', p.uep);
       return json(res, 200, PADRAO);
     }
+    // ---------------- Edge Functions D-72 (autocadastro e administração): mesma lógica de supabase/functions/redia-cadastro e redia-admin ----------------
+    const POSTOS = { GEOP: 'GEPLAT', GEPLAT: 'GEPLAT', COPROD: 'COPROD', SUPROD: 'COPROD', 'ENG PROCESSAMENTO': 'COPROD', 'ENG PETRÓLEO': 'COPROD', COEMB: 'COEMB', SUEMB: 'COEMB', COMAN: 'COMAN', SUEIN: 'COMAN', SUMEC: 'COMAN', 'ENG ELETRICISTA': 'COMAN', 'ENG MECÂNICO': 'COMAN' };
+    const criarConta = async ({ chave, nome, posto, email = null, lotacoes, adminSistema = false, compartilhado = false }, senha, trocar) => {
+      if ((await serial(() => db.query('select 1 from public.perfis where chave = $1', [chave]))).rows.length) return { erro: 'chave já cadastrada', existe: true };
+      const id = randomUUID();
+      await serial(() => db.query('insert into auth.users (id, email, senha) values ($1, $2, $3)', [id, chave.toLowerCase() + '@redia.local', senha]));
+      await serial(() => db.query('insert into public.perfis (user_id, chave, nome, posto, coord, uep, email, admin, admin_sistema, ativo, trocar_senha, compartilhado) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11)',
+        [id, chave, nome, posto, POSTOS[posto], lotacoes[0].uep, email, lotacoes.some(l => l.admin), adminSistema, trocar, compartilhado]));
+      for (const l of lotacoes) await serial(() => db.query('insert into public.lotacoes (user_id, uep, admin, editor) values ($1,$2,$3,$4)', [id, l.uep, !!l.admin, !!l.editor]));
+      return { id };
+    };
+    if (rota === '/functions/v1/redia-cadastro' && req.method === 'POST') {
+      const b = JSON.parse((await corpo(req)).toString() || '{}'), chave = String(b.chave || '').toUpperCase(), uep = String(b.uep || ''), posto = String(b.posto || '').toUpperCase(), email = String(b.email || '').toLowerCase();
+      if (!/^[A-Z0-9]{4}$/.test(chave)) return json(res, 400, { ok: false, mensagem: 'A chave precisa ter exatamente 4 letras ou números.' });
+      if (!POSTOS[posto] || !/@/.test(email)) return json(res, 400, { ok: false, mensagem: 'Dados inválidos.' });
+      const cad = { aberto: true, aprovacao: false, ...((await serial(() => db.query(`select valor from public.parametros where chave = 'cadastro'`))).rows[0]?.valor || {}) };
+      if (!cad.aberto) return json(res, 403, { ok: false, mensagem: 'O autocadastro está fechado no momento. Procure o administrador da REDIA.' });
+      const reg = (sit, det) => serial(() => db.query('insert into public.pedidos_cadastro (chave, nome, email, uep, posto, situacao, detalhe) values ($1,$2,$3,$4,$5,$6,$7)', [chave, b.nome, email, uep, posto, sit, det]));
+      if (cad.aprovacao) { await reg('aguardando', 'aguardando aprovação do administrador'); return json(res, 200, { ok: true, mensagem: 'Pedido de cadastro enviado. Depois da aprovação do administrador, a senha provisória chega no e-mail informado.' }); }
+      const senha = 'Prv' + randomUUID().replace(/-/g, '').slice(0, 7) + '7';
+      const r = await criarConta({ chave, nome: b.nome, posto, email, lotacoes: [{ uep }] }, senha, true);
+      if (r.erro) { await reg('ignorado', r.erro); return json(res, 409, { ok: false, mensagem: 'Esta chave já está cadastrada. Se esqueceu a senha, use “Esqueci a senha”.' }); }
+      emails.push({ para: email, chave, senha, tipo: 'autocadastro' }); await reg('cadastrado', 'senha provisória enviada ao usuário');
+      await serial(() => db.query(`insert into public.auditoria (por, acao, alvo, detalhe) values ('autocadastro', 'usuario.autocadastro', $1, $2)`, [chave, JSON.stringify({ uep, posto, envio: 'usuario' })]));
+      return json(res, 200, { ok: true, envio: 'usuario', mensagem: 'Cadastro feito. A senha provisória foi enviada para o seu e-mail. No primeiro acesso, troque a senha.' });
+    }
+    if (rota === '/functions/v1/redia-admin' && req.method === 'POST') {
+      const t = quem(req); if (!t) return json(res, 401, { ok: false, mensagem: 'Sessão expirada. Entre de novo.' });
+      const adm = (await serial(() => db.query('select chave, admin_sistema, ativo from public.perfis where user_id = $1', [t.uid]))).rows[0];
+      if (!adm?.admin_sistema || !adm.ativo) return json(res, 403, { ok: false, mensagem: 'Só o administrador do sistema.' });
+      const b = JSON.parse((await corpo(req)).toString() || '{}'), senha = 'Prv' + randomUUID().replace(/-/g, '').slice(0, 7) + '7';
+      const aud = (acao, alvo, det) => serial(() => db.query('insert into public.auditoria (por, acao, alvo, detalhe) values ($1,$2,$3,$4)', [adm.chave, acao, alvo, JSON.stringify(det)]));
+      if (b.acao === 'criar') {
+        const r = await criarConta(b, senha, !b.compartilhado); if (r.erro) return json(res, r.existe ? 409 : 400, { ok: false, mensagem: r.existe ? 'Esta chave já está cadastrada.' : r.erro });
+        await aud('usuario.criar', b.chave, { lotacoes: b.lotacoes });
+        if (b.email) { emails.push({ para: b.email, chave: b.chave, senha, tipo: 'admin' }); return json(res, 200, { ok: true, envio: 'usuario' }); }
+        return json(res, 200, { ok: true, envio: 'tela', senhaTemporaria: senha });
+      }
+      if (b.acao === 'redefinir') {
+        const p = (await serial(() => db.query('select user_id, chave, compartilhado, email from public.perfis where user_id = $1', [b.userId]))).rows[0]; if (!p) return json(res, 404, { ok: false, mensagem: 'Usuário não encontrado.' });
+        await serial(() => db.query('update auth.users set senha = $1 where id = $2', [senha, p.user_id])); await serial(() => db.query('update public.perfis set trocar_senha = $1 where user_id = $2', [!p.compartilhado, p.user_id]));
+        await aud('usuario.redefinir_senha', p.chave, {}); return json(res, 200, { ok: true, envio: 'tela', senhaTemporaria: senha });
+      }
+      return json(res, 400, { ok: false, mensagem: 'Ação desconhecida.' });
+    }
+    if (rota === '/rest/v1/lotacoes' && req.method === 'POST') {   // D-70: lotação gravada pelo provisionar_usuarios.py
+      if (!servico) return json(res, 401, { code: '42501', message: 'permission denied for table lotacoes' });
+      const b = JSON.parse((await corpo(req)).toString() || '{}');
+      await serial(() => db.query('insert into public.lotacoes (user_id, uep, admin) values ($1, $2, $3) on conflict (user_id, uep) do update set admin = excluded.admin', [b.user_id, b.uep, !!b.admin]));
+      res.writeHead(201); return res.end();
+    }
     if (rota === '/rest/v1/perfis' && req.method === 'POST') {
       if (!servico) return json(res, 401, { code: '42501', message: 'permission denied for table perfis' });
       const b = JSON.parse((await corpo(req)).toString() || '{}');
@@ -142,7 +193,7 @@ export async function iniciarServidor({ estatico, porta = 0, supabase = false, e
       const lista = nomes.map((k, i) => {
         const tp = TIPOS_ARG[k] || 'text'; const v = args[k];
         if (tp === 'text[]') { valores.push(JSON.stringify(v || [])); return `${k} => array(select jsonb_array_elements_text($${i + 1}::jsonb))`; }
-        valores.push(tp === 'jsonb' ? JSON.stringify(v) : v === null ? null : String(v)); return `${k} => $${i + 1}::${tp}`;
+        valores.push(v === null ? null : tp === 'jsonb' ? JSON.stringify(v) : String(v)); return `${k} => $${i + 1}::${tp}`;
       }).join(', ');
       try {
         const r = await serial(() => comoUsuario(t.uid, `select public.${mr[1]}(${lista}) as r`, valores));

@@ -2,6 +2,7 @@
 // que roda o MESMO schema SQL (supabase/01_schema.sql) num PostgreSQL local.
 // Uso: node nuvem.cjs
 const { chromium } = require('playwright');
+const fecharAviso = async p => { const b = await p.waitForSelector('[data-mdl="entendi"]', { timeout: 2500 }).catch(() => null); if (b) { await b.click(); await p.waitForTimeout(150); } };   // D-71: aviso de protótipo depois de cada login
 const path = require('path'), fs = require('fs'), { execFileSync } = require('child_process');
 const P = __dirname, OUT = path.join(P, 'out', 'nuvem'); fs.mkdirSync(OUT, { recursive: true });
 const PORTA = 8791, DIST = path.join(P, '.saida', 'nuvem');
@@ -18,14 +19,14 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   await srv.criarUsuario('GP01', 'Temp1234', 'Usuário GEPLAT Teste', 'GEPLAT', { admin: true });
   await srv.criarUsuario('CP01', 'Senha2026', 'Usuário COPROD Teste', 'SUPROD', { trocarSenha: false });
   await srv.criarUsuario('ZZ01', 'Senha2026', 'Sem perfil', 'GEOP', { semPerfil: true });
-  await srv.criarUsuario('XX01', 'Senha2026', 'Outra UEP', 'COMAN', { uep: 'P-99', trocarSenha: false });
+  await srv.criarUsuario('XX01', 'Senha2026', 'Outra UEP', 'COMAN', { uep: 'P-74', trocarSenha: false });
   const browser = await chromium.launch();
   const vig = (pg, nome) => {
     pg.on('pageerror', e => { erros.push(`pageerror(${nome}): ${e.message}`); console.log('PAGEERROR', nome, e.message); });
     pg.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) { erros.push(`console(${nome}): ${m.text()}`); console.log('CONSOLE', nome, m.text()); } });
   };
   const novo = async (nome, vp = { width: 1600, height: 1000 }) => { const c = await browser.newContext({ viewport: vp, acceptDownloads: true }); const p = await c.newPage(); vig(p, nome); await p.addInitScript(() => { window.print = () => { }; }); return { c, p }; };
-  const login = async (p, chave, senha) => { await p.fill('#lg-chave', chave); await p.fill('#lg-senha', senha); await p.click('.lg-btn'); await p.waitForTimeout(700); };
+  const login = async (p, chave, senha) => { await p.fill('#lg-chave', chave); await p.fill('#lg-senha', senha); await p.click('.lg-btn'); await p.waitForTimeout(700); await fecharAviso(p); };
   const msg = p => p.textContent('#lg-msg');
   const nReg = async (where = 'true') => (await srv.sql(`select count(*)::int n from public.registros where ${where}`)).rows[0].n;
 
@@ -39,7 +40,7 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   await login(g, 'ZZ01', 'Senha2026');
   ok(/não tem perfil ativo/.test(await msg(g)) && await g.$('.apph') === null, 'usuário do Auth sem perfil na REDIA não entra');
   await login(g, 'XX01', 'Senha2026');
-  ok(await g.$('.apph') !== null && await g.evaluate(() => CFG.uep === 'P-99' && Store.cache.size === 0), 'usuário de outra UEP entra na própria UEP e não vê a P-83');
+  ok(await g.$('.apph') !== null && await g.evaluate(() => CFG.uep === 'P-74' && Store.cache.size === 0), 'usuário de outra UEP entra na própria UEP e não vê a P-83');
   await g.click('a.sair'); await g.waitForTimeout(500);
   await login(g, 'GP01', 'Temp1234');
   ok(await g.$('.mdl') !== null && /Troque a senha temporária/.test(await g.textContent('.mdl')), 'primeiro acesso pede a troca da senha temporária');
@@ -47,7 +48,7 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   ok(await g.$('.mdl') !== null && /não conferem/.test(await g.textContent('#toasts')), 'senhas diferentes: pede de novo');
   await g.fill('[data-mdl-in="s1"]', 'GP01abcd9'); await g.fill('[data-mdl-in="s2"]', 'GP01abcd9'); await g.click('[data-mdl="ok"]'); await g.waitForTimeout(300);
   ok(await g.$('.mdl') !== null && /não pode conter a chave/.test(await g.textContent('#toasts')), 'senha com a chave é recusada');
-  await g.fill('[data-mdl-in="s1"]', 'Nova2026a'); await g.fill('[data-mdl-in="s2"]', 'Nova2026a'); await g.click('[data-mdl="ok"]'); await g.waitForTimeout(1200);
+  await g.fill('[data-mdl-in="s1"]', 'Nova2026a'); await g.fill('[data-mdl-in="s2"]', 'Nova2026a'); await g.click('[data-mdl="ok"]'); await g.waitForTimeout(1200); await fecharAviso(g);
   const pf = (await srv.sql(`select p.trocar_senha, u.senha from public.perfis p join auth.users u on u.id = p.user_id where p.chave = 'GP01'`)).rows[0];
   ok(await g.$('.apph') !== null && pf.trocar_senha === false && pf.senha === 'Nova2026a', 'senha trocada no Auth e marcada no perfil; entra na REDIA');
   const ug = await g.evaluate(() => USUARIO);
@@ -223,6 +224,52 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   /* ---- sair ---- */
   await g.goto(URL + '#/inicio'); await g.waitForTimeout(300); await g.click('a.sair'); await g.waitForTimeout(600);
   ok(await g.$('.login') !== null && await g.evaluate(() => USUARIO === null && !sessionStorage.getItem('redia.sb.sessao') && Store.cache.size === 0), 'sair encerra a sessão do Supabase e limpa os dados da memória');
+
+  /* ---- D-70 a D-73 na nuvem: administrador do sistema, administração, autocadastro e Studio ---- */
+  {
+    await srv.sql(`update public.perfis set admin_sistema = true where chave = 'GP01'`);
+    const { c: ca, p: a } = await novo('admin-sistema');
+    await a.goto(URL); await a.waitForTimeout(600); await login(a, 'GP01', 'Nova2026a');
+    ok(await a.evaluate(() => location.hash === '#/unidades' && document.querySelectorAll('.uni-g [data-uep]').length === 10 && !!document.querySelector('.uni-x a[href="#/admin"]')), 'nuvem: administrador do sistema vê as 10 unidades e a Administração');
+    await a.goto(URL + '#/admin'); await a.waitForTimeout(900); await a.click('[data-aba="usuarios"]'); await a.waitForTimeout(700);
+    ok(await a.$('[data-ed]') !== null && /GP01/.test(await a.textContent('#adm-lista')) && /XX01/.test(await a.textContent('#adm-lista')), 'nuvem: Administração lista os usuários da base (redia_admin_usuarios)');
+    const idCp = (await srv.sql(`select user_id from public.perfis where chave = 'CP01'`)).rows[0].user_id;
+    await a.click(`[data-ed="${idCp}"]`); await a.waitForTimeout(300); await a.check('[data-mdl-in="lot:P-75"]'); await a.check('[data-mdl-in="ed:P-75"]'); await a.click('.mdl [data-mdl="ok"]'); await a.waitForTimeout(800);
+    const lt = (await srv.sql(`select string_agg(uep || case when editor then '*' else '' end, ',' order by uep) l from public.lotacoes where user_id = $1`, [idCp])).rows[0].l;
+    ok(lt === 'P-75*,P-83', `nuvem: Administração grava lotações e o perfil de editor na base (${lt})`);
+    await a.click('[data-a="novo"]'); await a.waitForTimeout(300);
+    await a.fill('#au-ch', 'NV01'); await a.fill('#au-no', 'Usuário Novo Teste'); await a.selectOption('#au-po', 'COEMB'); await a.fill('#au-em', 'novo@exemplo.com'); await a.check('[data-mdl-in="lot:P-79"]'); await a.click('.mdl [data-mdl="ok"]'); await a.waitForTimeout(900);
+    const nv = (await srv.sql(`select p.coord, p.trocar_senha, l.uep from public.perfis p join public.lotacoes l using (user_id) where p.chave = 'NV01'`)).rows[0];
+    ok(nv && nv.coord === 'COEMB' && nv.trocar_senha && nv.uep === 'P-79' && srv.emails.some(e => e.para === 'novo@exemplo.com' && e.chave === 'NV01'), 'nuvem: administrador cria usuário (Edge Function redia-admin) e a senha provisória vai ao e-mail informado');
+    const au = (await srv.sql(`select string_agg(acao, ',') a from public.auditoria where por = 'GP01'`)).rows[0].a || '';
+    ok(/usuario\.alterar/.test(au) && /usuario\.criar/.test(au), `nuvem: alterações e criação na auditoria (${au})`);
+    await ca.close();
+    // autocadastro pela tela de login
+    const { c: cc, p: n } = await novo('autocadastro');
+    await n.goto(URL); await n.waitForTimeout(600); await n.click('[data-act="cadastrar"]'); await n.waitForTimeout(250);
+    await n.fill('#ac-ch', 'AC01'); await n.fill('#ac-no', 'Pessoa Autocadastro'); await n.fill('#ac-em', 'auto@exemplo.com'); await n.selectOption('#ac-un', 'P-78'); await n.selectOption('#ac-po', 'SUPROD'); await n.click('[data-mdl="ok"]'); await n.waitForTimeout(900);
+    const em = srv.emails.find(e => e.para === 'auto@exemplo.com');
+    ok(em && /enviada para o seu e-mail/.test(await n.textContent('.mdl')), 'nuvem: autocadastro envia a senha provisória ao e-mail informado (Edge Function redia-cadastro)');
+    await n.click('.mdl [data-mdl="ok"]'); await n.waitForTimeout(200);
+    await n.fill('#lg-senha', em.senha); await n.click('.lg-btn'); await n.waitForTimeout(900);
+    ok(/Troque a senha temporária/.test(await n.textContent('.mdl')) && /senha Petrobras/.test(await n.textContent('.mdl')), 'nuvem: primeiro acesso do autocadastro pede a troca, com o alerta sobre a senha Petrobras');
+    await n.fill('[data-mdl-in="s1"]', 'Pessoal2026'); await n.fill('[data-mdl-in="s2"]', 'Pessoal2026'); await n.click('[data-mdl="ok"]'); await n.waitForTimeout(1400); await fecharAviso(n);
+    ok(await n.evaluate(() => USUARIO.chave === 'AC01' && USUARIO.uep === 'P-78' && CFG.uep === 'P-78'), 'nuvem: depois da troca, entra na REDIA da unidade de lotação');
+    await cc.close();
+    // Studio: CP01 é editor da P-75
+    await srv.sql(`update auth.users set senha = 'Senha2026' where email = 'cp01@redia.local'`); await srv.sql(`update public.perfis set trocar_senha = false where chave = 'CP01'`);   // a senha pode ter sido trocada no teste do "Esqueci a senha"
+    const { c: cs, p: e } = await novo('studio');
+    await e.goto(URL); await e.waitForTimeout(600); await login(e, 'CP01', 'Senha2026');
+    ok(await e.evaluate(() => location.hash === '#/unidades' && document.querySelectorAll('.uni-g [data-uep]').length === 2), 'nuvem: lotado em 2 unidades escolhe a unidade ao entrar');
+    await e.click('.uni-x a[href="#/studio"]'); await e.waitForTimeout(1500);
+    ok(await e.evaluate(() => USUARIO.uep === 'P-75' && document.querySelectorAll('#sto-cards .sto-c').length >= 8), 'nuvem: Studio abre a unidade em que o usuário é editor');
+    await e.uncheck('#sto-cards .sto-c >> nth=0 >> [data-f="vis"]'); await e.waitForTimeout(300);
+    await e.click('[data-s="publicar"]'); await e.waitForTimeout(250); await e.click('.mdl [data-mdl="ok"]'); await e.waitForTimeout(1000);
+    const ly = (await srv.sql(`select versao, publicado from public.layouts where uep = 'P-75'`)).rows[0];
+    ok(ly && ly.versao === 1 && Object.keys(ly.publicado.telas.abertura.cards).length === 1, 'nuvem: Studio publica o layout da unidade na base (versão 1)');
+    await cs.close();
+    await srv.sql(`update public.perfis set admin_sistema = false where chave = 'GP01'`);
+  }
 
   /* ---- o que vai para o navegador ---- */
   const js = fs.readFileSync(path.join(DIST, 'app', 'app.js'), 'utf8'), cfg = fs.readFileSync(path.join(DIST, 'app', 'config.js'), 'utf8'), idx = fs.readFileSync(path.join(DIST, 'app', 'index.html'), 'utf8');

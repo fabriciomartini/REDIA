@@ -1,6 +1,9 @@
-/* ===================== REDIA P-83 · núcleo ===================== */
+/* ===================== REDIA Búzios · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA P-83', versao: '1.12.2', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA Búzios', versao: '2.0.0', fase: 'piloto', uep: 'P-83' };
+/* D-70 · REDIA Búzios: todas as plataformas do campo; cada usuário acessa as unidades em que está lotado */
+const UNIDADES = [['P-74', 'FPSO P-74'], ['P-75', 'FPSO P-75'], ['P-76', 'FPSO P-76'], ['P-77', 'FPSO P-77'], ['P-78', 'FPSO P-78'], ['P-79', 'FPSO P-79'], ['P-80', 'FPSO P-80'], ['P-82', 'FPSO P-82'], ['P-83', 'FPSO P-83'], ['P-91', 'FPSO P-91']].map(([uep, nome], i) => ({ uep, nome, ordem: i + 1, situacao: 'operacao' }));
+const ATIVO_UEP = { 'P-83': 'ATP-BUZ III' };   // ativo de cada unidade (os demais: definir na Configuração da unidade)
 /* V1.0 (D-48): versão web. Com config.js preenchido (Supabase), grava na base de dados da nuvem;
    sem ele (ou com ?demo=1 na URL), roda em modo demonstração, só neste navegador. */
 const NUVEM = Object.assign({ supabaseUrl: '', supabaseAnonKey: '', emailDominio: 'redia.local', tempoReal: true }, window.REDIA_CONFIG || {});
@@ -106,6 +109,18 @@ CE01|COEMB|Usuário COEMB (demo)
 SE01|SUEMB|Usuário SUEMB (demo)
 CM01|COMAN|Usuário COMAN (demo)
 SI01|SUEIN|Usuário SUEIN (demo)`.split('\n').map(l => { const [c, p, n] = l.split('|'); return [c, { posto: p, nome: n }]; }));
+/* D-70 · usuários de teste por unidade (ex.: P-74 → GO74, GP74, CP74…), iguais à lista de cadastro de teste; AD01 = administrador do sistema */
+const POSTOS_TESTE = { GO: 'GEOP', GP: 'GEPLAT', CP: 'COPROD', CM: 'COMAN', CE: 'COEMB', SP: 'SUPROD', SM: 'SUMEC', SI: 'SUEIN', SE: 'SUEMB', EE: 'ENG ELETRICISTA', EM: 'ENG MECÂNICO', EQ: 'ENG PROCESSAMENTO', EP: 'ENG PETRÓLEO' };
+/* D-72 · a demonstração lê os usuários do diretório (lista-base fictícia + alterações da Administração, só neste navegador · admin.js) */
+function acessoDemo(c) {
+  const u = DiretorioDemo.achar(c);
+  if (!u || !u.ativo || !u.lotacoes.length && !u.adminSistema) return null;
+  const ativa = uep => UNIDADES.some(x => x.uep === uep && x.ativa !== false);   // unidade desativada na Administração some da lista (igual à base)
+  const lot = u.lotacoes.filter(l => ativa(l.uep)).map(l => ({ uep: l.uep, admin: !!l.admin, editor: !!l.editor, lotado: true }));
+  if (u.adminSistema) UNIDADES.forEach(x => { if (ativa(x.uep) && !lot.some(l => l.uep === x.uep)) lot.push({ uep: x.uep, admin: true, editor: false, lotado: false }); });
+  lot.sort((a, b) => UNIDADES.findIndex(x => x.uep === a.uep) - UNIDADES.findIndex(x => x.uep === b.uep));
+  return { nome: u.nome, chave: u.chave, posto: u.posto, email: u.email || '', adminSistema: !!u.adminSistema, compartilhado: !!u.compartilhado, trocarSenha: !!u.trocarSenha, unidades: lot };
+}
 const SS = { get(k) { try { return JSON.parse(sessionStorage.getItem('redia.' + k)); } catch { return null; } }, set(k, v) { try { sessionStorage.setItem('redia.' + k, JSON.stringify(v)); } catch { } }, del(k) { try { sessionStorage.removeItem('redia.' + k); } catch { } } };
 let USUARIO = SS.get('sessao') || null;      // { nome, chave, posto, papel, coord, desde }
 async function entrar(chave, senha) {
@@ -116,23 +131,36 @@ async function entrar(chave, senha) {
     if (r.erro) return r;
     definirUsuario(r.perfil); LS.set('ultimaChave', c); return { ok: true, trocarSenha: !!r.perfil.trocarSenha };
   }
-  const a = ACESSO_DEMO[c];
-  if (!a) return { erro: 'Chave não cadastrada na demonstração. Use GP01, CP01, CE01 ou CM01.' };
-  if (String(senha) !== SENHA_GENERICA) return { erro: 'Senha incorreta.' };
-  definirUsuario({ nome: a.nome, chave: c, posto: a.posto, uep: CFG.uep, admin: true });
-  LS.set('ultimaChave', c); return { ok: true };
+  const a = acessoDemo(c);
+  if (!a) return { erro: 'Chave não cadastrada ou desativada na demonstração. Use GP01, CP01, CE01 ou CM01 (P-83), as chaves de teste por unidade (ex.: GP74, CP80) ou AD01 (administrador).' };
+  if (!(await DiretorioDemo.conferirSenha(c, String(senha || '')))) return { erro: 'Senha incorreta.' };
+  definirUsuario(a); DiretorioDemo.registrarAcesso(c);
+  LS.set('ultimaChave', c); return { ok: true, trocarSenha: a.trocarSenha };
 }
-function definirUsuario(p) {
+/* D-70: perfil com as unidades acessíveis; a unidade ativa (uep) é escolhida na tela de unidades quando há mais de uma */
+function definirUsuario(p, uepAtiva = null) {
   const coord = p.coord || POSTO_COORD[p.posto] || 'GEPLAT';
-  USUARIO = { nome: p.nome, chave: p.chave, posto: p.posto, papel: p.posto, coord, uep: p.uep || CFG.uep, admin: !!p.admin, compartilhado: !!p.compartilhado, desde: new Date().toISOString() };
-  if (USUARIO.uep) CFG.uep = USUARIO.uep;
+  const unidades = (p.unidades && p.unidades.length ? p.unidades : [{ uep: p.uep || 'P-83', admin: !!p.admin, editor: false, lotado: true }]).map(u => ({ ...UNIDADES.find(x => x.uep === u.uep), ...u }));
+  const unica = unidades.length === 1 && !p.adminSistema ? unidades[0].uep : null;
+  const uep = [uepAtiva, unica].find(x => x && unidades.some(u => u.uep === x)) || null;
+  USUARIO = { nome: p.nome, chave: p.chave, posto: p.posto, papel: p.posto, coord, email: p.email || '', unidades, adminSistema: !!p.adminSistema, uep, admin: false, editor: false, compartilhado: !!p.compartilhado, desde: new Date().toISOString() };
+  aplicarUnidade(uep);
+}
+/* unidade ativa: permissões da lotação e configuração padrão da unidade (a configuração salva é lida pelo Store) */
+function aplicarUnidade(uep) {
+  if (!USUARIO) return;
+  const u = USUARIO.unidades.find(x => x.uep === uep);
+  USUARIO.uep = u ? uep : null; USUARIO.admin = !!(u && (u.admin || USUARIO.adminSistema)); USUARIO.editor = !!(u && u.editor);
+  if (u && CFG.uep !== uep) { CFG = JSON.parse(JSON.stringify(CFG_PADRAO)); CFG.uep = uep; CFG.ativo = ATIVO_UEP[uep] || 'Ativo (configurar)'; }
   SS.set('sessao', USUARIO);
 }
+const unidadeAtiva = () => USUARIO?.unidades?.find(u => u.uep === USUARIO.uep) || null;
+const nomeUnidade = uep => (UNIDADES.find(u => u.uep === uep) || { nome: uep }).nome;
 function sair() { USUARIO = null; SS.del('sessao'); if (MODO_NUVEM) Nuvem.sair(); Store.encerrar(); }
 /* pode alterar a configuração da UEP e carregar dados de exemplo na base */
 /* D-67: a REDIA do dia é iniciada por coordenador ou GEPLAT (ou administrador na base) · código único por UEP e dia */
 const POSTOS_COORDENADOR = ['GEOP', 'GEPLAT', 'GESTÃO', 'COPROD', 'COEMB', 'COMAN'];
-const podeIniciarRedia = () => !!USUARIO && (POSTOS_COORDENADOR.includes(USUARIO.posto) || (MODO_NUVEM && !!USUARIO.admin));
+const podeIniciarRedia = () => !!USUARIO && (POSTOS_COORDENADOR.includes(USUARIO.posto) || (MODO_NUVEM && !!USUARIO.admin) || !!USUARIO.adminSistema);
 const codigoRedia = (uep, iso) => { const [a, m, d] = String(iso).split('-'); return 'REDIA-' + String(uep).replace(/[^A-Za-z0-9]/g, '').toUpperCase() + '-' + d + m + a; };   // D-68: data em ddmmaaaa
 const podeAdministrar = () => !MODO_NUVEM || !!USUARIO?.admin || USUARIO?.coord === 'GEPLAT';
 function coordDoPapel(p) { if (USUARIO?.coord && p === USUARIO.papel) return USUARIO.coord; const m = /(COPROD|COEMB|COMAN|GEPLAT)/.exec(p || ''); return m ? m[1] : (POSTO_COORD[p] || null); }
@@ -159,10 +187,10 @@ const Store = {
   async usarMemoria() {
     this.modo = 'memoria'; this.nomeRaiz = 'memória do navegador'; this.cache.clear();
     LS.set('modo', 'memoria');
-    const regs = LS.get('memoria.registros', []);
+    const regs = LS.get(this.chaveMem('registros'), []);   // D-70: cada unidade tem o seu armazenamento no navegador
     for (const r of regs) this.cache.set(r._arq, r);
-    const cfg = LS.get('memoria.config', null); if (cfg) CFG = mesclarCfg(cfg);
-    if (USUARIO?.uep) CFG.uep = USUARIO.uep;
+    const uep = USUARIO?.uep || CFG.uep, cfg = LS.get(this.chaveMem('config'), null);
+    if (cfg) { CFG = mesclarCfg(cfg); CFG.uep = uep; }
   },
   async usarNuvem() {
     this.modo = 'nuvem'; this.nomeRaiz = Nuvem.rotulo(); this.cache.clear(); this.seq = 0;
@@ -195,7 +223,8 @@ const Store = {
     for (let i = 0; i < regs.length; i += 500) { const out = await Nuvem.gravar(regs.slice(i, i + 500)); out.forEach(x => this.guardar(x)); n += out.length; }
     return n;
   },
-  salvarMemoria() { if (!LS.set('memoria.registros', [...this.cache.values()])) throw new Error('O armazenamento deste navegador está cheio ou bloqueado: o registro não foi guardado. Exporte os registros e limpe os dados de exemplo.'); },
+  chaveMem(k) { const uep = USUARIO?.uep || CFG.uep; return uep === 'P-83' ? 'memoria.' + k : `memoria.${k}.${uep}`; },   // a P-83 mantém as chaves da versão de uma unidade
+  salvarMemoria() { if (!LS.set(this.chaveMem('registros'), [...this.cache.values()])) throw new Error('O armazenamento deste navegador está cheio ou bloqueado: o registro não foi guardado. Exporte os registros e limpe os dados de exemplo.'); },
 
   /* lê os registros do dia da REDIA (inclui as sugestões das passagens das 18:00 e 06:00), as demandas
      e, dos dias anteriores (mês e últimos 7 dias), só os campos usados nos acumulados (D-43) e nas tendências (D-61) */
@@ -263,11 +292,11 @@ const Store = {
   async lerConfig() {
     if (this.modo !== 'nuvem') return;
     const c = await Nuvem.configLer(CFG.uep);
-    const uep = CFG.uep; CFG = mesclarCfg(c || {}); CFG.uep = uep;
+    const uep = CFG.uep, ativo = CFG.ativo; CFG = mesclarCfg(c || {}); CFG.uep = uep; if (!c?.ativo) CFG.ativo = ativo;
   },
   async salvarConfig() {
     if (this.modo === 'nuvem') await Nuvem.configSalvar(CFG.uep, CFG);
-    else LS.set('memoria.config', CFG);
+    else LS.set(this.chaveMem('config'), CFG);
   },
   exportar() { return JSON.stringify({ app: APP, exportadoEm: new Date().toISOString(), config: CFG, registros: [...this.cache.values()] }, null, 1); },
   /* importa uma exportação (inclusive do protótipo v0.8): ids já existentes são ignorados */

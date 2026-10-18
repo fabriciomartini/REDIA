@@ -1,6 +1,7 @@
 // Teste ponta a ponta da REDIA V1.0 no modo demonstração (versão web servida por HTTP).
 // Uso: node e2e.cjs   (monta o app em tests/.saida/demo e sobe um servidor local)
 const { chromium } = require('playwright');
+const fecharAviso = async p => { const b = await p.waitForSelector('[data-mdl="entendi"]', { timeout: 2500 }).catch(() => null); if (b) { await b.click(); await p.waitForTimeout(150); } };   // D-71: aviso de protótipo depois de cada login
 const path = require('path'), fs = require('fs'), { execFileSync } = require('child_process');
 const P = __dirname, OUT = path.join(P, 'out', 'demo'); fs.mkdirSync(OUT, { recursive: true });
 const DIST = path.join(P, '.saida', 'demo');
@@ -63,7 +64,7 @@ async function checarPalco(page, nome) {
   await page.click('[data-act="esqueci"]'); await page.waitForTimeout(150);
   ok(/1234/.test(await page.textContent('.mdl')) && await page.$('[data-mdl-in="chave"]') === null, 'login: "Esqueci a senha" no modo demonstração lembra a senha de teste');
   await page.click('[data-mdl="cancelar"]'); await page.waitForTimeout(100);
-  await page.fill('#lg-senha', '1234'); await page.click('.lg-btn'); await page.waitForTimeout(800);
+  await page.fill('#lg-senha', '1234'); await page.click('.lg-btn'); await page.waitForTimeout(800); await fecharAviso(page);
   const u = await page.evaluate(() => USUARIO);
   ok(u && u.posto === 'COPROD' && u.coord === 'COPROD' && u.chave === 'CP01' && page.url().endsWith('#/inicio'), `login com chave e senha genérica (${u && u.posto}/${u && u.coord})`);
   ok(await page.evaluate(() => Store.modo === 'memoria' && !MODO_NUVEM), 'sem config.js do Supabase, abre direto no modo demonstração');
@@ -682,10 +683,18 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   ok(pf.v > 80 && pf.l > 20 && pf.pend === 0 && pf.concl === 0 && pf.fic > 100 && pf.foraDia === 0 && pf.resp === 'GEPLAT:-', `preenchimento fictício: valores e listas de todas as coordenações, sugestões aprovadas e coordenações concluídas; marcado como fictício e fora do de acordo (${JSON.stringify(pf)})`);
   /* D-67: apresentação ao vivo · quem aciona controla; os demais acompanham, só com "Sair" */
   const p2 = await ctx.newPage(); await p2.goto(URL + '#/inicio'); await p2.waitForTimeout(500);
-  await p2.fill('#lg-chave', 'cm01'); await p2.fill('#lg-senha', '1234'); await p2.click('.lg-btn'); await p2.waitForTimeout(700);
+  await p2.fill('#lg-chave', 'cm01'); await p2.fill('#lg-senha', '1234'); await p2.click('.lg-btn'); await p2.waitForTimeout(700); await fecharAviso(p2);
   await p2.evaluate(async h => { await abrirDia(h); location.hash = '#/curadoria/COMAN'; }, hojeR); await p2.waitForTimeout(500);
   await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
-  await page.click('.apph [data-act="vivo-iniciar"]'); await page.waitForTimeout(1200);
+  await page.click('.apph [data-act="vivo-iniciar"]'); await page.waitForTimeout(300);
+  ok(/Iniciar a apresentação ao vivo/.test(await page.textContent('.mdl')) && await page.$('.mdl [data-mdl="cancelar"]') && await page.$('.mdl [data-mdl="ok"]'), 'D-71 ao vivo: antes de iniciar, popup explica o que vai acontecer, com confirmar e cancelar');
+  await page.click('.mdl [data-mdl="cancelar"]'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => !Vivo.ativo && !document.querySelector('.ctg')), 'D-71 ao vivo: cancelar não inicia o modo nem a contagem');
+  await page.click('.apph [data-act="vivo-iniciar"]'); await page.waitForTimeout(300); await page.click('.mdl [data-mdl="ok"]'); await page.waitForTimeout(900);
+  const ctg = { a: await page.evaluate(() => ({ on: !!document.querySelector('.ctg'), n: document.querySelector('.ctg .ctg-n')?.textContent, canc: !!document.querySelector('[data-ctg="cancelar"]') })), b: await p2.evaluate(() => ({ on: !!document.querySelector('.ctg'), canc: !!document.querySelector('[data-ctg="cancelar"]') })) };
+  ok(ctg.a.on && ctg.b.on && ctg.a.canc && !ctg.b.canc, `D-71 ao vivo: contagem regressiva animada para quem aciona e para os demais logados da unidade; só quem aciona pode cancelar (${JSON.stringify(ctg)})`);
+  await page.waitForTimeout(5200);
+  ok(await page.evaluate(() => !document.querySelector('.ctg') && Vivo.ativo), 'D-71 ao vivo: depois de 5 s, a contagem fecha e o modo ao vivo começa');
   const hc = await page.evaluate(() => location.hash); const v1 = await p2.evaluate(hc => ({ hc, h: location.hash, seg: Vivo.seguindo, ctrl: Vivo.ctrl?.chave, off: document.querySelectorAll('#ctrl .btn.off').length, sair: [...document.querySelectorAll('#ctrl a.btn')].map(a => a.textContent), tip: document.querySelector('#ctrl .btn.off')?.dataset.tip || '' }), hc);
   ok(v1.h === v1.hc && v1.seg && v1.ctrl === 'CP01' && v1.off >= 10 && v1.sair.join() === 'Sair' && /Controle da reunião/.test(v1.tip) && /Usuário COPROD/.test(v1.tip), `ao vivo: quem estava na curadoria vai para a apresentação; só "Sair" ativo, demais comandos desabilitados com dica (${JSON.stringify({ ...v1, tip: v1.tip.slice(0, 40) })})`);
   await p2.hover('#ctrl .btn.off'); await p2.waitForTimeout(250);
@@ -707,8 +716,8 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   await p2.close();
   /* D-67: cabeçalho da apresentação com dia, data e hora atual; fichas de orelhão; cards de ações */
   await page.goto(URL + '#/apresentacao/semana'); await page.waitForTimeout(400);
-  const hd = await page.evaluate(() => { const dt = document.querySelector('.stage .dt'); const t = document.querySelector('.stage .ac-tx'); const ov = [...document.querySelectorAll('.stage .tile')].map(x => x.scrollWidth <= x.clientWidth + 1 && x.scrollHeight <= x.clientHeight + 1); return { txt: dt.textContent, clk: dt.querySelector('[data-clk]')?.textContent, fn: parseFloat(getComputedStyle(dt.querySelector('.dt-n')).fontSize), sub: /SITOP|Realizado/.test(dt.textContent), tx: t && getComputedStyle(t).backgroundColor, cor: t && getComputedStyle(t).color, ov: ov.every(Boolean), ficha: !!document.querySelector('.stage [data-tx] svg rect') }; });
-  ok(/\d\d\/\d\d\/\d{4}/.test(hd.txt) && /^\d\d:\d\d$/.test(hd.clk) && hd.fn >= 28 && !hd.sub && hd.tx === 'rgb(0, 133, 66)' && hd.cor === 'rgb(255, 255, 255)' && hd.ov && hd.ficha, `cabeçalho com dia, data e hora atual (fonte maior, sem "Realizado D-1 · SITOP"); card no prazo verde com fonte branca e sem estouro; fichas de orelhão (${JSON.stringify(hd)})`);
+  const hd = await page.evaluate(() => { const dt = document.querySelector('.stage .dt'); const ov = [...document.querySelectorAll('.stage .hig, .stage .hig-h')].map(x => x.scrollWidth <= x.clientWidth + 1 && x.scrollHeight <= x.clientHeight + 1); const vr = document.querySelector('.stage .hig.v-red .hig-n'); return { txt: dt.textContent, clk: dt.querySelector('[data-clk]')?.textContent, fn: parseFloat(getComputedStyle(dt.querySelector('.dt-n')).fontSize), sub: /SITOP|Realizado/.test(dt.textContent), n: document.querySelectorAll('.stage .higs > .hig').length, anel: !!document.querySelector('.stage .hig.v-ring .hig-ring'), red: vr ? getComputedStyle(vr).color : 'zero', ov: ov.every(Boolean), ficha: !!document.querySelector('.stage [data-tx] svg rect') }; });
+  ok(/\d\d\/\d\d\/\d{4}/.test(hd.txt) && /^\d\d:\d\d$/.test(hd.clk) && hd.fn >= 28 && !hd.sub && hd.n === 3 && hd.anel && ['rgb(255, 59, 48)', 'zero'].includes(hd.red) && hd.ov && hd.ficha, `cabeçalho com dia, data e hora atual; D-71: 3 cards de ações no padrão Apple (vermelho do sistema para vencidas, anel de progresso no prazo), sem estouro; fichas de orelhão (${JSON.stringify(hd)})`);
   await page.evaluate(async () => { await abrirDia('2026-10-09'); }); await page.goto(URL + '#/inicio'); await page.waitForTimeout(300);
   // persistência no navegador (recarregar)
   const antes = await page.evaluate(() => Store.cache.size);
@@ -720,13 +729,13 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   await page.click('a.sair'); await page.waitForTimeout(500);
   ok(await page.$('.login') !== null && await page.evaluate(() => USUARIO === null), 'sair encerra a sessão');
   await page.goto(URL + '#/ata'); await page.waitForTimeout(400);
-  await page.fill('#lg-chave', 'SE01'); await page.fill('#lg-senha', '1234'); await page.click('.lg-btn'); await page.waitForTimeout(800);
+  await page.fill('#lg-chave', 'SE01'); await page.fill('#lg-senha', '1234'); await page.click('.lg-btn'); await page.waitForTimeout(800); await fecharAviso(page);
   ok(page.url().endsWith('#/ata') && await page.evaluate(() => USUARIO.coord) === 'COEMB', 'após o login volta à tela pedida (SUEMB/COEMB → #/ata)');
 
   /* ---- R-01: congelar/descongelar trocando entre horário real e simulado ---- */
   const rc = await browser.newContext({ viewport: { width: 1600, height: 1000 } }); const q = await rc.newPage();
   q.on('pageerror', e => { erros.push('pageerror(relogio): ' + e.message); });
-  await q.goto(URL); await q.waitForTimeout(700); await q.fill('#lg-chave', 'GP01'); await q.fill('#lg-senha', '1234'); await q.click('.lg-btn'); await q.waitForTimeout(500);
+  await q.goto(URL); await q.waitForTimeout(700); await q.fill('#lg-chave', 'GP01'); await q.fill('#lg-senha', '1234'); await q.click('.lg-btn'); await q.waitForTimeout(500); await fecharAviso(q);
   await q.click('[data-act="exemplo"]'); await q.waitForTimeout(400);
   const cong = () => q.evaluate(() => !!E.congelamento);
   const congelarIni = async () => { await q.click('[data-act="congelar-ini"]'); await q.waitForTimeout(200); if (await q.$('.mdl')) { await q.click('[data-mdl="congelar"]'); await q.waitForTimeout(200); } };
@@ -779,8 +788,105 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   await dk.goto(srv.url + '/apresentacao/#1'); await dk.waitForTimeout(1500);
   const capa = await dk.evaluate(async () => { const imgs = [...document.querySelectorAll('img')]; await Promise.all(imgs.map(i => i.decode().catch(() => null))); const v = document.querySelector('.capa video'); const bg = getComputedStyle(document.querySelector('.capa .bg')).backgroundImage.match(/url\("?([^")]+)/)?.[1]; return { ok: imgs.filter(i => i.complete && i.naturalWidth > 0).length, total: imgs.length, video: v ? v.readyState : -1, err: v?.error?.code || 0, bg: bg ? await new Promise(res => { const im = new Image(); im.onload = () => res(200); im.onerror = () => res(404); im.src = bg; }) : 0, texto: document.body.innerText }; });
   ok(capa.ok === capa.total && capa.total >= 20 && capa.video >= 2 && capa.bg === 200 && !http404.length, `deck: capa com vídeo, imagem de fundo, marca e todas as capturas carregadas (${capa.ok}/${capa.total} imagens, vídeo ${capa.video}, fundo ${capa.bg}) ${http404.join(' ')}`);
-  ok(!/75 minutos/.test(capa.texto) && /versão 1\.4/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
+  ok(!/75 minutos/.test(capa.texto) && /versão 2\.0/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
   await dk.close();
+
+  /* ---- D-70 a D-73: REDIA Búzios · unidades, administração, autocadastro e Studio ---- */
+  {
+    const bc = await browser.newContext({ viewport: { width: 1600, height: 1000 } }); const b = await bc.newPage();
+    b.on('pageerror', e => { erros.push('pageerror(buzios): ' + e.message); console.log('PAGEERROR', e.message); });
+    b.on('dialog', d => d.dismiss());
+    const entrar = async (chave, senha = '1234') => { await b.goto(URL + '#/sair'); await b.waitForTimeout(300); await b.fill('#lg-chave', chave); await b.fill('#lg-senha', senha); await b.click('.lg-btn'); await b.waitForTimeout(900); };
+    await b.goto(URL + '#/login'); await b.waitForTimeout(500);
+    ok(await b.evaluate(() => document.querySelector('.lg-campo')?.textContent.trim() === 'Búzios' && !/P-83|Ativo III/.test(document.querySelector('.lg-hero').textContent) && document.title.includes('Búzios')), 'login: só "Búzios" sobre REDIA (sem P-83 e Ativo III) e nome REDIA Búzios');
+    const al = await b.evaluate(() => { const k = document.querySelector('.lg-campo').getBoundingClientRect(), h = document.querySelector('.lg-hero h1'), r = document.createRange(); r.setStart(h.firstChild, 0); r.setEnd(h.firstChild, 1); const R = r.getBoundingClientRect(); return Math.abs(k.left - R.left); });
+    ok(al < 14, `login: "Búzios" alinhado ao início do R de REDIA (diferença ${al.toFixed(1)} px)`);
+    await entrar('GP74');
+    ok(!!(await b.$('.mdl [data-mdl="entendi"]')) && /protótipo em desenvolvimento/i.test(await b.textContent('.mdl')) && /fictícios/.test(await b.textContent('.mdl')), 'D-71: depois do login, popup avisa que é protótipo e que os dados são fictícios, gerados por IA');
+    await fecharAviso(b);
+    const u74 = await b.evaluate(() => ({ uep: USUARIO.uep, cfg: CFG.uep, h: location.hash, kick: document.querySelector('.apph')?.textContent || '', cod: codigoRedia(CFG.uep, DIA) }));
+    ok(u74.uep === 'P-74' && u74.cfg === 'P-74' && u74.h === '#/inicio' && /REDIA Búzios · P-74/.test(u74.kick) && /^REDIA-P74-\d{8}$/.test(u74.cod), `lotado só na P-74: entra direto na REDIA da P-74, com as referências da unidade (${JSON.stringify({ ...u74, kick: '' })})`);
+    await b.click('[data-act="exemplo"]'); await b.waitForTimeout(600);
+    const n74 = await b.evaluate(() => Store.cache.size);
+    await entrar('GP75'); await fecharAviso(b);
+    const n75 = await b.evaluate(() => ({ uep: USUARIO.uep, n: Store.cache.size, k74: (JSON.parse(localStorage.getItem('redia.memoria.registros.P-74') || '[]')).length }));
+    ok(n74 > 80 && n75.uep === 'P-75' && n75.n === 0 && n75.k74 === n74, `dados e histórico separados por unidade: a P-75 não vê os ${n74} registros da P-74 (${JSON.stringify(n75)})`);
+    // autocadastro + troca de senha com alerta
+    await b.goto(URL + '#/sair'); await b.waitForTimeout(300);
+    await b.click('[data-act="cadastrar"]'); await b.waitForTimeout(250);
+    const campos = await b.evaluate(() => ['#ac-ch', '#ac-no', '#ac-em', '#ac-un'].map(s => !!document.querySelector(s)).every(Boolean) && /Cadastrar e receber senha provisória/.test(document.querySelector('.mdl').textContent) && document.querySelectorAll('#ac-un option').length === 11);
+    ok(campos, 'autocadastro: popup com chave, nome, e-mail, unidade (10 de Búzios) e o botão "Cadastrar e receber senha provisória"');
+    await b.fill('#ac-ch', 'q1-w2!'); ok(await b.inputValue('#ac-ch') === 'Q1W2', 'autocadastro: chave aceita só 4 letras e números (maiúsculas)');
+    await b.fill('#ac-no', 'Pessoa de Teste'); await b.fill('#ac-em', 'email-invalido'); await b.selectOption('#ac-un', 'P-76'); await b.selectOption('#ac-po', 'COMAN');
+    await b.click('[data-mdl="ok"]'); await b.waitForTimeout(300);
+    ok(await b.$('#ac-ch') !== null && await b.inputValue('#ac-ch') === 'Q1W2', 'autocadastro: e-mail inválido é recusado e o formulário volta preenchido');
+    await b.fill('#ac-em', 'pessoa@exemplo.com'); await b.click('[data-mdl="ok"]'); await b.waitForTimeout(500);
+    const senhaQ = await b.textContent('[data-senha]').catch(() => '');
+    ok(/^[A-Za-z0-9]{10}$/.test(senhaQ), 'autocadastro: cadastra a chave e entrega a senha provisória (na demonstração, na tela)');
+    await b.click('[data-mdl="ok"]'); await b.waitForTimeout(200);
+    await b.fill('#lg-senha', senhaQ); await b.click('.lg-btn'); await b.waitForTimeout(700);
+    ok(/Troque a senha temporária/.test(await b.textContent('.mdl')) && /Não use a sua senha Petrobras/.test(await b.textContent('.mdl .senha-alerta')), 'primeiro acesso: troca obrigatória da senha, com alerta para não usar a senha Petrobras (ambiente de teste)');
+    await b.fill('#mdl-s1', 'teste1234'); await b.fill('#mdl-s2', 'teste1234'); await b.click('[data-mdl="ok"]'); await b.waitForTimeout(900); await fecharAviso(b);
+    ok(await b.evaluate(() => USUARIO.chave === 'Q1W2' && USUARIO.uep === 'P-76' && USUARIO.coord === 'COMAN' && !USUARIO.adminSistema), 'autocadastro: depois da troca, entra na unidade de lotação informada');
+    await b.goto(URL + '#/admin'); await b.waitForTimeout(400);
+    ok(/Acesso restrito/.test(await b.textContent('#app')), 'Administração: usuário comum não acessa');
+    await b.goto(URL + '#/studio'); await b.waitForTimeout(400);
+    ok(/Acesso restrito/.test(await b.textContent('#app')) && !(await b.$('.apph a[href="#/studio"]')), 'Studio: só para quem tem perfil de editor (sem link e sem acesso)');
+    // administrador do sistema
+    await entrar('AD01'); await fecharAviso(b);
+    const un = await b.evaluate(() => ({ h: location.hash, n: document.querySelectorAll('.uni-g [data-uep]').length, adm: !!document.querySelector('.uni-x a[href="#/admin"]'), sto: !!document.querySelector('.uni-x a[href="#/studio"]') }));
+    ok(un.h === '#/unidades' && un.n === 10 && un.adm && un.sto, `administrador do sistema: tela de seleção com as 10 unidades, a Administração e o Studio (${JSON.stringify(un)})`);
+    await b.click('[data-uep="P-80"]'); await b.waitForTimeout(700);
+    ok(await b.evaluate(() => USUARIO.uep === 'P-80' && location.hash === '#/inicio' && !!document.querySelector('.uni-tr')), 'seleciona a unidade e abre a REDIA dela; "Trocar unidade" no cabeçalho');
+    await b.goto(URL + '#/admin'); await b.waitForTimeout(500);
+    ok(await b.$$eval('.adm-ab', x => x.length) === 6 && await b.$$eval('.adm-k', x => x.length) >= 8, 'Administração: painel com indicadores e abas Usuários, Unidades, Cadastro e senhas, Auditoria e Boas práticas');
+    await b.click('[data-aba="usuarios"]'); await b.waitForTimeout(400);
+    ok(/de 1[3-4]\d usuários/.test(await b.textContent('#adm-lista .note')), 'Administração: lista todos os usuários (13 contas de teste por unidade + P-83 + autocadastrados)');
+    await b.selectOption('#af-uep', 'P-76'); await b.selectOption('#af-sit', 'todos'); await b.waitForTimeout(200);
+    ok(await b.$('[data-ed="Q1W2"]') !== null && await b.$('[data-ed="GO76"]') !== null && await b.$('[data-ed="GO74"]') === null, 'Administração: filtro por unidade de lotação');
+    await b.click('[data-ed="Q1W2"]'); await b.waitForTimeout(300);
+    await b.check('[data-mdl-in="lot:P-77"]'); await b.check('[data-mdl-in="ed:P-77"]'); await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(500);
+    const q2 = await b.evaluate(() => DiretorioDemo.achar('Q1W2').lotacoes.map(l => l.uep + (l.editor ? '*' : '')).join());
+    ok(q2 === 'P-76,P-77*', `Administração: lota o usuário em mais de uma unidade e atribui o perfil de editor por unidade (${q2})`);
+    await b.click('[data-ed="AD01"]').catch(async () => { await b.selectOption('#af-uep', ''); await b.waitForTimeout(200); await b.click('[data-ed="AD01"]'); }); await b.waitForTimeout(300);
+    ok(await b.$eval('[data-mdl-in="adminSistema"]', i => i.disabled && i.checked), 'Administração: o administrador não retira o próprio perfil de administrador do sistema');
+    await b.click('.mdl [data-mdl="cancelar"]'); await b.waitForTimeout(200);
+    await b.fill('#af-q', 'CE74'); await b.selectOption('#af-uep', ''); await b.waitForTimeout(200); await b.click('[data-ed="CE74"]'); await b.waitForTimeout(300);
+    await b.uncheck('[data-mdl-in="ativo"]'); await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(400);
+    await b.click('[data-aba="auditoria"]'); await b.waitForTimeout(500);
+    ok(/Usuário alterado/.test(await b.textContent('#aa-l')) && /Q1W2/.test(await b.textContent('#aa-l')) && /Autocadastro/.test(await b.textContent('#aa-l')), 'Auditoria: alterações de lotação e o autocadastro registrados com autor e hora');
+    await b.click('[data-aba="cadastro"]'); await b.waitForTimeout(400); await b.check('#pc-ap'); await b.click('#pc-sv'); await b.waitForTimeout(400);
+    await b.click('[data-aba="praticas"]'); await b.waitForTimeout(400);
+    ok(await b.$$eval('.adm-bp li', x => x.length) >= 8 && /NIST SP 800-53/.test(await b.textContent('.adm-bp')) && /Aberto com aprovação/.test(await b.textContent('.adm-bp')), 'Boas práticas: menor privilégio, revisão periódica, contas sem uso, auditoria e autocadastro, com a situação atual e referências');
+    await entrar('CE74');
+    ok(/desativada/.test(await b.textContent('#lg-msg')), 'usuário desativado na Administração não entra');
+    await b.click('[data-act="cadastrar"]'); await b.waitForTimeout(250);
+    await b.fill('#ac-ch', 'Z9Z9'); await b.fill('#ac-no', 'Outra Pessoa'); await b.fill('#ac-em', 'outra@exemplo.com'); await b.selectOption('#ac-un', 'P-82'); await b.selectOption('#ac-po', 'COEMB'); await b.click('[data-mdl="ok"]'); await b.waitForTimeout(400);
+    ok(/aprovação do administrador/.test(await b.textContent('.mdl')) && !(await b.evaluate(() => DiretorioDemo.achar('Z9Z9'))), 'autocadastro com aprovação ligada: vira pedido, sem criar a conta');
+    await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(200);
+    await entrar('AD01'); await fecharAviso(b); await b.goto(URL + '#/admin'); await b.waitForTimeout(300); await b.click('[data-aba="cadastro"]'); await b.waitForTimeout(400);
+    await b.click('[data-ap]'); await b.waitForTimeout(500);
+    ok(/Z9Z9/.test(await b.textContent('.mdl')) && !!(await b.$('[data-senha]')) && (await b.evaluate(() => DiretorioDemo.achar('Z9Z9')?.lotacoes[0].uep)) === 'P-82', 'Administração: aprova o pedido de cadastro e gera a senha provisória');
+    await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(200);
+    // usuário em 2 unidades → seleção; editor → Studio
+    await entrar('Q1W2', 'teste1234'); await fecharAviso(b);
+    ok(await b.evaluate(() => location.hash === '#/unidades' && document.querySelectorAll('.uni-g [data-uep]').length === 2 && !!document.querySelector('.uni-x a[href="#/studio"]') && !document.querySelector('.uni-x a[href="#/admin"]')), 'lotado em 2 unidades: escolhe a unidade ao entrar; como editor da P-77, vê o Studio (sem a Administração)');
+    await b.click('.uni-x a[href="#/studio"]'); await b.waitForTimeout(900);
+    const st0 = await b.evaluate(() => ({ uep: USUARIO.uep, cards: document.querySelectorAll('#sto-cards .sto-c').length, pv: !!document.querySelector('#sto-stage .card') }));
+    ok(st0.uep === 'P-77' && st0.cards >= 8 && st0.pv, `Studio: abre a unidade em que o usuário é editor, com a lista de cards e a prévia da tela (${JSON.stringify(st0)})`);
+    const tit0 = await b.getAttribute('#sto-cards .sto-c >> nth=4 >> [data-f="tit"]', 'placeholder');
+    await b.fill('#sto-cards .sto-c >> nth=4 >> [data-f="tit"]', 'Óleo do dia'); await b.press('#sto-cards .sto-c >> nth=4 >> [data-f="tit"]', 'Tab'); await b.waitForTimeout(300);
+    await b.uncheck('#sto-cards .sto-c >> nth=2 >> [data-f="vis"]'); await b.waitForTimeout(300);
+    ok(await b.evaluate(() => [...document.querySelectorAll('#sto-stage .card .hd .t')].some(t => t.textContent.includes('Óleo do dia'))), `Studio: a prévia mostra o título renomeado ("${tit0}" → "Óleo do dia")`);
+    await b.click('[data-s="publicar"]'); await b.waitForTimeout(250); await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(500);
+    ok(await b.evaluate(() => LAYOUT.versao === 1 && /versão 1/.test(document.querySelector('.sto-st').textContent)), 'Studio: publicar cria a versão 1 do layout da unidade');
+    await entrar('CP77'); await fecharAviso(b); await b.goto(URL + '#/apresentacao/1'); await b.waitForTimeout(700);
+    const ap = await b.evaluate(() => ({ t: [...document.querySelectorAll('.stage .card .hd .t')].some(t => t.textContent.includes('Óleo do dia')), oc: [...document.querySelectorAll('.stage .card')].filter(c => c.style.display === 'none' || c.style.visibility === 'hidden').length }));
+    ok(ap.t && ap.oc === 1, `Studio: todos da P-77 veem o layout publicado na apresentação (${JSON.stringify(ap)})`);
+    await entrar('CP78'); await fecharAviso(b); await b.goto(URL + '#/apresentacao/1'); await b.waitForTimeout(700);
+    ok(await b.evaluate(() => ![...document.querySelectorAll('.stage .card .hd .t')].some(t => t.textContent.includes('Óleo do dia'))), 'Studio: o layout de uma unidade não muda as telas das outras');
+    await bc.close();
+  }
 
   await browser.close(); await srv.fechar();
   console.log('\n' + (erros.length ? `${erros.length} FALHA(S):\n - ` + erros.join('\n - ') : 'TODOS OS TESTES PASSARAM'));

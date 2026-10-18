@@ -10,7 +10,7 @@ const csv = path.join(T, 'usuarios.csv');
 writeFileSync(csv, 'chave;nome;posto;admin\nab12;Pessoa Um;GEPLAT;sim\nCD34;Pessoa Dois;SUPROD;\nEF56;Pessoa Três;ENG MECÂNICO;\n');
 const rodar = async (...a) => (await promisify(execFile)('python3', [path.join(P, '..', 'tools', 'provisionar_usuarios.py'), csv, ...a], { cwd: T, encoding: 'utf8', env: { ...process.env, SUPABASE_URL: srv.url, SUPABASE_SERVICE_ROLE_KEY: CHAVE_SERVICO_TESTE, NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost' } })).stdout;
 const sim = await rodar('--simular');
-ok(/CD34\s+SUPROD\s+→ COPROD/.test(sim) && /EF56\s+ENG MECÂNICO\s+→ COMAN/.test(sim), 'simulação mostra o mapa posto → coordenação');
+ok(/CD34\s+P-83\s+SUPROD\s+→ COPROD/.test(sim) && /EF56\s+P-83\s+ENG MECÂNICO\s+→ COMAN/.test(sim), 'simulação mostra a unidade e o mapa posto → coordenação');
 const out1 = await rodar('--saida', 'senhas.csv');
 const senhas = readFileSync(path.join(T, 'senhas.csv'), 'utf8').trim().split(/\r?\n/).slice(1).map(l => l.split(';'));
 const perf = (await srv.sql('select chave, coord, admin, trocar_senha from public.perfis order by chave')).rows;
@@ -32,5 +32,10 @@ const pg = (await srv.sql(`select p.chave, p.compartilhado, p.trocar_senha, p.co
 ok(pg.length === 3 && pg.filter(x => x.chave !== 'CD34').every(x => x.compartilhado && !x.trocar_senha && x.senha === 'Teste9876') && pg.find(x => x.chave === 'TSPR').coord === 'COPROD', 'contas genéricas: senha única, compartilhadas e sem troca obrigatória');
 ok(/CD34: IGNORADO/.test(outG) && !pg.find(x => x.chave === 'CD34').compartilhado && pg.find(x => x.chave === 'CD34').senha !== 'Teste9876', '--compartilhado não altera usuário pessoal que já existe com a mesma chave');
 ok(!existsSync(path.join(T, `senhas_temporarias_${new Date().toISOString().slice(0, 10)}.csv`)) || !readFileSync(path.join(T, `senhas_temporarias_${new Date().toISOString().slice(0, 10)}.csv`), 'utf8').includes('Teste9876'), 'senha única não é gravada em arquivo');
+/* D-70: lotação por unidade e lista de contas de teste de Búzios (13 funções × 9 unidades) */
+const lot = (await srv.sql(`select p.chave, l.uep, l.admin from public.lotacoes l join public.perfis p using (user_id) where p.chave in ('AB12','CD34') order by p.chave`)).rows;
+ok(lot.length === 2 && lot.every(x => x.uep === 'P-83') && lot[0].admin, 'cada usuário cadastrado fica lotado na unidade (administrador da unidade quando admin = sim)');
+const simB = (await promisify(execFile)('python3', [path.join(P, '..', 'tools', 'provisionar_usuarios.py'), path.join(P, '..', 'tools', 'testes_buzios.csv'), '--simular'], { encoding: 'utf8' })).stdout;
+ok(/^117 usuário\(s\)/.test(simB) && /GO74\s+P-74\s+GEOP/.test(simB) && /SI91\s+P-91\s+SUEIN/.test(simB) && /SE80\s+P-80\s+SUEMB/.test(simB) && /EP82\s+P-82\s+ENG PETRÓLEO\s+→ COPROD/.test(simB) && !/P-83/.test(simB.split('\n').slice(1).join('\n')), 'lista de teste de Búzios: 13 funções por unidade nas 9 novas plataformas, com a unidade de cada conta');
 await srv.fechar();
 console.log(erros.length ? `\n${erros.length} FALHA(S)` : '\nCADASTRO DE USUÁRIOS OK'); process.exit(erros.length ? 1 : 0);

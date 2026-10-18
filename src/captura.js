@@ -1,4 +1,4 @@
-/* ===================== REDIA P-83 · captura automática de dados (D-52) ===================== */
+/* ===================== REDIA Búzios · captura automática de dados (D-52) ===================== */
 'use strict';
 /* "Capturar dados" em cada bloco da aba Dados automáticos.
    Cada campo tem um sistema de origem. A lógica de captura conecta a cada sistema, consulta os campos,

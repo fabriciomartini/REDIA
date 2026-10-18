@@ -1,4 +1,4 @@
-/* ===================== REDIA P-83 · ata em PDF (D-55) ===================== */
+/* ===================== REDIA Búzios · ata em PDF (D-55) ===================== */
 'use strict';
 /* A ata sai em PDF, gerado no próprio navegador:
    1) relatório em retrato (A4), com texto selecionável;
@@ -45,11 +45,11 @@ function pdfProgresso(n, total, txt) {
   o.innerHTML = `<div class="ata-prog-c"><b>Gerando a ata em PDF</b><span class="note">${esc(txt)}</span><div class="capt-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span class="capt-pct">${pct}%</span></div>`;
 }
 /* captura uma tela 1920×1080 fora da área visível e devolve a imagem JPEG (1600×900) */
-async function capturarTela(html) {
+async function capturarTela(html, telaId = null) {
   const box = document.createElement('div'); box.className = 'ata-cap'; box.innerHTML = `<div class="stage">${html}</div>`;
   document.body.appendChild(box);
   try {
-    const st = $('.stage', box); encaixar(st);
+    const st = $('.stage', box); aplicarLayout(st, telaId); encaixar(st);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     return await window.modernScreenshot.domToJpeg(st, { width: 1920, height: 1080, scale: 1600 / 1920, quality: 0.86, backgroundColor: '#F3F3F3', workerNumber: 0 });
   } finally { box.remove(); }
@@ -156,7 +156,7 @@ async function gerarAtaPdf(d) {
   for (let i = 0; i < telas.length; i++) {
     const t = telas[i]; pdfProgresso(i + 1, total, `Capturando a tela ${i + 1} de ${telas.length}: ${t.titulo}`);
     const St = estadoApresentacao(t.b);
-    const img = await capturarTela(t.top ? telaDetalhe(St, ctx, t.b, t.top) : TELAS[t.b - 1](St, ctx));
+    const img = await capturarTela(t.top ? telaDetalhe(St, ctx, t.b, t.top) : TELAS[t.b - 1](St, ctx), t.top ? null : telaIdDoBloco(t.b));   // D-73: layout do Studio
     doc.addPage('a4', 'landscape');
     const L = 297, m = 10;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(0, 0, 0);

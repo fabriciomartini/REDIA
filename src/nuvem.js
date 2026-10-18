@@ -1,4 +1,4 @@
-/* ===================== REDIA P-83 · base de dados na nuvem (Supabase) ===================== */
+/* ===================== REDIA Búzios · base de dados na nuvem (Supabase) ===================== */
 'use strict';
 /* Toda a conversa com o Supabase passa por aqui (D-48):
    - Auth: login por chave (e-mail técnico <chave>@<emailDominio>) e senha pessoal; sessão só desta aba (sessionStorage)
@@ -12,7 +12,13 @@ const ERROS_NUVEM = {
   PAUTA_NAO_CONGELADA: 'Congele a pauta antes do de acordo e do fechamento da ata.',
   ATA_SEM_ACORDO: 'Falta o de acordo de um ou mais responsáveis: a ata não foi fechada.',
   SEM_PERFIL: 'Sua chave não tem perfil ativo na REDIA. Procure o administrador.',
-  UEP_NAO_PERMITIDA: 'Registro de outra UEP: não gravado.',
+  UEP_NAO_PERMITIDA: 'Você não está lotado nesta unidade: o registro não foi gravado.',
+  SEM_PERMISSAO_ADMIN: 'Só o administrador do sistema pode fazer esta alteração.',
+  SEM_PERMISSAO_EDITOR: 'Só um editor desta unidade pode publicar o layout das telas.',
+  AUTO_BLOQUEIO: 'Você não pode retirar o seu próprio perfil de administrador do sistema nem desativar a sua conta.',
+  SEM_LOTACAO: 'O usuário precisa de ao menos uma unidade de lotação.',
+  SEM_ADMIN: 'O sistema precisa de ao menos um administrador do sistema ativo.',
+  USUARIO_INEXISTENTE: 'Usuário não encontrado.',
   SEM_PERMISSAO_RESET: 'Só o administrador da UEP pode resetar a demonstração.',
   SEM_PERMISSAO: 'Só o GEPLAT ou o administrador alteram a configuração da UEP.',
   LOTE_INVALIDO: 'Lote de registros inválido.',
@@ -89,6 +95,31 @@ const Nuvem = {
     if (!r.ok) throw new ErroNuvem(corpo.mensagem || 'Não foi possível enviar o pedido agora. Tente mais tarde ou procure o administrador.', 'RECUPERAR');
     return corpo.mensagem || 'Pedido registrado.';
   },
+  /* D-72 · Edge Functions: autocadastro (sem sessão) e administração (com a sessão do administrador do sistema) */
+  async funcao(nome, corpo, comSessao = false) {
+    let r, o = {}, tok = NUVEM.supabaseAnonKey;
+    if (comSessao) { try { tok = (await this.cliente().auth.getSession()).data.session?.access_token || tok; } catch { } }
+    try {
+      r = await fetch(NUVEM.supabaseUrl.replace(/\/$/, '') + '/functions/v1/' + nome, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: NUVEM.supabaseAnonKey, Authorization: 'Bearer ' + tok }, body: JSON.stringify(corpo) });
+    } catch (e) { throw new ErroNuvem('Sem conexão com a base de dados. Verifique a rede e tente de novo.', 'REDE'); }
+    try { o = await r.json(); } catch { }
+    if (r.status === 404) throw new ErroNuvem('Esta função ainda não está instalada na base (' + nome + '). Procure o administrador da REDIA.', 'FUNCAO');
+    if (!r.ok || o.ok === false) throw new ErroNuvem(o.mensagem || 'Não foi possível concluir agora. Tente mais tarde.', 'FUNCAO');
+    return o;
+  },
+  cadastrar(p) { return this.funcao('redia-cadastro', p); },
+  adminAcao(acao, p = {}) { return this.funcao('redia-admin', { acao, ...p }, true); },
+  adminUsuarios() { return this.rpc('redia_admin_usuarios'); },
+  adminSalvarUsuario(p) { return this.rpc('redia_admin_salvar_usuario', { p }); },
+  adminRevisar(userId) { return this.rpc('redia_admin_revisar', { p_user: userId }); },
+  adminAuditoria(n = 300) { return this.rpc('redia_admin_auditoria', { p_limite: n }); },
+  adminResumo() { return this.rpc('redia_admin_resumo'); },
+  adminSalvarUnidade(p) { return this.rpc('redia_admin_salvar_unidade', { p }); },
+  layoutLer(uep) { return this.rpc('redia_layout_ler', { p_uep: uep }); },   // D-73 · Studio
+  layoutSalvar(uep, layout, publicar = false) { return this.rpc('redia_layout_salvar', { p_uep: uep, p_layout: layout, p_publicar: publicar }); },
+  layoutRestaurar(uep, versao) { return this.rpc('redia_layout_restaurar', { p_uep: uep, p_versao: versao }); },
+  adminParametro(chave, valor) { return this.rpc('redia_admin_parametro', { p_chave: chave, p_valor: valor }); },
   async pedidosSenha(uep) { try { return await this.rpc('redia_pedidos_senha', { p_uep: uep }); } catch { return []; } },
   async sair() { this.pararTempoReal(); this.vivoParar(); try { await this.cli?.auth.signOut({ scope: 'local' }); } catch { } },
 

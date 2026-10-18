@@ -1,4 +1,4 @@
-/* ===================== REDIA P-83 · páginas de detalhe dos blocos de coordenação (D-42) =====================
+/* ===================== REDIA Búzios · páginas de detalhe dos blocos de coordenação (D-42) =====================
    Na tela da coordenação, o título de cada card leva à página do assunto (#/apresentacao/N/assunto).
    Cada página tem: voltar à tela da coordenação · atalhos para os outros assuntos · avançar para o próximo bloco. */
 'use strict';
@@ -152,10 +152,10 @@ const DETALHES = {
             <span class="lg"><i style="background:#75787B"></i>Produzida reinjetada</span><b>${fmtU(pr, 0, 'm³')}</b><span class="sec">${pct(pr)}</span></div>
           ${li('Produzida descartada no mar', fmtU(VN(E, 'agua.prod_desc'), 0, 'm³'))}</div>
         <div class="card col fill">${hd('IUGA e queima · contexto do ativo e do campo')}
-          ${li(`P-83 · parcial do mês <span class="sec n">· meta ${VN(E, 'iuga.meta') != null ? fmtN(VN(E, 'iuga.meta'), 2) + '%' : '—'}</span>`, r.iugaMes != null ? `<span${estDef(r.iugaMes, VN(E, 'iuga.meta'), { modo: 'pp' })}>${fmtN(r.iugaMes, 2)}%</span>` : 'Sem dado')}
+          ${li(`${esc(CFG.uep)} · parcial do mês <span class="sec n">· meta ${VN(E, 'iuga.meta') != null ? fmtN(VN(E, 'iuga.meta'), 2) + '%' : '—'}</span>`, r.iugaMes != null ? `<span${estDef(r.iugaMes, VN(E, 'iuga.meta'), { modo: 'pp' })}>${fmtN(r.iugaMes, 2)}%</span>` : 'Sem dado')}
           ${li(esc(CFG.ativo) + ' · IUGA', VN(E, 'iuga.atp') != null ? `<span${estDef(VN(E, 'iuga.atp'), VN(E, 'iuga.meta'), { modo: 'pp' })}>${fmtN(VN(E, 'iuga.atp'), 2)}%</span>` : 'Sem dado', 1)}${li(esc(CFG.campo) + ' · IUGA', VN(E, 'iuga.buzios') != null ? `<span${estDef(VN(E, 'iuga.buzios'), VN(E, 'iuga.meta'), { modo: 'pp' })}>${fmtN(VN(E, 'iuga.buzios'), 2)}%</span>` : 'Sem dado', 1)}
           ${cota != null ? `<div class="li"><span>Cota de queima de ${esc(CFG.campo)} no mês</span><span class="v">${fmtN(cAcum)} <span class="sec n">de ${fmtN(cota)} m³ · ${cAcum != null ? fmtN(cAcum / cota * 100, 0) + '%' : '—'}</span></span></div><div class="bar b16"><div style="width:${cAcum != null ? Math.min(100, cAcum / cota * 100) : 0}%;background:${cAcum != null && cAcum / cota > 0.9 ? '#DA291C' : '#75787B'}"></div></div>${li('Reserva do campo', cAcum != null ? fmtU(cota - cAcum, 0, 'm³') : 'Sem dado')}` : li(`Cota de queima de ${esc(CFG.campo)}`, 'Sem dado', 1)}
-          <span class="cap mt-auto">A cota de queima é do campo inteiro: a P-83 é lida junto com o ${esc(CFG.ativo)} e ${esc(CFG.campo)}. Dados do ativo (I-04).</span></div>
+          <span class="cap mt-auto">A cota de queima é do campo inteiro: a ${esc(CFG.uep)} é lida junto com o ${esc(CFG.ativo)} e ${esc(CFG.campo)}. Dados do ativo (I-04).</span></div>
       </div></main>`;
   },
   'queima:COPROD'(E, ctx) {

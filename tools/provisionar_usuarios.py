@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""REDIA P-83 · V1.0 · cadastro de usuários no Supabase a partir de um CSV.
+"""REDIA Búzios · cadastro de usuários no Supabase a partir de um CSV.
 
-Para cada linha do CSV (chave;nome;posto;admin):
+Para cada linha do CSV (chave;nome;posto;admin[;uep]):
   1. cria o usuário no Supabase Auth (e-mail técnico <chave>@<domínio>, já confirmado) com senha temporária;
   2. grava/atualiza o perfil na tabela public.perfis (coordenação deduzida do posto);
-  3. escreve as senhas temporárias num CSV LOCAL para entrega individual (cada um troca no 1º acesso).
+  3. grava a lotação do usuário na unidade (tabela public.lotacoes · D-70); a coluna opcional uep do CSV
+     tem prioridade sobre REDIA_UEP (uma linha por usuário; para lotar em mais de uma unidade, use a Administração do app);
+  4. escreve as senhas temporárias num CSV LOCAL para entrega individual (cada um troca no 1º acesso).
 
 Uso (no computador do administrador, nunca no navegador nem no GitHub):
   python tools/provisionar_usuarios.py usuarios_P83.csv
@@ -13,6 +15,7 @@ Uso (no computador do administrador, nunca no navegador nem no GitHub):
 
 Contas genéricas de teste (D-56), uma por posto, usadas por várias pessoas no período de testes:
   python tools/provisionar_usuarios.py tools/genericos_teste_P83.csv --compartilhado --senha-fixa
+  python tools/provisionar_usuarios.py tools/testes_buzios.csv --compartilhado --senha-fixa     (D-70: 13 postos × 9 unidades)
   --senha-fixa pede (sem mostrar) uma senha única para todas as linhas; não grava CSV de senhas.
   --compartilhado marca o perfil como conta compartilhada: o app não força nem oferece troca de senha.
   Por segurança, --compartilhado nunca altera um usuário que já existe e não é conta compartilhada.
@@ -21,7 +24,7 @@ Variáveis de ambiente:
   SUPABASE_URL                  https://<projeto>.supabase.co
   SUPABASE_SERVICE_ROLE_KEY     chave secreta (Settings › API Keys: "secret" sb_secret_… ou a antiga service_role). Se faltar, o script pede.
   REDIA_EMAIL_DOMINIO           domínio técnico dos e-mails (padrão redia.local, igual ao config do app)
-  REDIA_UEP                     UEP dos perfis (padrão P-83)
+  REDIA_UEP                     UEP dos perfis quando o CSV não tem a coluna uep (padrão P-83)
   REDIA_SENHA_FIXA              senha usada com --senha-fixa (se faltar, o script pede)
 
 A chave service_role dá acesso total à base: não grave em arquivo, não envie por e-mail e não coloque no repositório.
@@ -99,8 +102,11 @@ def ler_csv(arq):
                 sys.exit(f'Linha {i}: informe nome e posto.')
             if posto not in POSTO_COORD:
                 print(f'  aviso linha {i}: posto "{posto}" não reconhecido → coordenação GEPLAT')
+            uep = l.get('uep', '').upper()
+            if uep and not (uep.startswith('P-') and 3 <= len(uep) <= 20):
+                sys.exit(f'Linha {i}: UEP inválida "{uep}" (ex.: P-74).')
             linhas.append({'chave': chave, 'nome': nome, 'posto': posto, 'coord': POSTO_COORD.get(posto, 'GEPLAT'),
-                           'admin': l.get('admin', '').lower() in SIM})
+                           'admin': l.get('admin', '').lower() in SIM, 'uep': uep})
     if len({x['chave'] for x in linhas}) != len(linhas):
         sys.exit('Há chaves repetidas no CSV.')
     return linhas
@@ -119,10 +125,12 @@ def main():
     linhas = ler_csv(x.csv)
     dominio = os.environ.get('REDIA_EMAIL_DOMINIO', 'redia.local').strip()
     uep = os.environ.get('REDIA_UEP', 'P-83').strip()
-    print(f'{len(linhas)} usuário(s) · UEP {uep} · e-mails <chave>@{dominio}')
+    for l in linhas:
+        l['uep'] = l['uep'] or uep
+    print(f"{len(linhas)} usuário(s) · UEP {', '.join(sorted({l['uep'] for l in linhas}))} · e-mails <chave>@{dominio}")
     if x.simular:
         for l in linhas:
-            print(f"  {l['chave']}  {l['posto']:<18} → {l['coord']:<6} {'admin' if l['admin'] else ''}  {l['nome']}")
+            print(f"  {l['chave']}  {l['uep']:<6} {l['posto']:<18} → {l['coord']:<6} {'admin' if l['admin'] else ''}  {l['nome']}")
         return
     url = os.environ.get('SUPABASE_URL') or input('SUPABASE_URL: ').strip()
     chave = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or getpass.getpass('Chave service_role (não aparece ao digitar): ').strip()
@@ -159,7 +167,7 @@ def main():
                 senha = None
         else:
             print(f"  {l['chave']}: ERRO ao criar usuário: {st} {o}"); falhas += 1; continue
-        perfil = {'user_id': uid, 'chave': l['chave'], 'nome': l['nome'], 'posto': l['posto'], 'coord': l['coord'], 'uep': uep, 'admin': l['admin'], 'ativo': True}
+        perfil = {'user_id': uid, 'chave': l['chave'], 'nome': l['nome'], 'posto': l['posto'], 'coord': l['coord'], 'uep': l['uep'], 'admin': l['admin'], 'ativo': True}
         if senha:
             perfil['trocar_senha'] = not x.compartilhado
         if x.compartilhado:
@@ -168,7 +176,11 @@ def main():
         st, o = sb.req('POST', '/rest/v1/perfis?on_conflict=user_id', perfil, {'Prefer': 'resolution=merge-duplicates,return=minimal'})
         if st not in (200, 201, 204):
             print(f"  {l['chave']}: ERRO ao gravar perfil: {st} {o}"); falhas += 1; continue
-        print(f"  {l['chave']}: {'criado' if novo else 'atualizado'} · {l['coord']}{' · admin' if l['admin'] else ''}{(' · senha única definida' if fixa else ' · senha temporária gerada') if senha else ''}{' · conta compartilhada' if x.compartilhado else ''}")
+        lot = {'user_id': uid, 'uep': l['uep'], 'admin': l['admin']}   # D-70: lotação na unidade (mantém as demais lotações)
+        st, o = sb.req('POST', '/rest/v1/lotacoes?on_conflict=user_id,uep', lot, {'Prefer': 'resolution=merge-duplicates,return=minimal'})
+        if st not in (200, 201, 204):
+            print(f"  {l['chave']}: ERRO ao gravar a lotação em {l['uep']}: {st} {o}"); falhas += 1; continue
+        print(f"  {l['chave']}: {'criado' if novo else 'atualizado'} · {l['uep']} · {l['coord']}{' · admin' if l['admin'] else ''}{(' · senha única definida' if fixa else ' · senha temporária gerada') if senha else ''}{' · conta compartilhada' if x.compartilhado else ''}")
         if senha and not fixa:
             senhas.append((l['chave'], l['nome'], senha))
     if senhas:

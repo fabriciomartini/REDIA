@@ -1,6 +1,7 @@
 // Gera as capturas de tela usadas no deck (apresentacao/img) a partir do app montado no modo demonstração.
 // Uso: node tests/prints_deck.cjs   (monta o app em tests/.saida/prints e grava os JPG em apresentacao/img)
 const { chromium } = require('playwright');
+const fecharAviso = async p => { const b = await p.waitForSelector('[data-mdl="entendi"]', { timeout: 2500 }).catch(() => null); if (b) { await b.click(); await p.waitForTimeout(150); } };   // D-71: aviso de protótipo depois de cada login
 const { execFileSync } = require('child_process');
 const path = require('path'), fs = require('fs');
 const P = __dirname, DIST = path.join(P, '.saida', 'prints'), IMG = path.join(P, '..', 'apresentacao', 'img'), TMP = path.join(P, 'out', 'prints');
@@ -13,7 +14,7 @@ const jpg = (png, nome, w = 1600, h = 900) => execFileSync('python3', ['-c', `fr
   const b = await chromium.launch();
   const entrar = async (p, chave) => {
     await p.goto(U); await p.waitForTimeout(800);
-    await p.fill('#lg-chave', chave); await p.fill('#lg-senha', '1234'); await p.click('.lg-btn'); await p.waitForTimeout(700);
+    await p.fill('#lg-chave', chave); await p.fill('#lg-senha', '1234'); await p.click('.lg-btn'); await p.waitForTimeout(700); await fecharAviso(p);
     await p.evaluate(async () => { await abrirDia('2026-10-09'); Relogio.simular('07:30'); if (!E.sugestoes.length) await carregarExemplo('2026-10-09'); atualizarEstado(); Captura.rapida = true; rerender(); });
   };
   const foto = async (p, nome, opts = {}) => { await p.addStyleTag({ content: '#toasts,#ctrl{display:none!important}' }); const f = path.join(TMP, nome.replace('.jpg', '.png')); await p.screenshot({ path: f, ...opts }); jpg(f, nome, opts.w, opts.h); console.log('ok', nome); };

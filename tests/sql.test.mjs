@@ -22,6 +22,7 @@ const r0 = await db.query(`select public.redia_vincular_perfil('CP01@redia.local
 ok(r0.rows[0].r === 'CP01 → COPROD', 'redia_vincular_perfil mapeia SUPROD → COPROD');
 await db.query(`select public.redia_vincular_perfil('gp01@redia.local','GP01','Usuário GEPLAT','GEPLAT','P-83',true)`);
 await db.query(`select public.redia_vincular_perfil('ce01@redia.local','CE01','Usuário COEMB','SUEMB')`);
+await db.query(`insert into public.unidades (uep, nome, ordem) values ('P-99', 'Unidade de teste', 99) on conflict do nothing`);   // D-70: unidade fora de Búzios só para o teste de isolamento
 await db.query(`select public.redia_vincular_perfil('xx01@redia.local','XX01','Usuário outra UEP','COMAN','P-99')`);
 
 async function como(uid, sql, params = []) {
@@ -134,6 +135,55 @@ const bf = (await como(U.cp, `select public.redia_buscar('P-83', '', 50, '2026-1
 ok(bf.length === 1 && bf[0].tipo === 'item' && bf[0].payload.coord === 'COEMB', 'redia_buscar com filtros de período, coordenação e tipo, sem texto (D-67)');
 const arq2 = (await como(U.cp, `select public.redia_arquivo('P-83', 100) as r`)).rows[0].r;
 ok(arq2.some(r => r.tipo === 'ata' && r.payload.codigo === 'REDIA-P83-20102026') && arq2.some(r => r.tipo === 'redia'), 'redia_arquivo traz a ata (com o código) e a abertura da REDIA');
+
+// D-70 · REDIA Búzios: lotação por unidade, administrador do sistema e administração
+ok((await db.query(`select count(*)::int n from public.unidades where uep in ('P-74','P-75','P-76','P-77','P-78','P-79','P-80','P-82','P-83','P-91')`)).rows[0].n === 10, 'as 10 unidades de Búzios estão cadastradas');
+ok((await db.query(`select count(*)::int n from public.lotacoes l join public.perfis p using (user_id) where p.chave in ('CP01','GP01') and l.uep = 'P-83'`)).rows[0].n === 2, 'perfis existentes ficam lotados na própria unidade (migração)');
+const r74 = reg('valor', { campo: 'oleo.real', valor: 1 }, { uep: 'P-74', data: '2026-10-21' });
+ok(/UEP_NAO_PERMITIDA|row-level/.test(await falha(U.cp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([r74])]) || ''), 'usuário lotado só na P-83 não grava na P-74');
+await db.query(`insert into public.lotacoes (user_id, uep) values ('${U.cp}', 'P-74')`);
+ok((await gravar(U.cp, [r74])).length === 1 && (await como(U.cp, `select count(*)::int n from public.registros where uep = 'P-74'`)).rows[0].n === 1, 'com lotação na P-74, o mesmo usuário grava e lê a P-74');
+ok((await como(U.em, `select count(*)::int n from public.registros where uep = 'P-74'`)).rows[0].n === 0, 'usuário sem lotação na P-74 não vê os registros dela (RLS)');
+const mp = (await como(U.cp, `select public.redia_meu_perfil() as p`)).rows[0].p;
+ok(mp.unidades.map(u => u.uep).join() === 'P-74,P-83' && mp.adminSistema === false, `perfil traz as unidades de lotação (${mp.unidades.map(u => u.uep).join()})`);
+ok(/SEM_PERMISSAO_ADMIN/.test(await falha(U.gp, `select public.redia_admin_usuarios()`) || ''), 'administrador da unidade não acessa a administração do sistema');
+await db.query(`update public.perfis set admin_sistema = true where chave = 'GP01'`);
+const mpa = (await como(U.gp, `select public.redia_meu_perfil() as p`)).rows[0].p;
+ok(mpa.adminSistema && mpa.unidades.length >= 10 && (await como(U.gp, `select count(*)::int n from public.registros where uep = 'P-74'`)).rows[0].n === 1, 'administrador do sistema vê todas as unidades e os registros de cada uma');
+const lu = (await como(U.gp, `select public.redia_admin_usuarios() as r`)).rows[0].r;
+const ucp = lu.find(x => x.chave === 'CP01');
+ok(lu.length >= 4 && ucp.lotacoes.map(l => l.uep).join() === 'P-74,P-83', 'administração lista usuários com as lotações');
+await como(U.gp, `select public.redia_admin_salvar_usuario($1::jsonb)`, [JSON.stringify({ userId: U.cp, nome: 'Usuário COPROD', posto: 'COPROD', lotacoes: [{ uep: 'P-75', editor: true }, { uep: 'P-83' }], uep: 'P-75' })]);
+const ucp2 = (await como(U.gp, `select public.redia_admin_usuarios() as r`)).rows[0].r.find(x => x.chave === 'CP01');
+ok(ucp2.lotacoes.map(l => l.uep + (l.editor ? '*' : '')).join() === 'P-75*,P-83' && ucp2.uep === 'P-75' && ucp2.posto === 'COPROD', 'administrador do sistema altera posto, lotações e o papel de editor por unidade');
+ok(/AUTO_BLOQUEIO/.test(await falha(U.gp, `select public.redia_admin_salvar_usuario($1::jsonb)`, [JSON.stringify({ userId: U.gp, adminSistema: false, lotacoes: [{ uep: 'P-83' }] })]) || ''), 'administrador não retira o próprio perfil de administrador');
+ok(/SEM_LOTACAO/.test(await falha(U.gp, `select public.redia_admin_salvar_usuario($1::jsonb)`, [JSON.stringify({ userId: U.cp, lotacoes: [] })]) || ''), 'usuário precisa de ao menos uma unidade de lotação');
+await como(U.gp, `select public.redia_admin_revisar($1::uuid)`, [U.cp]);
+const au = (await como(U.gp, `select public.redia_admin_auditoria(50) as r`)).rows[0].r;
+ok(au.some(a => a.acao === 'usuario.alterar' && a.alvo === 'CP01' && a.por === 'GP01') && au.some(a => a.acao === 'usuario.revisar_acesso'), 'alterações e revisões de acesso ficam na auditoria (quem, quando, o quê)');
+const rs = (await como(U.gp, `select public.redia_admin_resumo() as r`)).rows[0].r;
+ok(rs.unidades.length >= 10 && rs.cadastro.aberto === true && rs.unidades.find(u => u.uep === 'P-75').editores === 1, 'resumo por unidade (usuários, editores, registros) e parâmetros do autocadastro');
+await como(U.gp, `select public.redia_admin_salvar_unidade($1::jsonb)`, [JSON.stringify({ uep: 'P-91', situacao: 'comissionamento' })]);
+ok((await db.query(`select situacao from public.unidades where uep = 'P-91'`)).rows[0].situacao === 'comissionamento', 'administrador marca a unidade "em comissionamento"');
+await db.query(`update public.perfis set admin_sistema = false where chave = 'GP01'`);
+// D-73 · Studio: layout por unidade, só o editor da unidade salva e publica; todos da unidade leem o publicado
+ok(/SEM_PERMISSAO_EDITOR/.test(await falha(U.gp, `select public.redia_layout_salvar('P-75', '{"v":1}'::jsonb, true)`) || ''), 'Studio: quem não é editor da unidade não publica layout');
+const lay = { v: 1, telas: { abertura: { cards: { pob: { oculto: true } }, rotulos: { Meta: 'Alvo' } } } };
+let lr = (await como(U.cp, `select public.redia_layout_salvar('P-75', $1::jsonb, false) as r`, [JSON.stringify(lay)])).rows[0].r;
+ok(lr.versao === 0 && lr.rascunho?.telas?.abertura && lr.editor === true, 'Studio: editor salva o rascunho (sem publicar)');
+lr = (await como(U.cp, `select public.redia_layout_salvar('P-75', $1::jsonb, true) as r`, [JSON.stringify(lay)])).rows[0].r;
+ok(lr.versao === 1 && lr.publicado.telas.abertura.rotulos.Meta === 'Alvo' && lr.rascunho === null && lr.hist.length === 1, 'Studio: publicar cria a versão 1 e limpa o rascunho');
+await como(U.cp, `select public.redia_layout_salvar('P-75', '{}'::jsonb, true)`);
+lr = (await como(U.cp, `select public.redia_layout_restaurar('P-75', 1) as r`)).rows[0].r;
+ok(lr.versao === 3 && lr.publicado.telas.abertura.cards.pob.oculto === true && /restaurar v1/.test(lr.hist[0].acao), 'Studio: restaurar a versão 1 republica como versão 3');
+await db.query(`insert into public.lotacoes (user_id, uep) values ('${U.em}', 'P-75')`);
+const le = (await como(U.em, `select public.redia_layout_ler('P-75') as r`)).rows[0].r;
+ok(le.versao === 3 && le.editor === false && le.rascunho === null && le.hist.length === 0, 'Studio: usuário lotado (não editor) lê só o layout publicado');
+ok(/UEP_NAO_PERMITIDA/.test(await falha(U.outra, `select public.redia_layout_ler('P-75')`) || ''), 'Studio: usuário de outra unidade não lê o layout');
+ok(/permission denied/.test(await falha(U.cp, `select * from public.layouts`) || ''), 'Studio: tabela de layouts não é lida direto (só pelas funções)');
+ok((await db.query(`select count(*)::int n from public.auditoria where acao in ('layout.publicar', 'layout.restaurar') and alvo = 'P-75'`)).rows[0].n === 4, 'Studio: publicações e restauração ficam na auditoria');
+await db.query(`delete from public.layouts_hist where uep = 'P-75'`); await db.query(`delete from public.layouts where uep = 'P-75'`);
+await db.query(`delete from public.lotacoes where uep in ('P-74','P-75')`); await db.query(`update public.perfis set uep = 'P-83' where chave = 'CP01'`);
 
 // configuração
 ok(/SEM_PERMISSAO/.test(await falha(U.cp, `select public.redia_config_salvar('P-83', '{"timeboxMin":6}'::jsonb)`) || ''), 'COPROD não altera a configuração da UEP');

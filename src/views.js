@@ -1,4 +1,4 @@
-/* ===================== REDIA P-83 · telas de trabalho e roteamento ===================== */
+/* ===================== REDIA Búzios · telas de trabalho e roteamento ===================== */
 'use strict';
 let E = null;                      // estado atual reconstruído
 const UI = { sel: {}, aba: {}, pres: { bloco: 1, restante: null, rodando: false, ult: 0, extra: 0 } };
@@ -34,9 +34,12 @@ function cabecalhoApp(rota) {
   const item = (h, t, on) => `<a href="${h}" class="${on ? 'on' : ''}">${t}</a>`;
   const c = USUARIO?.coord || 'COPROD';
   return `<header class="apph">
-    <div><span class="kick">REDIA ${esc(CFG.uep)} · ${esc(APP.versao)}</span><div class="tit">${esc(rota.titulo)}</div><span class="dash"></span></div>
-    ${E && USUARIO && notificacoesAbertas(E, USUARIO.coord).length ? `<a class="ntf" href="#/curadoria/${USUARIO.coord}" title="Notificação do GEPLAT">Concluir ${esc(USUARIO.coord)}</a>` : ''}
-    <nav aria-label="Seções">${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/arquivo', 'Arquivo', rota.id === 'arquivo')}${item('#/config', 'Configuração', rota.id === 'config')}${['inicio', 'curadoria'].includes(rota.id) || Vivo.ativo ? botaoVivo('vivo-h') : ''}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
+    <div><span class="kick">REDIA Búzios${USUARIO?.uep ? ' · ' + esc(USUARIO.uep) : ''} · ${esc(APP.versao)}</span><div class="tit">${esc(rota.titulo)}</div><span class="dash"></span></div>
+    ${USUARIO?.uep && (USUARIO.unidades.length > 1 || USUARIO.adminSistema) ? `<a class="uni-tr" href="#/unidades" title="Trocar de unidade"><b>${esc(USUARIO.uep)}</b><span>Trocar unidade</span></a>` : ''}
+    ${E && USUARIO?.uep && notificacoesAbertas(E, USUARIO.coord).length ? `<a class="ntf" href="#/curadoria/${USUARIO.coord}" title="Notificação do GEPLAT">Concluir ${esc(USUARIO.coord)}</a>` : ''}
+    <nav aria-label="Seções">${USUARIO?.uep
+      ? `${item('#/inicio', 'Início', rota.id === 'inicio')}${item('#/curadoria/' + c, 'Curadoria', rota.id === 'curadoria')}${item('#/apresentacao/1', 'Apresentação', false)}${item('#/ata', 'Fechamento e ata', rota.id === 'ata')}${item('#/arquivo', 'Arquivo', rota.id === 'arquivo')}${item('#/config', 'Configuração', rota.id === 'config')}${USUARIO.editor ? item('#/studio', 'Studio', rota.id === 'studio') : ''}${USUARIO.adminSistema ? item('#/admin', 'Administração', rota.id === 'admin') : ''}${['inicio', 'curadoria'].includes(rota.id) || Vivo.ativo ? botaoVivo('vivo-h') : ''}`
+      : `${item('#/unidades', 'Unidades', rota.id === 'unidades')}${USUARIO?.adminSistema ? item('#/admin', 'Administração', rota.id === 'admin') : ''}`}<a href="#/sair" class="sair" title="Encerrar a sessão">Sair</a></nav>
     <span class="armz">${textoArmaz()}</span>
     <div class="egp-sp"></div>
     <svg class="egp" width="420" height="80" viewBox="0 0 420 80" preserveAspectRatio="none" aria-hidden="true"><path d="M90 -20 L460 -20 L460 120 L64 120 L48 76 Q44 64 48 54 Z" fill="#008542"/><path d="M40 -20 L22 50 Q19 62 24 72 L40 120" fill="none" stroke="#FDC82F" stroke-width="3"/></svg>
@@ -53,6 +56,9 @@ function textoArmaz() {
 /* ---------------- roteador ---------------- */
 const ROTAS = [
   { re: /^#\/inicio$/, id: 'inicio', titulo: 'Início', fn: telaInicio },
+  { re: /^#\/unidades$/, id: 'unidades', titulo: 'Unidades', fn: telaUnidades },   // D-70
+  { re: /^#\/admin$/, id: 'admin', titulo: 'Administração', fn: telaAdmin },   // D-72
+  { re: /^#\/studio$/, id: 'studio', titulo: 'Studio', fn: telaStudio },   // D-73
   { re: /^#\/curadoria\/(GEPLAT|COPROD|COEMB|COMAN)(?:\/([\w-]+))?$/, id: 'curadoria', titulo: 'Curadoria', fn: telaCuradoria },
   { re: /^#\/apresentacao\/([1-5])$/, id: 'apresentacao', titulo: 'Apresentação', fn: telaApresentacao },
   { re: /^#\/apresentacao\/(semana)$/, id: 'apresentacao', titulo: 'Apresentação · visão semanal', fn: telaApresentacao },   // D-63 (proposta 28)
@@ -68,7 +74,9 @@ function rotear() {
   if (location.hash === '#/sair') { sair(); location.replace('#/login'); return; }
   if (!USUARIO) { if (location.hash !== '#/login' && location.hash) UI.destino = location.hash; ROTA_ATUAL = { id: 'login', fn: telaLogin, m: [] }; $('.printroot')?.remove(); telaLogin(); return; }
   if (location.hash === '#/login') { const d = UI.destino || '#/inicio'; UI.destino = null; location.replace(d); return; }
-  if (!Store.modo && location.hash !== '#/inicio') { location.hash = '#/inicio'; return; }
+  const semUnidade = ['#/unidades', '#/admin', '#/studio'];   // D-70: telas que não dependem da unidade ativa
+  if (!USUARIO.uep && !semUnidade.some(x => (location.hash || '').startsWith(x))) { location.replace('#/unidades'); return; }
+  if (USUARIO.uep && !Store.modo && !semUnidade.some(x => (location.hash || '').startsWith(x)) && location.hash !== '#/inicio') { location.hash = '#/inicio'; return; }
   const h = location.hash || '#/inicio';
   for (const r of ROTAS) {
     const m = r.re.exec(h);
@@ -139,19 +147,20 @@ const htmlIniciar = (contexto = '') => rediaIniciada() ? '' : `<div class="banne
 
 
 /* ---------------- janela de confirmação (sem diálogos do navegador) ---------------- */
-function modal({ titulo, html, botoes }) {
+function modal({ titulo, html, botoes, largo = false, aoAbrir = null }) {
   return new Promise(res => {
     $('.mdl')?.remove();
     const el = document.createElement('div'); el.className = 'mdl'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'mdl-t');
-    el.innerHTML = `<div class="mdl-c"><h2 id="mdl-t">${titulo}</h2>${html}<div class="row end mdl-b">${botoes.map(b => `<button class="btn ${b.cls || ''}" data-mdl="${b.id}">${b.txt}</button>`).join('')}</div></div>`;
+    el.innerHTML = `<div class="mdl-c${largo ? ' lg' : ''}"><h2 id="mdl-t">${titulo}</h2>${html}<div class="row end mdl-b">${botoes.map(b => `<button class="btn ${b.cls || ''}" data-mdl="${b.id}">${b.txt}</button>`).join('')}</div></div>`;
     document.body.appendChild(el);
-    const fechar = id => { UI.fecharModal = null; const extra = {}; el.querySelectorAll('[data-mdl-in]').forEach(i => extra[i.dataset.mdlIn] = i.value.trim()); el.remove(); document.removeEventListener('keydown', esc_); res({ id, ...extra }); };
+    const fechar = id => { UI.fecharModal = null; const extra = {}; el.querySelectorAll('[data-mdl-in]').forEach(i => extra[i.dataset.mdlIn] = i.type === 'checkbox' ? i.checked : i.value.trim()); el.remove(); document.removeEventListener('keydown', esc_); res({ id, ...extra }); };
     const esc_ = e => { if (e.key === 'Escape') fechar('cancelar'); };
     document.addEventListener('keydown', esc_);
     el.querySelectorAll('[data-mdl]').forEach(b => b.onclick = () => fechar(b.dataset.mdl));
     UI.fecharModal = () => fechar('cancelar');
     el.onclick = e => { if (e.target === el) fechar('cancelar'); };
-    (el.querySelector('[data-mdl-in]') || el.querySelector('.btn.pri') || el.querySelector('.btn'))?.focus();
+    if (aoAbrir) aoAbrir(el);
+    (el.querySelector('[data-mdl-in]:not([disabled])') || el.querySelector('.btn.pri') || el.querySelector('.btn'))?.focus();
   });
 }
 
@@ -235,7 +244,7 @@ function telaLogin() {
     <div class="lg-sh" aria-hidden="true"></div><div class="lg-fade" aria-hidden="true"></div>
     <main class="lg-main">
       <section class="lg-hero">
-        <span class="kick">${esc(CFG.uep)} · ${esc(CFG.campo || 'Búzios')} · Ativo III</span>
+        <span class="kick lg-campo">Búzios</span>
         <h1>REDIA</h1>
         <p class="lg-sub">Reunião Diária bordo × base</p>
         <span class="dash"></span>
@@ -249,8 +258,8 @@ function telaLogin() {
         <input id="lg-senha" class="in lg-in" type="password" maxlength="72" ${MODO_NUVEM ? 'autocomplete="current-password"' : 'inputmode="numeric"'} aria-describedby="lg-msg">
         <p id="lg-msg" class="lg-msg" role="alert"></p>
         <button class="btn pri lg-btn" type="submit">Entrar</button>
-        <button class="lg-esq" type="button" data-act="esqueci">Esqueci a senha</button>
-        <p class="note">${MODO_NUVEM ? 'Senha pessoal cadastrada na base da REDIA. No primeiro acesso, troque a senha temporária. Não substitui o login corporativo.' : 'Demonstração: use GP01, CP01, CE01 ou CM01 e a senha 1234. Os registros ficam só neste navegador.'}</p>
+        <div class="lg-lks"><button class="lg-esq" type="button" data-act="esqueci">Esqueci a senha</button><button class="lg-esq lg-cad" type="button" data-act="cadastrar">Cadastrar-se</button></div>
+        <p class="note">${MODO_NUVEM ? 'Senha pessoal cadastrada na base da REDIA. No primeiro acesso, troque a senha temporária. Não substitui o login corporativo.' : 'Demonstração: senha 1234. Chaves de teste por unidade (ex.: GP74, CP80, CM83; GP01 e CP01 na P-83) ou AD01 (administrador do sistema). Os registros ficam só neste navegador.'}</p>
       </form>
     </main>
     <footer class="lg-rod">
@@ -277,12 +286,16 @@ function telaLogin() {
       msg.textContent = r.erro; (/senha/i.test(r.erro) ? se : ch).classList.add('err'); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); se.value = ''; se.focus(); return;
     }
     if (r.trocarSenha && !(await trocarSenhaObrigatoria())) { btn.disabled = false; btn.textContent = 'Entrar'; se.value = ''; return; }
-    try { await iniciarSessao(true); }
-    catch (x) { btn.disabled = false; btn.textContent = 'Entrar'; msg.textContent = 'Não foi possível abrir a REDIA: ' + x.message; return; }
+    UI.avisoProto = true;   // D-71: aviso de protótipo no Início depois de cada login
+    if (USUARIO.uep) {   // D-70: lotado numa só unidade → direto para ela; mais de uma (ou administrador) → tela de unidades
+      try { await iniciarSessao(true); }
+      catch (x) { btn.disabled = false; btn.textContent = 'Entrar'; msg.textContent = 'Não foi possível abrir a REDIA: ' + x.message; return; }
+    }
     $('.login').classList.add('saindo');
-    setTimeout(() => { pararLoginTimers(); aviso(`Bem-vindo, ${USUARIO.nome.split(' ')[0]} · ${USUARIO.posto}.`, 'ok'); const d = UI.destino || '#/inicio'; UI.destino = null; if (location.hash === d) rotear(); else location.hash = d; }, 450);
+    setTimeout(() => { pararLoginTimers(); aviso(`Bem-vindo, ${USUARIO.nome.split(' ')[0]} · ${USUARIO.posto}.`, 'ok'); const d = USUARIO.uep ? UI.destino || '#/inicio' : '#/unidades'; UI.destino = null; if (location.hash === d) rotear(); else location.hash = d; }, 450);
   };
   $('[data-act="esqueci"]').onclick = () => recuperarSenha(ch.value);
+  $('[data-act="cadastrar"]').onclick = () => autocadastro();   // D-72
   const vid = $('.lg-vid');
   if (vid) {
     vid.play?.().catch(() => { });
@@ -316,11 +329,13 @@ async function iniciarSessao0(novoLogin) {
     if (novoLogin) { DIA = isoData(new Date()); LS.set('dia', DIA); }   // na nuvem, cada login abre a REDIA de hoje
     await Store.usarNuvem();
     await Store.carregar(DIA);
+    await Layout.carregar(CFG.uep);   // D-73
     Nuvem.tempoReal(CFG.uep, sincronizarTela);
   } else {
     if (novoLogin) { DIA = isoData(Relogio.agora()); LS.set('dia', DIA); }   // D-68: sem calendário no Início, o login abre a REDIA de hoje
     await Store.usarMemoria();
     await Store.carregar(DIA);
+    await Layout.carregar(CFG.uep);   // D-73
   }
   atualizarEstado();
 }
@@ -342,6 +357,7 @@ async function trocarSenhaObrigatoria(opcional = false) {
     const r = await modal({
       titulo: opcional ? 'Alterar senha' : 'Troque a senha temporária',
       html: `<p>${opcional ? 'Escolha uma nova senha pessoal.' : 'Primeiro acesso: defina sua senha pessoal para continuar.'} Use ao menos 8 caracteres, com letras e números. Não use a chave.</p>
+        <div class="banner erro senha-alerta" role="alert"><b>Não use a sua senha Petrobras.</b> Este é um ambiente de teste de um sistema em desenvolvimento (prova de conceito), fora dos sistemas corporativos: crie uma senha qualquer, diferente das senhas que você usa na empresa.</div>
         <label class="lbl" for="mdl-s1">Nova senha</label><input id="mdl-s1" class="in" type="password" autocomplete="new-password" maxlength="72" data-mdl-in="s1">
         <label class="lbl" for="mdl-s2">Repita a nova senha</label><input id="mdl-s2" class="in" type="password" autocomplete="new-password" maxlength="72" data-mdl-in="s2">`,
       botoes: [{ id: 'cancelar', txt: opcional ? 'Cancelar' : 'Sair' }, { id: 'ok', txt: 'Salvar senha', cls: 'pri' }],
@@ -349,13 +365,21 @@ async function trocarSenhaObrigatoria(opcional = false) {
     if (r.id !== 'ok') { if (!opcional) { sair(); } return false; }
     const erro = r.s1 !== r.s2 ? 'As senhas não conferem.' : r.s1.length < 8 ? 'A senha precisa ter ao menos 8 caracteres.' : !/[A-Za-z]/.test(r.s1) || !/\d/.test(r.s1) ? 'Use letras e números.' : USUARIO && r.s1.toUpperCase().includes(USUARIO.chave) ? 'A senha não pode conter a chave.' : '';
     if (erro) { aviso(erro, 'erro'); continue; }
-    try { await Nuvem.trocarSenha(r.s1); aviso('Senha alterada.', 'ok'); return true; }
+    try { if (MODO_NUVEM) await Nuvem.trocarSenha(r.s1); else await DiretorioDemo.trocarSenha(USUARIO.chave, r.s1); aviso('Senha alterada.', 'ok'); return true; }
     catch (e) { aviso(e.message, 'erro'); }
   }
 }
 
 /* ======================= Início ======================= */
+/* D-71 · aviso de protótipo: aparece no Início depois de cada login */
+async function avisoPrototipo() {
+  await modal({ titulo: 'Protótipo em desenvolvimento', html: `<div class="proto"><span class="proto-ic" aria-hidden="true">${SH.info(40)}</span>
+    <p>O sistema <b>REDIA Búzios</b> é um <b>protótipo em desenvolvimento</b>.</p>
+    <p>Todas as informações e todos os valores apresentados são <b>fictícios</b>, gerados por modelos de inteligência artificial para preencher os campos e as informações necessários aos testes e ao desenvolvimento do sistema REDIA.</p>
+    <p class="note">Não use estes dados para decisões operacionais.</p></div>`, botoes: [{ id: 'entendi', txt: 'Entendi', cls: 'pri' }] });
+}
 async function telaInicio() {
+  if (UI.avisoProto) { UI.avisoProto = false; setTimeout(avisoPrototipo, 150); }
   const f = E ? fase() : null;
   const temDados = E && (Object.keys(E.valores).length || E.sugestoes.length);
   const nuvem = Store.remoto();
@@ -1049,6 +1073,31 @@ async function viradaDoDia() {
   if (!USUARIO || !Store.modo || DIA !== ontem) return;
   try { await abrirDia(h); aviso(`Novo dia: ${ddmmaaaa(h)}. A REDIA de hoje pode ser iniciada em “Iniciar elaboração”.`, 'ok'); } catch (e) { Store.erros.push('virada do dia: ' + e.message); }
 }
+/* ======================= Unidades (D-70) =======================
+   Usuário lotado em mais de uma unidade (ou administrador do sistema) escolhe a unidade da REDIA; o administrador também vê a Administração. */
+function telaUnidades() {
+  const us = USUARIO.unidades, ed = us.filter(u => u.editor);
+  render(cabecalhoApp({ id: 'unidades', titulo: 'Unidades' }) + `<div class="wrap uni">
+    <section class="uni-h"><span class="kick">REDIA Búzios</span><h2>Olá, ${esc(USUARIO.nome.split(' ')[0])}. Qual unidade você quer acessar?</h2>
+      <p class="note">${USUARIO.adminSistema ? 'Como administrador do sistema, você acessa todas as unidades do campo de Búzios.' : `Você está lotado em ${us.length} unidade${us.length === 1 ? '' : 's'}. A REDIA, os dados e o histórico são de cada unidade.`}</p></section>
+    <div class="uni-g">${us.map(u => `<button class="uni-c${u.uep === USUARIO.uep ? ' on' : ''}" data-uep="${esc(u.uep)}">
+        <span class="uni-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M3 15h18l-2.5 5h-13z" fill="currentColor"/><path d="M7 15V9h10v6M10 9V5h4v4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span>
+        <b>${esc(u.uep)}</b><span class="note">${esc(u.nome || nomeUnidade(u.uep))}</span>
+        <span class="uni-t">${u.situacao === 'comissionamento' ? '<span class="chip at">Em comissionamento</span>' : ''}${u.lotado === false ? '<span class="chip ne">acesso de administrador</span>' : '<span class="chip ok">lotado</span>'}${u.editor ? '<span class="chip ne">editor</span>' : ''}</span></button>`).join('')}</div>
+    ${USUARIO.adminSistema || ed.length ? `<div class="uni-x">${ed.length ? `<a class="uni-c sto-c0" href="#/studio"><span class="uni-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28"><rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 21h10M9 8h6M9 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><b>Studio de telas</b><span class="note">Editor de ${ed.map(u => esc(u.uep)).join(', ')}: ajuste os cards e rótulos das telas da unidade</span></a>` : ''}${USUARIO.adminSistema ? `<a class="uni-c adm" href="#/admin"><span class="uni-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5z" fill="currentColor"/><path d="M8.5 12l2.5 2.5 4.5-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b>Administração do sistema</b><span class="note">Usuários, lotações, papéis, unidades, autocadastro e auditoria</span></a>` : ''}</div>` : ''}
+  </div>`);
+  $$('[data-uep]').forEach(b => b.onclick = () => selecionarUnidade(b.dataset.uep));
+}
+async function selecionarUnidade(uep) {
+  if (Vivo.souCtrl) Vivo.encerrar();
+  Vivo.ativo = false; Vivo.seguindo = false; Vivo.ctrl = null;
+  aplicarUnidade(uep);
+  try { await iniciarSessao(true); } catch (e) { return aviso('Não foi possível abrir a REDIA da ' + uep + ': ' + e.message, 'erro'); }
+  UI.arqLista = null; UI.arqRes = null;
+  location.hash = '#/inicio';
+  aviso(`REDIA ${uep} aberta.`, 'ok');
+}
+
 /* ======================= Apresentação ao vivo (D-67) =======================
    Quem aciona passa a controlar: os demais usuários logados (Início, Curadoria ou Apresentação) vão para a apresentação e acompanham
    a tela e o cronômetro de quem controla. Quem assiste só tem "Sair" na barra; os demais comandos ficam visíveis e desabilitados.
@@ -1071,6 +1120,18 @@ const Vivo = {
       const r0 = await modal({ titulo: 'Apresentação ao vivo em andamento', html: `<p>${esc(this.ctrl.nome)} está conduzindo a apresentação ao vivo. Você pode assistir ou assumir o controle da reunião.</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'assistir', txt: 'Assistir' }, { id: 'assumir', txt: 'Assumir o controle', cls: 'pri' }] });
       if (r0.id === 'assistir') return this.assistir();
       if (r0.id !== 'assumir') return;
+    } else {
+      /* D-71: explica o que vai acontecer e pede confirmação; depois, contagem regressiva de 5 s para todos da unidade */
+      const r1 = await modal({ titulo: 'Iniciar a apresentação ao vivo?', html: `<div class="vivo-exp"><p>Você vai <b>conduzir a REDIA ${esc(CFG.uep)}</b> para todos:</p>
+        <ul><li>Os usuários logados na ${esc(CFG.uep)} que estiverem no Início, na Curadoria ou na Apresentação passam a ver <b>a sua tela</b>.</li>
+        <li>A troca de telas e o cronômetro seguem o seu comando; quem assiste só tem o botão <b>Sair</b>.</li>
+        <li>Antes de começar, todos veem uma <b>contagem regressiva de 5 segundos</b>.</li>
+        <li>Para terminar, use <b>Ao vivo · encerrar</b> na barra da apresentação (ou saia da apresentação).</li></ul></div>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Iniciar apresentação ao vivo', cls: 'pri' }] });
+      if (r1.id !== 'ok') return;
+      const ate = Date.now() + 5000;
+      this.enviar({ t: 'contagem', ctrl: this.eu(), ate, uep: CFG.uep });
+      const ok = await mostrarContagem({ nome: USUARIO.nome, souCtrl: true, ate });
+      if (!ok) { this.enviar({ t: 'contagem-cancelada', ctrl: this.eu() }); return aviso('Apresentação ao vivo cancelada.', 'ok'); }
     }
     this.souCtrl = true; this.ativo = true; this.seguindo = false; this.inicio = Date.now(); this.ctrl = this.eu();
     clearInterval(this.hb); this.hb = setInterval(() => this.transmitir(), 3000);
@@ -1089,6 +1150,8 @@ const Vivo = {
   receber(m) {
     if (!m || m.ctrl?.id === SESSAO_ID || m.de === SESSAO_ID) return;
     if (m.t === 'quem') { this.transmitir(); return; }
+    if (m.t === 'contagem') { if (USUARIO?.uep && (!m.uep || m.uep === CFG.uep)) mostrarContagem({ nome: m.ctrl.nome, souCtrl: false, ate: m.ate, id: m.ctrl.id }); return; }
+    if (m.t === 'contagem-cancelada') { fecharContagem(m.ctrl?.id); aviso(`${m.ctrl.nome} cancelou a apresentação ao vivo.`, 'ok'); return; }
     if (m.t === 'fim') {
       if (this.ctrl?.id !== m.ctrl?.id) return;
       const seguia = this.seguindo; this.ativo = false; this.seguindo = false; this.ctrl = null; this.ult = null;
@@ -1117,6 +1180,28 @@ const Vivo = {
   vigiar() { if (this.ativo && !this.souCtrl && Date.now() - this.visto > 15000) { const seguia = this.seguindo; this.ativo = false; this.seguindo = false; this.ctrl = null; aviso('A apresentação ao vivo foi encerrada (sem sinal de quem controlava).', 'erro'); if (seguia) rerender(); else this.atualizarBotoes(); } },
   atualizarBotoes() { $$('[data-vivo-b]').forEach(b => { const n = document.createElement('div'); n.innerHTML = botaoVivo(b.dataset.vivoB); b.replaceWith(n.firstElementChild); }); },
 };
+/* D-71 · contagem regressiva animada (5 s) antes do modo ao vivo, para quem aciona e para todos da unidade */
+let CONTAGEM = null;
+function mostrarContagem({ nome, souCtrl, ate, id = SESSAO_ID }) {
+  fecharContagem();
+  return new Promise(res => {
+    const el = document.createElement('div'); el.className = 'ctg'; el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-labelledby', 'ctg-t'); el.dataset.ctrl = id;
+    const C = 2 * Math.PI * 88;
+    el.innerHTML = `<div class="ctg-c"><span class="ctg-eye"><i class="vv" aria-hidden="true"></i>Apresentação ao vivo · REDIA ${esc(CFG.uep)}</span>
+      <h2 id="ctg-t">${souCtrl ? 'Você vai conduzir a reunião' : `${esc(nome)} vai conduzir a reunião`}</h2>
+      <p>${souCtrl ? 'Os demais usuários passam a acompanhar a sua tela em' : 'Sua tela passa a acompanhar a dele em'}</p>
+      <div class="ctg-r"><svg viewBox="0 0 200 200" width="200" height="200" aria-hidden="true"><circle cx="100" cy="100" r="88" class="ctg-bg"/><circle cx="100" cy="100" r="88" class="ctg-fg" style="stroke-dasharray:${C};stroke-dashoffset:0"/></svg><b class="ctg-n" aria-live="assertive">5</b></div>
+      ${souCtrl ? '<button class="btn" data-ctg="cancelar">Cancelar</button>' : '<span class="note">Para não acompanhar, use “Sair” depois que a apresentação começar.</span>'}</div>`;
+    document.body.appendChild(el);
+    const fg = $('.ctg-fg', el), n = $('.ctg-n', el);
+    const fim = ok => { clearInterval(t); el.classList.add('saindo'); setTimeout(() => el.remove(), 250); if (CONTAGEM?.el === el) CONTAGEM = null; res(ok); };
+    const passo = () => { const rest = Math.max(0, ate - Date.now()), seg = Math.ceil(rest / 1000); if (n.textContent !== String(seg || 0) && seg > 0) { n.textContent = seg; n.classList.remove('pulsa'); void n.offsetWidth; n.classList.add('pulsa'); } fg.style.strokeDashoffset = (C * (1 - rest / 5000)).toFixed(1); if (rest <= 0) fim(true); };
+    const t = setInterval(passo, 50); passo();
+    CONTAGEM = { el, fim };
+    $('[data-ctg="cancelar"]', el)?.addEventListener('click', () => fim(false));
+  });
+}
+function fecharContagem(id) { if (CONTAGEM && (!id || CONTAGEM.el.dataset.ctrl === id)) CONTAGEM.fim(false); }
 /* botão da apresentação ao vivo (Início, Curadoria e barra da apresentação): iniciar, assistir ou indicar que você controla */
 function botaoVivo(cls = 'btn') {
   if (Vivo.souCtrl) return `<button class="${cls} vivo on" data-vivo-b="${cls}" data-act="vivo-ir" title="Você controla a apresentação ao vivo"><i class="vv" aria-hidden="true"></i>Ao vivo · você controla</button>`;
@@ -1146,7 +1231,7 @@ function telaApresentacao(m) {
   const tela = semana ? telaSemana(E, ctx) : top ? telaDetalhe(estadoApresentacao(b), ctx, b, top) : TELAS[b - 1](estadoApresentacao(b), ctx);
   render(`<div class="pres" role="region" aria-label="Apresentação da REDIA"><div class="stw"><div class="stage">${tela}</div></div>${telaTempoEsgotado(b, semana)}</div>
     ${ctrlApresentacao(b, semana, diaSem)}`);
-  ajustarPalco(); encaixar($('.stage')); atualizarTimer();
+  ajustarPalco(); aplicarLayout($('.stage'), top ? null : telaIdDoBloco(semana ? 'semana' : b)); encaixar($('.stage')); atualizarTimer();   // D-73: layout publicado no Studio
   if (Vivo.seguindo) {   // D-67: quem assiste não navega nem mexe no cronômetro; os links dos cards também ficam travados
     $('.stage').addEventListener('click', e => { if (e.target.closest('a')) { e.preventDefault(); e.stopPropagation(); } }, true);
     $$('#esg [data-act]').forEach(x => { x.disabled = true; x.setAttribute('aria-disabled', 'true'); });
@@ -1554,7 +1639,7 @@ function telaConfig() {
   </div>`);
   $('[data-act="salvar-cfg"]').onclick = async () => {
     const n = id => +$('#' + id).value;
-    if (!Store.remoto()) CFG.uep = $('#c-uep').value.trim() || 'P-83';
+    if (!Store.remoto()) CFG.uep = USUARIO?.uep || CFG.uep;   // D-70: a unidade vem da escolha na tela de unidades
     CFG.campo = $('#c-campo').value.trim(); CFG.ativo = $('#c-ativo').value.trim();
     for (const k of ['preenchimento', 'congelamento', 'inicio', 'fim']) CFG.horarios[k] = $('#h-' + k).value;
     CFG.horarios.preRedia = CFG.horarios.preenchimento;
@@ -1638,10 +1723,13 @@ async function iniciar() {
   window.addEventListener('online', () => sincronizarTela());
   // sessão: na nuvem, vale a sessão do Supabase nesta aba; na demonstração, a sessão local
   if (MODO_NUVEM) {
-    const perfil = await Nuvem.restaurar();
-    if (perfil && !perfil.trocarSenha) { definirUsuario(perfil); try { await iniciarSessao(false); } catch (e) { aviso('Não foi possível abrir a REDIA: ' + e.message, 'erro'); } }
+    const perfil = await Nuvem.restaurar(), uepAnt = USUARIO?.uep || null;
+    if (perfil && !perfil.trocarSenha) { definirUsuario(perfil, uepAnt); if (USUARIO.uep) { try { await iniciarSessao(false); } catch (e) { aviso('Não foi possível abrir a REDIA: ' + e.message, 'erro'); } } }
     else { USUARIO = null; SS.del('sessao'); if (perfil) await Nuvem.sair(); }
-  } else if (USUARIO) await iniciarSessao(false);
+  } else if (USUARIO) {
+    const a = acessoDemo(USUARIO.chave);   // D-70: sessão de versão anterior (sem unidades) é refeita pelo cadastro de teste
+    if (!a) { USUARIO = null; SS.del('sessao'); } else { if (!USUARIO.unidades) definirUsuario(a, USUARIO.uep); else aplicarUnidade(USUARIO.uep); if (USUARIO.uep) await iniciarSessao(false); }
+  }
   rotear();
 }
 document.addEventListener('DOMContentLoaded', iniciar);

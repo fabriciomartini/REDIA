@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""REDIA P-83 · V1.0 · montagem do app.
+"""REDIA Búzios · V1.0 · montagem do app.
 
 Uso:
   python build.py                 → dist/          versão web (GitHub Pages / servidor interno)
@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 P = os.path.dirname(os.path.abspath(__file__))
 VENDOR_SUPABASE = 'supabase-2.112.4.min.js'
-FONTES_JS = ['core.js', 'nuvem.js', 'model.js', 'captura.js', 'stage.js', 'detalhe.js', 'ata_pdf.js', 'views.js']
+FONTES_JS = ['core.js', 'nuvem.js', 'model.js', 'captura.js', 'stage.js', 'detalhe.js', 'ata_pdf.js', 'admin.js', 'studio.js', 'views.js']
 VENDOR_PDF = ['modern-screenshot-4.7.0.umd.js', 'jspdf-4.2.1.umd.min.js', 'jspdf-autotable-5.0.7.min.js']   # ata em PDF (D-55), carregados só ao gerar a ata
 
 
@@ -94,7 +94,7 @@ def montar(saida, unico):
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#008542">
-<title>REDIA P-83</title>
+<title>REDIA Búzios</title>
 <link rel="icon" href="{ICONE}">'''
     if os.path.isdir(saida):
         shutil.rmtree(saida)
@@ -151,7 +151,7 @@ def montar(saida, unico):
 '''
     app = os.path.join(saida, 'app')   # o app fica em <site>/app/; a raiz abre a página inicial (landing)
     os.makedirs(app)
-    arquivos = {'index.html': html, 'app.css': css, 'app.js': "/* REDIA P-83 · gerado por build.py */\n" + js, 'config.js': cfg_js}
+    arquivos = {'index.html': html, 'app.css': css, 'app.js': "/* REDIA Búzios · gerado por build.py */\n" + js, 'config.js': cfg_js}
     for nome, conteudo in arquivos.items():
         with open(os.path.join(app, nome), 'w', encoding='utf8') as f:
             f.write(conteudo)
@@ -176,7 +176,7 @@ def montar(saida, unico):
 
 
 if __name__ == '__main__':
-    a = argparse.ArgumentParser(description='Monta a REDIA P-83 V1.0')
+    a = argparse.ArgumentParser(description='Monta a REDIA Búzios V1.0')
     a.add_argument('--unico', action='store_true', help='gera um único arquivo HTML com tudo embutido')
     a.add_argument('--saida', help='pasta de saída (padrão: dist ou dist-unico)')
     x = a.parse_args()

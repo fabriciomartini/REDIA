@@ -1,4 +1,4 @@
-/* REDIA P-83 · página inicial. Endereços antigos do app (…/REDIA/#/rota) seguem para o app em /app/. */
+/* REDIA Búzios · página inicial. Endereços antigos do app (…/REDIA/#/rota) seguem para o app em /app/. */
 'use strict';
 const irAoApp = () => { if (/^#\//.test(location.hash)) location.replace('app/' + location.hash); };
 irAoApp(); addEventListener('hashchange', irAoApp);

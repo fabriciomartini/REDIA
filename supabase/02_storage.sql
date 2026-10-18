@@ -11,9 +11,9 @@ on conflict (id) do update set public = false, file_size_limit = excluded.file_s
 
 drop policy if exists redia_arquivos_ler on storage.objects;
 create policy redia_arquivos_ler on storage.objects for select to authenticated
-  using (bucket_id = 'redia' and (storage.foldername(name))[1] = public.redia_uep_atual());
+  using (bucket_id = 'redia' and public.redia_pode_uep((storage.foldername(name))[1]));
 
 drop policy if exists redia_arquivos_enviar on storage.objects;
 create policy redia_arquivos_enviar on storage.objects for insert to authenticated
-  with check (bucket_id = 'redia' and (storage.foldername(name))[1] = public.redia_uep_atual());
+  with check (bucket_id = 'redia' and public.redia_pode_uep((storage.foldername(name))[1]));
 -- Sem UPDATE/DELETE para o app.

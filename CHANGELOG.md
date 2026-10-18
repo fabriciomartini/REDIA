@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 2.0.0 · D-70 a D-73 · REDIA Búzios (2026-10-18)
+
+- **REDIA Búzios:** o sistema passa a atender as 10 plataformas do campo de Búzios (P-74, P-75, P-76, P-77, P-78, P-79, P-80, P-82, P-83 e P-91). Todas as telas da P-83 valem para as demais, mudando só as referências à unidade (cabeçalho, código REDIA-‹UEP›-‹DDMMAAAA›, ata, PDF). Na tela de acesso, só **Búzios** sobre REDIA, alinhado ao R.
+- **Lotação por unidade:** cada usuário é lotado em uma ou mais unidades e só edita e consulta o histórico delas (a base recusa o resto). Lotado numa só, entra direto; em mais de uma, escolhe a unidade ao entrar (**Trocar unidade** no cabeçalho). Os usuários atuais ficam lotados na P-83.
+- **Administração do sistema** (só administrador do sistema): painel com indicadores e situação por unidade; usuários com busca e filtros (unidade, papel, situação), edição de função, e-mail, lotações e papéis por unidade (administrador da unidade, editor do Studio), conta ativa/compartilhada, troca de senha, **redefinir senha**, **marcar acesso revisado**, **novo usuário**, **importar contas de teste**, **exportar CSV** (sem senhas); unidades (nome, situação "Em comissionamento", ativa); autocadastro (aberto, com aprovação) e pedidos; auditoria; **Boas práticas** com a situação atual (menor privilégio, revisão a cada 90 dias, contas sem uso há 60 dias, contas compartilhadas, separação de funções, auditoria, MFA pendente, autocadastro controlado, editor por unidade). O administrador não retira o próprio perfil e o sistema exige ao menos um administrador ativo.
+- **Autocadastro:** "Cadastrar-se" na tela de acesso (chave de 4 letras ou números, nome, e-mail, unidade e função) com **Cadastrar e receber senha provisória**. Troca obrigatória no 1º acesso, com alerta para **não usar a senha Petrobras**.
+- **Aviso de protótipo** depois de cada login: sistema em desenvolvimento, dados fictícios gerados por IA.
+- **Apresentação ao vivo:** popup de confirmação antes de iniciar e contagem regressiva animada de 5 s para quem aciona e para todos os logados na unidade (quem aciona pode cancelar).
+- **Visão semanal · Canal Base x Bordo:** os três cards de ações no padrão Apple (cores do sistema, símbolos, número grande e legenda; anel de progresso no prazo com a marca da referência de 80%).
+- **Studio de telas** (só editores da unidade): mostrar/ocultar cards, renomear títulos, mudar a ordem na mesma coluna, destacar com cor e renomear rótulos de campos, com prévia ao vivo; rascunho, publicar (versões com histórico e restauração) e auditoria. O layout publicado vale para todos da unidade, na apresentação e na ata em PDF.
+- Base: **reaplicar `supabase/00_instalar_tudo.sql`** e publicar as Edge Functions `redia-cadastro` e `redia-admin` (ver docs/CONFIGURAR_SUPABASE.md, passo 8).
+
 ## 1.12.2 · D-69 (2026-10-18)
 
 - **Correção · Preencher a REDIA aberta (fictício):** na base, o botão não gravava nada. O gerador do exemplo monta também valores dos dias anteriores (acumulados do mês e tendências); num dia ainda vazio, esses valores entravam no lote, e a base recusava o lote inteiro porque aqueles dias já estão encerrados (ata fechada ou pauta congelada). Agora o preenchimento grava só no dia aberto. Teste novo na nuvem com dia vazio.

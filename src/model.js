@@ -1,4 +1,4 @@
-/* ===================== REDIA P-83 · modelo de dados e regras ===================== */
+/* ===================== REDIA Búzios · modelo de dados e regras ===================== */
 'use strict';
 const COORDS = ['GEPLAT', 'COPROD', 'COEMB', 'COMAN'];
 const COORD_NOME = { GEPLAT: 'Gerência da plataforma', COPROD: 'Produção', COEMB: 'Embarcação', COMAN: 'Manutenção' };

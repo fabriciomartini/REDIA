@@ -47,6 +47,44 @@ create table if not exists public.pedidos_senha (
 );
 create index if not exists pedidos_senha_chave on public.pedidos_senha (chave, pedido_em desc);
 
+-- D-70 · REDIA Búzios: unidades do campo e lotação dos usuários (um usuário pode ser lotado em várias unidades).
+create table if not exists public.unidades (
+  uep        text primary key check (length(uep) between 2 and 20),
+  nome       text not null,
+  ordem      integer not null default 0,
+  ativa      boolean not null default true,
+  situacao   text not null default 'operacao' check (situacao in ('operacao', 'comissionamento')),
+  criado_em  timestamptz not null default now()
+);
+insert into public.unidades (uep, nome, ordem) values
+  ('P-74', 'FPSO P-74', 1), ('P-75', 'FPSO P-75', 2), ('P-76', 'FPSO P-76', 3), ('P-77', 'FPSO P-77', 4), ('P-78', 'FPSO P-78', 5),
+  ('P-79', 'FPSO P-79', 6), ('P-80', 'FPSO P-80', 7), ('P-82', 'FPSO P-82', 8), ('P-83', 'FPSO P-83', 9), ('P-91', 'FPSO P-91', 10)
+on conflict (uep) do nothing;
+alter table public.perfis add column if not exists admin_sistema boolean not null default false;   -- administrador do sistema (todas as unidades + Administração)
+alter table public.perfis add column if not exists email text;                                     -- e-mail de contato (autocadastro, senha temporária)
+alter table public.perfis add column if not exists revisado_em timestamptz;                        -- última revisão de acesso pelo administrador
+create table if not exists public.lotacoes (
+  user_id    uuid not null references public.perfis (user_id) on delete cascade,
+  uep        text not null references public.unidades (uep),
+  admin      boolean not null default false,   -- administrador da unidade (reset da demonstração, configuração, pedidos de senha)
+  editor     boolean not null default false,   -- editor de telas da unidade (Studio)
+  criado_em  timestamptz not null default now(),
+  primary key (user_id, uep)
+);
+-- migração: cada perfil existente fica lotado na sua UEP (o administrador atual vira administrador da unidade)
+insert into public.lotacoes (user_id, uep, admin)
+  select p.user_id, p.uep, p.admin from public.perfis p join public.unidades u on u.uep = p.uep
+on conflict (user_id, uep) do nothing;
+-- trilha de auditoria da administração (quem alterou qual usuário, quando e o quê)
+create table if not exists public.auditoria (
+  seq        bigint generated always as identity primary key,
+  em         timestamptz not null default now(),
+  por        text,
+  acao       text not null,
+  alvo       text,
+  detalhe    jsonb not null default '{}'::jsonb
+);
+
 -- Registros da REDIA (mesmo formato do protótipo v0.8, uma linha por registro).
 create table if not exists public.registros (
   seq                bigint generated always as identity primary key,
@@ -118,10 +156,26 @@ language sql immutable set search_path = public as $$
     else 'GEPLAT' end
 $$;
 
--- UEP do usuário logado (usada nas políticas de acesso).
+-- UEP principal do usuário logado (compatibilidade).
 create or replace function public.redia_uep_atual() returns text
 language sql stable security definer set search_path = public as $$
   select p.uep from public.perfis p where p.user_id = auth.uid() and p.ativo
+$$;
+-- D-70: o usuário logado pode acessar a unidade? (lotado nela, ou administrador do sistema)
+create or replace function public.redia_pode_uep(p_uep text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.perfis p where p.user_id = auth.uid() and p.ativo
+                   and (p.admin_sistema or exists (select 1 from public.lotacoes l where l.user_id = p.user_id and l.uep = p_uep)))
+$$;
+-- D-70: administrador da unidade (ou do sistema)
+create or replace function public.redia_admin_uep(p_uep text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.perfis p where p.user_id = auth.uid() and p.ativo
+                   and (p.admin_sistema or exists (select 1 from public.lotacoes l where l.user_id = p.user_id and l.uep = p_uep and l.admin)))
+$$;
+create or replace function public.redia_admin_sistema() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.perfis p where p.user_id = auth.uid() and p.ativo and p.admin_sistema)
 $$;
 
 -- Registro no formato JSON do app (mesmas chaves do protótipo).
@@ -172,8 +226,8 @@ begin
   if not found then
     raise exception 'SEM_PERFIL' using errcode = 'P0001', hint = 'Usuário sem perfil ativo na REDIA.';
   end if;
-  if new.uep is distinct from p.uep then
-    raise exception 'UEP_NAO_PERMITIDA' using errcode = 'P0001', hint = 'O registro é de outra UEP.';
+  if not public.redia_pode_uep(new.uep) then   -- D-70: unidade em que o usuário está lotado (ou administrador do sistema)
+    raise exception 'UEP_NAO_PERMITIDA' using errcode = 'P0001', hint = 'O registro é de uma unidade em que o usuário não está lotado.';
   end if;
 
   -- autoria vem do perfil (não do navegador)
@@ -247,7 +301,13 @@ create trigger registros_antes_inserir before insert on public.registros
 create or replace function public.redia_meu_perfil() returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object('chave', p.chave, 'nome', p.nome, 'posto', p.posto, 'coord', p.coord, 'uep', p.uep,
-                            'admin', p.admin, 'trocarSenha', p.trocar_senha and not p.compartilhado, 'compartilhado', p.compartilhado)
+                            'admin', p.admin, 'adminSistema', p.admin_sistema, 'email', p.email,
+                            'trocarSenha', p.trocar_senha and not p.compartilhado, 'compartilhado', p.compartilhado,
+                            -- D-70: unidades acessíveis (lotações; administrador do sistema vê todas as unidades ativas)
+                            'unidades', coalesce((select jsonb_agg(jsonb_build_object('uep', u.uep, 'nome', u.nome, 'situacao', u.situacao,
+                                  'admin', coalesce(l.admin, false) or p.admin_sistema, 'editor', coalesce(l.editor, false), 'lotado', l.uep is not null) order by u.ordem)
+                              from public.unidades u left join public.lotacoes l on l.uep = u.uep and l.user_id = p.user_id
+                              where u.ativa and (p.admin_sistema or l.uep is not null)), '[]'::jsonb))
   from public.perfis p where p.user_id = auth.uid() and p.ativo
 $$;
 
@@ -333,7 +393,7 @@ language plpgsql volatile security definer set search_path = public as $$
 declare p public.perfis; n integer;
 begin
   select * into p from public.perfis where user_id = auth.uid() and ativo;
-  if not found or p.uep <> p_uep or not p.admin then
+  if not found or not public.redia_admin_uep(p_uep) then
     raise exception 'SEM_PERMISSAO_RESET' using errcode = 'P0001', hint = 'Só o administrador da UEP reseta a demonstração.';
   end if;
   delete from public.registros where uep = p_uep;
@@ -347,7 +407,7 @@ language plpgsql stable security definer set search_path = public as $$
 declare p public.perfis;
 begin
   select * into p from public.perfis where user_id = auth.uid() and ativo;
-  if not found or p.uep <> p_uep or not p.admin then return '[]'::jsonb; end if;
+  if not found or not public.redia_admin_uep(p_uep) then return '[]'::jsonb; end if;
   return coalesce((select jsonb_agg(jsonb_build_object('chave', x.chave, 'em', x.pedido_em, 'situacao', x.situacao) order by x.pedido_em desc)
     from (select * from public.pedidos_senha where uep = p_uep order by pedido_em desc limit 20) x), '[]'::jsonb);
 end $$;
@@ -385,7 +445,8 @@ language plpgsql volatile security definer set search_path = public as $$
 declare p public.perfis;
 begin
   select * into p from public.perfis where user_id = auth.uid() and ativo;
-  if not found or p.uep <> p_uep or not (p.admin or p.coord = 'GEPLAT') then
+  if not found or not (public.redia_admin_uep(p_uep) or (p.coord = 'GEPLAT' and public.redia_pode_uep(p_uep) and not p.admin_sistema and exists (select 1 from public.lotacoes l where l.user_id = p.user_id and l.uep = p_uep))
+                       or public.redia_admin_sistema()) then
     raise exception 'SEM_PERMISSAO' using errcode = 'P0001', hint = 'Só o GEPLAT ou o administrador alteram a configuração.';
   end if;
   if jsonb_typeof(p_config) <> 'object' then raise exception 'CONFIG_INVALIDA' using errcode = 'P0001'; end if;
@@ -406,7 +467,214 @@ begin
   values (u, upper(p_chave), p_nome, upper(p_posto), public.redia_coord_do_posto(p_posto), p_uep, p_admin)
   on conflict (user_id) do update set chave = excluded.chave, nome = excluded.nome, posto = excluded.posto,
     coord = excluded.coord, uep = excluded.uep, admin = excluded.admin, ativo = true;
+  insert into public.lotacoes (user_id, uep, admin) values (u, p_uep, p_admin)   -- D-70
+    on conflict (user_id, uep) do update set admin = excluded.admin;
   return upper(p_chave) || ' → ' || public.redia_coord_do_posto(p_posto);
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 4b. Administração do sistema (D-70) · só administrador do sistema; tudo fica na auditoria
+-- ---------------------------------------------------------------------
+create table if not exists public.parametros (
+  chave  text primary key,
+  valor  jsonb not null default '{}'::jsonb,
+  atualizado_em timestamptz not null default now(),
+  atualizado_por text
+);
+insert into public.parametros (chave, valor) values ('cadastro', '{"aberto": true, "aprovacao": false}'::jsonb) on conflict (chave) do nothing;
+create table if not exists public.pedidos_cadastro (
+  id         bigint generated always as identity primary key,
+  chave      text not null,
+  nome       text,
+  email      text,
+  uep        text,
+  pedido_em  timestamptz not null default now(),
+  situacao   text not null check (situacao in ('cadastrado', 'aguardando', 'falha', 'recusado', 'ignorado')),
+  detalhe    text
+);
+alter table public.pedidos_cadastro add column if not exists posto text;     -- função informada no autocadastro
+alter table public.pedidos_cadastro add column if not exists origem text;    -- resumo (hash) do endereço de origem, para limitar pedidos repetidos
+create index if not exists pedidos_cadastro_origem on public.pedidos_cadastro (origem, pedido_em desc);
+
+create or replace function public.redia_auditar(p_acao text, p_alvo text, p_detalhe jsonb) returns void
+language sql volatile security definer set search_path = public as $$
+  insert into public.auditoria (por, acao, alvo, detalhe) values ((select chave from public.perfis where user_id = auth.uid()), p_acao, p_alvo, coalesce(p_detalhe, '{}'::jsonb))
+$$;
+create or replace function public.redia_exigir_admin_sistema() returns void
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.redia_admin_sistema() then raise exception 'SEM_PERMISSAO_ADMIN' using errcode = 'P0001', hint = 'Só o administrador do sistema.'; end if;
+end $$;
+
+-- usuários com lotações, último acesso (Auth) e último registro na REDIA
+create or replace function public.redia_admin_usuarios() returns jsonb
+language plpgsql stable security definer set search_path = public, auth as $$
+begin
+  perform public.redia_exigir_admin_sistema();
+  return coalesce((select jsonb_agg(jsonb_build_object('userId', p.user_id, 'chave', p.chave, 'nome', p.nome, 'posto', p.posto, 'coord', p.coord, 'email', p.email,
+      'uep', p.uep, 'adminSistema', p.admin_sistema, 'ativo', p.ativo, 'compartilhado', p.compartilhado, 'trocarSenha', p.trocar_senha,
+      'criadoEm', p.criado_em, 'revisadoEm', p.revisado_em, 'ultimoAcesso', u.last_sign_in_at,
+      'ultimoRegistro', (select max(r.gravado_em) from public.registros r where r.autor_id = p.user_id),
+      'lotacoes', coalesce((select jsonb_agg(jsonb_build_object('uep', l.uep, 'admin', l.admin, 'editor', l.editor) order by l.uep) from public.lotacoes l where l.user_id = p.user_id), '[]'::jsonb))
+    order by p.chave) from public.perfis p left join auth.users u on u.id = p.user_id), '[]'::jsonb);
+end $$;
+
+-- grava perfil e lotações de um usuário existente (p: {userId, nome, posto, email, uep, adminSistema, ativo, compartilhado, trocarSenha, lotacoes:[{uep, admin, editor}]})
+create or replace function public.redia_admin_salvar_usuario(p jsonb) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare u uuid := (p ->> 'userId')::uuid; antes jsonb; l jsonb; n_adm integer;
+begin
+  perform public.redia_exigir_admin_sistema();
+  select to_jsonb(x) into antes from public.perfis x where x.user_id = u;
+  if antes is null then raise exception 'USUARIO_INEXISTENTE' using errcode = 'P0001'; end if;
+  if u = auth.uid() and (coalesce((p ->> 'adminSistema')::boolean, true) = false or coalesce((p ->> 'ativo')::boolean, true) = false) then
+    raise exception 'AUTO_BLOQUEIO' using errcode = 'P0001', hint = 'Você não pode retirar o seu próprio perfil de administrador nem se desativar.';
+  end if;
+  if jsonb_typeof(p -> 'lotacoes') <> 'array' or jsonb_array_length(p -> 'lotacoes') = 0 then
+    raise exception 'SEM_LOTACAO' using errcode = 'P0001', hint = 'O usuário precisa de ao menos uma unidade de lotação.';
+  end if;
+  update public.perfis set
+    nome = coalesce(nullif(trim(p ->> 'nome'), ''), nome),
+    posto = coalesce(nullif(upper(trim(p ->> 'posto')), ''), posto),
+    coord = public.redia_coord_do_posto(coalesce(nullif(upper(trim(p ->> 'posto')), ''), posto)),
+    email = nullif(trim(coalesce(p ->> 'email', email)), ''),
+    admin_sistema = coalesce((p ->> 'adminSistema')::boolean, admin_sistema),
+    ativo = coalesce((p ->> 'ativo')::boolean, ativo),
+    compartilhado = coalesce((p ->> 'compartilhado')::boolean, compartilhado),
+    trocar_senha = coalesce((p ->> 'trocarSenha')::boolean, trocar_senha)
+  where user_id = u;
+  delete from public.lotacoes where user_id = u;
+  for l in select value from jsonb_array_elements(p -> 'lotacoes') loop
+    insert into public.lotacoes (user_id, uep, admin, editor) values (u, l ->> 'uep', coalesce((l ->> 'admin')::boolean, false), coalesce((l ->> 'editor')::boolean, false));
+  end loop;
+  update public.perfis set uep = coalesce((select l2.uep from public.lotacoes l2 where l2.user_id = u and l2.uep = p ->> 'uep'), (select min(l3.uep) from public.lotacoes l3 where l3.user_id = u)),
+    admin = exists (select 1 from public.lotacoes l4 where l4.user_id = u and l4.admin) where user_id = u;
+  select count(*) into n_adm from public.perfis where admin_sistema and ativo;
+  if n_adm = 0 then raise exception 'SEM_ADMIN' using errcode = 'P0001', hint = 'O sistema precisa de ao menos um administrador ativo.'; end if;
+  perform public.redia_auditar('usuario.alterar', antes ->> 'chave', jsonb_build_object('antes', antes - 'user_id', 'depois', p - 'userId'));
+  return jsonb_build_object('ok', true);
+end $$;
+
+create or replace function public.redia_admin_revisar(p_user uuid) returns void
+language plpgsql volatile security definer set search_path = public as $$
+begin
+  perform public.redia_exigir_admin_sistema();
+  update public.perfis set revisado_em = now() where user_id = p_user;
+  perform public.redia_auditar('usuario.revisar_acesso', (select chave from public.perfis where user_id = p_user), '{}'::jsonb);
+end $$;
+
+create or replace function public.redia_admin_auditoria(p_limite integer default 200) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.redia_exigir_admin_sistema();
+  return coalesce((select jsonb_agg(to_jsonb(a) order by a.seq desc) from (select * from public.auditoria order by seq desc limit least(coalesce(p_limite, 200), 1000)) a), '[]'::jsonb);
+end $$;
+
+-- visão geral por unidade: usuários, registros, última REDIA, atas, pedidos
+create or replace function public.redia_admin_resumo() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.redia_exigir_admin_sistema();
+  return jsonb_build_object(
+    'unidades', coalesce((select jsonb_agg(jsonb_build_object('uep', u.uep, 'nome', u.nome, 'ordem', u.ordem, 'ativa', u.ativa, 'situacao', u.situacao,
+        'usuarios', (select count(*) from public.lotacoes l join public.perfis p on p.user_id = l.user_id and p.ativo where l.uep = u.uep),
+        'editores', (select count(*) from public.lotacoes l where l.uep = u.uep and l.editor),
+        'registros', (select count(*) from public.registros r where r.uep = u.uep),
+        'ultimaRedia', (select max(r.data) from public.registros r where r.uep = u.uep and r.tipo = 'redia'),
+        'atas', (select count(*) from public.registros r where r.uep = u.uep and r.tipo = 'ata')) order by u.ordem) from public.unidades u), '[]'::jsonb),
+    'cadastro', (select valor from public.parametros where chave = 'cadastro'),
+    'pedidosCadastro', coalesce((select jsonb_agg(to_jsonb(x) order by x.pedido_em desc) from (select * from public.pedidos_cadastro order by pedido_em desc limit 50) x), '[]'::jsonb),
+    'pedidosSenha', coalesce((select jsonb_agg(to_jsonb(x) order by x.pedido_em desc) from (select * from public.pedidos_senha order by pedido_em desc limit 50) x), '[]'::jsonb));
+end $$;
+
+create or replace function public.redia_admin_salvar_unidade(p jsonb) returns void
+language plpgsql volatile security definer set search_path = public as $$
+begin
+  perform public.redia_exigir_admin_sistema();
+  update public.unidades set nome = coalesce(nullif(trim(p ->> 'nome'), ''), nome), ativa = coalesce((p ->> 'ativa')::boolean, ativa),
+    situacao = coalesce(p ->> 'situacao', situacao) where uep = p ->> 'uep';
+  perform public.redia_auditar('unidade.alterar', p ->> 'uep', p);
+end $$;
+
+create or replace function public.redia_admin_parametro(p_chave text, p_valor jsonb) returns void
+language plpgsql volatile security definer set search_path = public as $$
+begin
+  perform public.redia_exigir_admin_sistema();
+  insert into public.parametros (chave, valor, atualizado_em, atualizado_por) values (p_chave, p_valor, now(), (select chave from public.perfis where user_id = auth.uid()))
+    on conflict (chave) do update set valor = excluded.valor, atualizado_em = now(), atualizado_por = excluded.atualizado_por;
+  perform public.redia_auditar('parametro.alterar', p_chave, p_valor);
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 4c. Studio (D-73) · layout das telas por unidade, editado só por quem tem o perfil de editor da unidade
+-- ---------------------------------------------------------------------
+create table if not exists public.layouts (
+  uep           text primary key references public.unidades (uep),
+  publicado     jsonb not null default '{}'::jsonb check (jsonb_typeof(publicado) = 'object' and octet_length(publicado::text) < 200000),
+  rascunho      jsonb check (rascunho is null or (jsonb_typeof(rascunho) = 'object' and octet_length(rascunho::text) < 200000)),
+  versao        integer not null default 0,
+  publicado_em  timestamptz,
+  publicado_por text,
+  rascunho_em   timestamptz,
+  rascunho_por  text
+);
+create table if not exists public.layouts_hist (
+  seq      bigint generated always as identity primary key,
+  uep      text not null,
+  versao   integer not null,
+  layout   jsonb not null,
+  em       timestamptz not null default now(),
+  por      text,
+  acao     text not null default 'publicar'
+);
+create or replace function public.redia_editor_uep(p_uep text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.perfis p join public.lotacoes l on l.user_id = p.user_id
+                 where p.user_id = auth.uid() and p.ativo and l.uep = p_uep and l.editor)
+$$;
+-- layout publicado (todos da unidade) + rascunho e histórico (só editores)
+create or replace function public.redia_layout_ler(p_uep text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare l public.layouts; ed boolean := public.redia_editor_uep(p_uep);
+begin
+  if not public.redia_pode_uep(p_uep) then raise exception 'UEP_NAO_PERMITIDA' using errcode = 'P0001'; end if;
+  select * into l from public.layouts where uep = p_uep;
+  return jsonb_build_object('publicado', coalesce(l.publicado, '{}'::jsonb), 'versao', coalesce(l.versao, 0), 'publicadoEm', l.publicado_em, 'publicadoPor', l.publicado_por, 'editor', ed,
+    'rascunho', case when ed then l.rascunho end, 'rascunhoEm', case when ed then l.rascunho_em end, 'rascunhoPor', case when ed then l.rascunho_por end,
+    'hist', case when ed then coalesce((select jsonb_agg(jsonb_build_object('versao', h.versao, 'em', h.em, 'por', h.por, 'acao', h.acao) order by h.seq desc)
+                                        from (select * from public.layouts_hist where uep = p_uep order by seq desc limit 30) h), '[]'::jsonb) else '[]'::jsonb end);
+end $$;
+-- salva o rascunho ou publica (p_publicar); publicar cria uma versão nova no histórico
+create or replace function public.redia_layout_salvar(p_uep text, p_layout jsonb, p_publicar boolean default false) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare quem text := (select chave from public.perfis where user_id = auth.uid()); v integer;
+begin
+  if not public.redia_editor_uep(p_uep) then raise exception 'SEM_PERMISSAO_EDITOR' using errcode = 'P0001', hint = 'Só o editor da unidade usa o Studio.'; end if;
+  if jsonb_typeof(p_layout) = 'null' then p_layout := null; end if;   -- null do JSON = sem rascunho
+  if p_layout is not null and jsonb_typeof(p_layout) <> 'object' then raise exception 'LAYOUT_INVALIDO' using errcode = 'P0001'; end if;
+  insert into public.layouts (uep) values (p_uep) on conflict (uep) do nothing;
+  if p_publicar then
+    update public.layouts set publicado = coalesce(p_layout, '{}'::jsonb), versao = versao + 1, publicado_em = now(), publicado_por = quem, rascunho = null, rascunho_em = null, rascunho_por = null
+      where uep = p_uep returning versao into v;
+    insert into public.layouts_hist (uep, versao, layout, por, acao) values (p_uep, v, coalesce(p_layout, '{}'::jsonb), quem, case when p_layout = '{}'::jsonb then 'padrao' else 'publicar' end);
+    perform public.redia_auditar('layout.publicar', p_uep, jsonb_build_object('versao', v));
+  else
+    update public.layouts set rascunho = p_layout, rascunho_em = case when p_layout is null then null else now() end, rascunho_por = case when p_layout is null then null else quem end where uep = p_uep;
+  end if;
+  return public.redia_layout_ler(p_uep);
+end $$;
+-- republica uma versão anterior (vira uma versão nova)
+create or replace function public.redia_layout_restaurar(p_uep text, p_versao integer) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare lay jsonb;
+begin
+  if not public.redia_editor_uep(p_uep) then raise exception 'SEM_PERMISSAO_EDITOR' using errcode = 'P0001'; end if;
+  select layout into lay from public.layouts_hist where uep = p_uep and versao = p_versao order by seq desc limit 1;
+  if lay is null then raise exception 'VERSAO_INEXISTENTE' using errcode = 'P0001'; end if;
+  perform public.redia_layout_salvar(p_uep, lay, true);
+  update public.layouts_hist set acao = 'restaurar v' || p_versao where seq = (select max(seq) from public.layouts_hist where uep = p_uep);
+  perform public.redia_auditar('layout.restaurar', p_uep, jsonb_build_object('de', p_versao));
+  return public.redia_layout_ler(p_uep);
 end $$;
 
 -- ---------------------------------------------------------------------
@@ -421,18 +689,31 @@ drop policy if exists perfis_proprio on public.perfis;
 create policy perfis_proprio on public.perfis for select to authenticated using (user_id = auth.uid());
 
 drop policy if exists registros_ler on public.registros;
-create policy registros_ler on public.registros for select to authenticated using (uep = public.redia_uep_atual());
+create policy registros_ler on public.registros for select to authenticated using (public.redia_pode_uep(uep));
 
 drop policy if exists registros_inserir on public.registros;
 create policy registros_inserir on public.registros for insert to authenticated
-  with check (uep = public.redia_uep_atual() and autor_id = auth.uid());
+  with check (public.redia_pode_uep(uep) and autor_id = auth.uid());
 -- Sem políticas de UPDATE/DELETE: registros são só de acréscimo.
 
 drop policy if exists uep_config_ler on public.uep_config;
-create policy uep_config_ler on public.uep_config for select to authenticated using (uep = public.redia_uep_atual());
+create policy uep_config_ler on public.uep_config for select to authenticated using (public.redia_pode_uep(uep));
+-- D-70: unidades (todos os logados leem a lista), lotações (cada um lê as suas) e auditoria (só servidor/funções)
+alter table public.unidades enable row level security;
+alter table public.lotacoes enable row level security;
+alter table public.auditoria enable row level security;
+drop policy if exists unidades_ler on public.unidades;
+create policy unidades_ler on public.unidades for select to authenticated using (true);
+drop policy if exists lotacoes_proprias on public.lotacoes;
+create policy lotacoes_proprias on public.lotacoes for select to authenticated using (user_id = auth.uid());
 
 -- Permissões de tabela (o Supabase concede tudo a anon/authenticated por padrão: retiramos)
-revoke all on public.perfis, public.registros, public.uep_config, public.uep_config_hist, public.pedidos_senha from anon, authenticated;
+revoke all on public.perfis, public.registros, public.uep_config, public.uep_config_hist, public.pedidos_senha, public.unidades, public.lotacoes, public.auditoria, public.parametros, public.pedidos_cadastro, public.layouts, public.layouts_hist from anon, authenticated;
+alter table public.layouts enable row level security;        -- sem políticas: leitura e gravação só pelas funções redia_layout_*
+alter table public.layouts_hist enable row level security;
+alter table public.parametros enable row level security;
+alter table public.pedidos_cadastro enable row level security;   -- sem políticas: só o servidor e as funções de administração
+grant select on public.unidades, public.lotacoes to authenticated;
 alter table public.pedidos_senha enable row level security;   -- sem políticas: só o servidor (service_role) lê e grava
 grant select on public.perfis to authenticated;
 grant select, insert on public.registros to authenticated;
@@ -440,17 +721,21 @@ grant select on public.uep_config to authenticated;
 
 -- Funções: ninguém executa por padrão; o app (authenticated) só as do app.
 revoke execute on function
-  public.redia_coord_do_posto(text), public.redia_uep_atual(), public.redia_json(public.registros),
+  public.redia_coord_do_posto(text), public.redia_uep_atual(), public.redia_pode_uep(text), public.redia_admin_uep(text), public.redia_admin_sistema(), public.redia_json(public.registros),
   public.redia_registros_antes_inserir(), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
   public.redia_vincular_perfil(text, text, text, text, text, boolean), public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer, date, date, text, text[]), public.redia_arquivo(text, integer), public.redia_codigo(text, date), public.redia_responsaveis(text, date)
+    , public.redia_auditar(text, text, jsonb), public.redia_exigir_admin_sistema(), public.redia_admin_usuarios(), public.redia_admin_salvar_usuario(jsonb), public.redia_admin_revisar(uuid), public.redia_admin_auditoria(integer), public.redia_admin_resumo(), public.redia_admin_salvar_unidade(jsonb), public.redia_admin_parametro(text, jsonb)
+    , public.redia_editor_uep(text), public.redia_layout_ler(text), public.redia_layout_salvar(text, jsonb, boolean), public.redia_layout_restaurar(text, integer)
   from public, anon, authenticated;
 grant execute on function
-  public.redia_uep_atual(), public.redia_json(public.registros), public.redia_meu_perfil(), public.redia_senha_trocada(),
+  public.redia_uep_atual(), public.redia_pode_uep(text), public.redia_admin_uep(text), public.redia_admin_sistema(), public.redia_json(public.registros), public.redia_meu_perfil(), public.redia_senha_trocada(),
   public.redia_carregar(text, date, text[]), public.redia_novos(text, bigint), public.redia_gravar(jsonb),
   public.redia_config_ler(text), public.redia_config_salvar(text, jsonb), public.redia_resetar(text),
   public.redia_pedidos_senha(text), public.redia_buscar(text, text, integer, date, date, text, text[]), public.redia_arquivo(text, integer), public.redia_codigo(text, date), public.redia_responsaveis(text, date)
+    , public.redia_admin_usuarios(), public.redia_admin_salvar_usuario(jsonb), public.redia_admin_revisar(uuid), public.redia_admin_auditoria(integer), public.redia_admin_resumo(), public.redia_admin_salvar_unidade(jsonb), public.redia_admin_parametro(text, jsonb)
+    , public.redia_editor_uep(text), public.redia_layout_ler(text), public.redia_layout_salvar(text, jsonb, boolean), public.redia_layout_restaurar(text, integer)
   to authenticated;
 
 -- ---------------------------------------------------------------------
@@ -477,9 +762,9 @@ on conflict (id) do update set public = false, file_size_limit = excluded.file_s
 
 drop policy if exists redia_arquivos_ler on storage.objects;
 create policy redia_arquivos_ler on storage.objects for select to authenticated
-  using (bucket_id = 'redia' and (storage.foldername(name))[1] = public.redia_uep_atual());
+  using (bucket_id = 'redia' and public.redia_pode_uep((storage.foldername(name))[1]));
 
 drop policy if exists redia_arquivos_enviar on storage.objects;
 create policy redia_arquivos_enviar on storage.objects for insert to authenticated
-  with check (bucket_id = 'redia' and (storage.foldername(name))[1] = public.redia_uep_atual());
+  with check (bucket_id = 'redia' and public.redia_pode_uep((storage.foldername(name))[1]));
 -- Sem UPDATE/DELETE para o app.
