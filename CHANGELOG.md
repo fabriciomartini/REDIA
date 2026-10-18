@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.11.0 · D-66 (2026-10-17)
+
+- **Capturar todos os dados:** botão no topo da aba Dados automáticos de cada coordenação, que roda a captura de todos os blocos da página em sequência (progresso geral, resultado em cada bloco e resumo no topo). O botão de cada bloco continua.
+- **Dica nos semáforos diferentes de OK:** ao parar o mouse (ou focar com o teclado) sobre um semáforo em Atenção, Não OK ou Sem dado, aparece uma dica com os dados que levaram ao estado e a regra aplicada (ex.: injeção de gás 3.791 de 5.500 Mm³/d, 68,9% da meta, regra 98%/90%). Vale para a abertura, as telas das coordenações, os detalhes, a visão semanal e o fechamento; semáforos dados na curadoria mostram quem definiu, a origem e o impacto. Semáforo OK não tem dica.
+- **Abaixo da meta em vermelho:** valores abaixo da meta, do potencial ou da referência (números grandes, % da meta, projetado, IUGA do ativo/campo/mês, indicadores da COPROD e da manutenção, médias da visão semanal) ficam em vermelho, num gradiente que fica mais vivo e forte quanto maior o déficit (cor cheia a 15% abaixo, ou 1,5 p.p. no IUGA). Nas tendências, o trecho abaixo da meta é redesenhado em vermelho no mesmo gradiente e o último ponto e a variação ganham a cor.
+- **Cronômetro:** depois de 1 minuto além do tempo do bloco, pulsa em vermelho (1 s entre o vermelho forte e o fraco); depois de 2 minutos, a tela fica branca com o aviso **"Tempo esgotado"**, o estouro correndo e as saídas: *Zerar e voltar à apresentação*, *+1 min* e *Próximo bloco*. **Zerar** volta às telas da reunião.
+- **+1 min** na barra de comandos (e tecla +): soma 1 minuto ao cronômetro, até 3 vezes por tela; três ícones ao lado do cronômetro mostram os acréscimos usados (preenchidos) e disponíveis (vazados). O tempo registrado por bloco guarda o número de acréscimos.
+
 ## 1.10.0 · D-65 (2026-10-17)
 
 - **POB e Offloading (abertura):** leitura revista. POB com número grande, barra de ocupação (Atenção a partir de 95%, Não OK acima da capacidade), "a bordo de N" e vagas; fonte em etiqueta própria no cabeçalho. Offloading com título "Offloading · TOP previsto", data e navio na mesma linha (navio "a confirmar" quando não confirmado), barra do tanque e legenda "Ocupado X (%) · Livre Y m³".

@@ -1,7 +1,7 @@
 /* ===================== REDIA P-83 · telas de trabalho e roteamento ===================== */
 'use strict';
 let E = null;                      // estado atual reconstruído
-const UI = { sel: {}, aba: {}, pres: { bloco: 1, restante: null, rodando: false, ult: 0 } };
+const UI = { sel: {}, aba: {}, pres: { bloco: 1, restante: null, rodando: false, ult: 0, extra: 0 } };
 
 function atualizarEstado() {
   E = construirEstado(Store.registros(DIA), Store.demandas(), DIA);
@@ -681,6 +681,7 @@ function notaAcumulado() {
   return `<div class="banner${M.faltam.length ? '' : ' ok'}"><span><b>Acumulado do mês (soma diária do SITOP):</b> gás produzido ${M.gas != null ? fmtN(M.gas) + ' m³' : 'sem dado'} · queima ${M.queima != null ? fmtN(M.queima) + ' m³' : 'sem dado'} · ${M.n} dia${M.n === 1 ? '' : 's'}${M.n ? ` (${ddmm(M.dias[0].ref)} a ${ddmm(M.dias[M.n - 1].ref)})` : ''}${M.faltam.length ? ` · <b>sem dado em ${M.faltam.map(ddmm).join(', ')}</b> (abra o dia seguinte e informe o valor)` : ''}.${r.fonteP === 'manual' || r.fonteQ === 'manual' ? ' <b>Correção manual em uso</b>: apague o campo de correção para voltar à soma.' : ''}</span></div>`;
 }
 function abaDados(coord, manual = null) {
+  UI.coordDados = coord;
   labLista(coord);   // D-65: registra os campos das análises incluídas na Configuração
   const campos = manual ? CAMPOS.filter(c => manual[2].includes(c.id)) : CAMPOS.filter(c => c.coord === coord && !MANUAL_IDS.has(c.id) && !(c.lab && !labAtiva(c.id.replace(/\.data$/, ''))));
   const listas = manual ? manual[3].map(id => LISTA[id]) : LISTAS.filter(l => l.coord === coord && !l.aba && !MANUAL_IDS.has(l.id));
@@ -697,14 +698,15 @@ function abaDados(coord, manual = null) {
   const html = `<section class="ed" style="grid-column:2 / -1">
     ${bloqueado() ? '<div class="banner">Pauta congelada: os dados estão bloqueados para edição.</div>' : ''}
     ${manual ? `<div class="pn"><h2>${esc(manual[1])} · ${coord}</h2><p class="note">Preenchimento manual: este item não tem captura automática. Cada gravação fica registrada com autor e horário.</p><p class="note">Aparece em: <b>${esc(manual[4][1])}</b> · <a href="${manual[4][0]}">Ver na apresentação ›</a></p></div>` : `<p class="note">Clique em <b>Capturar dados</b> em cada bloco: o que a captura encontra já entra confirmado (origem A). Se não concordar com um valor, ou se a captura não o encontrou, digite no campo: ao sair dele, o valor fica gravado e confirmado como origem M, com seu nome e horário; o valor automático continua no histórico. Itens sem captura automática ficam em “Preenchimento manual”, no menu.</p>
-    ${coord === 'COPROD' ? notaAcumulado() : ''}`}
+    ${coord === 'COPROD' ? notaAcumulado() : ''}
+    ${grupos.some(g => campos.some(c => c.grupo === g && capturavel(c.id))) ? `<div class="pn capt-all"><div class="pn-h"><h2>Captura de todos os blocos</h2><span class="note">Roda a captura de cada bloco desta página, em sequência; os botões de cada bloco continuam valendo para capturar um só</span><span style="flex:1"></span><button class="btn pri" data-act="capturar-todos" ${dis}>Capturar todos os dados</button></div><div class="capt" data-capt="todos">${resultadoTodos()}</div></div>` : ''}`}
     ${grupos.map(g => {
       const cs = campos.filter(c => c.grupo === g), ids = cs.map(c => c.id).filter(capturavel), chave = coord + '|' + g;
       const falta = new Set((UI.captura?.[chave]?.faltando || []).map(f => f.id));
       const fontes = [...new Set(ids.map(fonteDoCampo))].map(f => FONTES_CAPTURA[f].nome);
       const linha = c => `<tr class="${falta.has(c.id) ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td data-orig="${c.id}">${origemTxt(E.valores[c.id])}</td><td data-restc="${c.id}">${botaoRestaurar(c.id)}</td></tr>`;
       const linhaLab = c => { const d = CAMPO[c.id + '.data'], a = labDe(E, coord).find(x => x.id === c.id); const f = falta.has(c.id) || falta.has(d.id);
-        return `<tr class="${f ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td>${inp(d).replace('data-campo=', `id="cp-${d.id}" aria-label="Data do resultado · ${esc(c.rot)}" data-campo=`)}${a.atrasada ? `<span class="chip at">Atrasada · ${a.dias} dias</span>` : ''}</td><td>a cada ${c.lab.per} ${c.lab.per === 1 ? 'dia' : 'dias'}</td><td data-orig="${c.id}">${origemTxt(E.valores[c.id])}</td></tr>`; };
+        return `<tr class="${f ? 'falta' : ''}"><td><label for="cp-${c.id}">${esc(c.rot)}</label></td><td>${inp(c).replace('data-campo=', `id="cp-${c.id}" data-campo=`)}</td><td>${esc(c.un || '')}</td><td>${inp(d).replace('data-campo=', `id="cp-${d.id}" aria-label="Data do resultado · ${esc(c.rot)}" data-campo=`)}${a.atrasada ? `<span class="chip at"${dTip('at', [`${c.rot}: último resultado em ${ddmm(a.data)}, há ${a.dias} dias`, `Periodicidade: a cada ${c.lab.per} dia(s)`])}>Atrasada · ${a.dias} dias</span>` : ''}</td><td>a cada ${c.lab.per} ${c.lab.per === 1 ? 'dia' : 'dias'}</td><td data-orig="${c.id}">${origemTxt(E.valores[c.id])}</td></tr>`; };
       const lab = g === LAB_GRUPO, eqp = cs.some(c => c.equip);
       return `<div class="pn" data-bloco="${esc(chave)}"><div class="pn-h"><h2>${esc(g)}</h2><span class="note">Origem: ${esc(fontes.join(', ') || 'manual')}</span><span style="flex:1"></span>${ids.length ? `<button class="btn sm pri" data-capturar="${esc(chave)}" ${dis}>Capturar dados</button>` : ''}</div>
       <div class="capt" data-capt="${esc(chave)}">${resultadoCaptura(chave)}</div>
@@ -737,17 +739,43 @@ function resultadoCaptura(chave) {
     ${r.faltando.length ? `<div class="banner at falta-al" role="alert"><b>${r.faltando.length} dado(s) não encontrado(s) nas origens.</b> ${pedido}
       <ul>${r.faltando.map(f => `<li>${esc(nome(f.id))} <span class="note">· ${esc(f.fonte)}</span></li>`).join('')}</ul></div>` : ''}`;
 }
-function progressoCaptura(box, { pct, passos }) {
+function progressoCaptura(box, { pct, passos, titulo }) {
   const ic = { ok: SH.ok(16), erro: SH.nok(16), exec: '<i class="spin" aria-hidden="true"></i>', fila: '<i class="dot0" aria-hidden="true"></i>' };
-  box.innerHTML = `<div class="capt-on" role="status" aria-live="polite"><div class="capt-h"><b>Capturando dados nos sistemas de origem</b><span class="capt-pct">${Math.round(pct)}%</span></div>
+  box.innerHTML = `<div class="capt-on" role="status" aria-live="polite"><div class="capt-h"><b>${titulo ? esc(titulo) : 'Capturando dados nos sistemas de origem'}</b><span class="capt-pct">${Math.round(pct)}%</span></div>
     <div class="capt-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="width:${pct}%"></i></div>
     <ol class="capt-l">${passos.map(p => `<li class="${p.st}">${ic[p.st]}<span>${esc(p.txt)}</span>${p.nota ? `<span class="note">${esc(p.nota)}</span>` : ''}</li>`).join('')}</ol></div>`;
+}
+function alvoCaptura(coord, chave) {
+  const [, alvoTxt] = chave.split('|');
+  return alvoTxt.startsWith('lista:') ? { listas: [alvoTxt.slice(6)] } : { campos: CAMPOS.filter(c => c.coord === coord && c.grupo === alvoTxt).map(c => c.id) };
+}
+/* D-66: captura de todos os blocos da página, um depois do outro, com o progresso geral no topo e o resultado em cada bloco */
+async function capturarTodos(coord, botao) {
+  if (UI.capturando) return;
+  if (!(await podeEditar('valor'))) return;
+  const chaves = [...new Set($$('[data-capturar]').map(b => b.dataset.capturar))], box = $('[data-capt="todos"]'), n = chaves.length;
+  const res = { em: Relogio.agora().toISOString(), blocos: n, feitos: 0, gravados: 0, faltando: 0, erros: [] };
+  UI.capturando = true; $$('[data-capturar], [data-act="capturar-todos"]').forEach(b => b.disabled = true); botao.textContent = 'Capturando…';
+  try {
+    for (let i = 0; i < n; i++) {
+      const chave = chaves[i], nome = chave.split('|')[1].replace(/^lista:/, '');
+      const r = await Captura.executar(alvoCaptura(coord, chave), est => box && progressoCaptura(box, { pct: (i * 100 + est.pct) / n, passos: est.passos, titulo: `Bloco ${i + 1} de ${n} · ${LISTA[nome]?.rot || nome}` }));
+      (UI.captura ||= {})[chave] = r; res.feitos++; res.gravados += r.gravados || 0; res.faltando += r.faltando.length;
+      const er = r.passos.find(p => p.st === 'erro'); if (er) res.erros.push(`${LISTA[nome]?.rot || nome}: ${er.txt}`);
+      atualizarEstado();
+    }
+    aviso(res.faltando ? `Captura de todos os blocos concluída: ${res.faltando} dado(s) não encontrado(s). Preencha os campos destacados.` : 'Captura de todos os blocos concluída.', res.faltando || res.erros.length ? 'erro' : 'ok');
+  } catch (e) { await tratarErroGravacao(e); }
+  finally { (UI.capturaTodos ||= {})[coord] = res; UI.capturando = false; rerender(); document.querySelector('tr.falta input, tr.falta select')?.focus({ preventScroll: true }); }
+}
+function resultadoTodos() {
+  const r = UI.capturaTodos?.[UI.coordDados]; if (!r) return '';
+  return `<div class="banner ${r.erros.length ? 'erro' : r.faltando ? 'at' : 'ok'}"><b>Captura de todos os blocos às ${hhmm(r.em)}</b> · ${r.feitos} de ${r.blocos} bloco(s) · ${r.gravados} valor(es) gravado(s)${r.faltando ? ` · <b>${r.faltando} não encontrado(s)</b>: veja os blocos destacados abaixo` : ''}${r.erros.length ? ` · interrompida em ${r.erros.map(esc).join('; ')}` : ''}.</div>`;
 }
 async function capturarBloco(coord, chave, botao) {
   if (UI.capturando) return;
   if (!(await podeEditar('valor'))) return;
-  const [, alvoTxt] = chave.split('|');
-  const alvo = alvoTxt.startsWith('lista:') ? { listas: [alvoTxt.slice(6)] } : { campos: CAMPOS.filter(c => c.coord === coord && c.grupo === alvoTxt).map(c => c.id) };
+  const alvo = alvoCaptura(coord, chave);
   const box = [...document.querySelectorAll('[data-capt]')].find(b => b.dataset.capt === chave);
   UI.capturando = true; $$('[data-capturar]').forEach(b => b.disabled = true); botao.textContent = 'Capturando…';
   try {
@@ -821,6 +849,7 @@ function bindListaAuto(box, l) {
 }
 function bindDados(coord, auto = false) {
   $$('[data-capturar]').forEach(b => b.onclick = () => capturarBloco(coord, b.dataset.capturar, b));
+  const ct = $('[data-act="capturar-todos"]'); if (ct) ct.onclick = () => capturarTodos(coord, ct);
   if (auto) $$('[data-bloco] [data-campo]').forEach(el => el.onchange = () => gravarCampoDados(el));
   $$('[data-grupo]').forEach(b => b.onclick = async () => {
     const g = b.dataset.grupo; let n = 0;
@@ -983,33 +1012,56 @@ let tickPres = null, ocultarCtrl = null;
 function registrarTempoBloco() {
   const P = UI.pres; if (!P.inicio || !USUARIO) return;
   const fim = Relogio.agora().toISOString(), segundos = Math.max(0, Math.round((Date.now() - P.inicioMs) / 1000) - Math.round((P.pausado || 0) / 1000));
-  const payload = { tipo: 'tempo', bloco: P.bloco, inicio: P.inicio, fim, segundos, timebox: CFG.timeboxMin * 60 };
+  const payload = { tipo: 'tempo', bloco: P.bloco, inicio: P.inicio, fim, segundos, timebox: CFG.timeboxMin * 60, extras: P.extra || 0 };
   P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0;
   if (segundos < 5) return;   // passagem relâmpago (navegação), não é apresentação
   registrar('reuniao', payload).then(() => { atualizarEstado(); }).catch(e => aviso('Tempo do bloco não registrado: ' + e.message, 'erro'));
 }
 function telaApresentacao(m) {
   const P = UI.pres, semana = m[1] === 'semana', b = semana ? P.bloco || 1 : +m[1];
-  if (!semana && (P.bloco !== b || P.restante === null)) { if (P.bloco !== b) registrarTempoBloco(); P.bloco = b; P.restante = CFG.timeboxMin * 60; P.rodando = P.rodando && P.restante > 0; if (P.rodando) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } }
+  if (!semana && (P.bloco !== b || P.restante === null)) { if (P.bloco !== b) registrarTempoBloco(); P.bloco = b; P.restante = CFG.timeboxMin * 60; P.extra = 0; P.rodando = P.rodando && P.restante > 0; if (P.rodando) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } }
   if (P.restante === null) P.restante = CFG.timeboxMin * 60;
-  const ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(P.restante) };
+  const ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(P.restante), extra: P.extra || 0 };
   const top = !semana && m[2] && topicoValido(b, m[2]) ? m[2] : null;
   const diaSem = parseData(DIA).getDay() === (CFG.diaVisaoSemanal ?? 5);
   const tela = semana ? telaSemana(E, ctx) : top ? telaDetalhe(estadoApresentacao(b), ctx, b, top) : TELAS[b - 1](estadoApresentacao(b), ctx);
-  render(`<div class="pres" role="region" aria-label="Apresentação da REDIA"><div class="stw"><div class="stage">${tela}</div></div></div>
+  render(`<div class="pres" role="region" aria-label="Apresentação da REDIA"><div class="stw"><div class="stage">${tela}</div></div>${telaTempoEsgotado(b, semana)}</div>
     <div class="ctrl" id="ctrl"><a class="btn sm" href="#/apresentacao/${Math.max(1, b - 1)}" aria-label="Bloco anterior">◀</a>
     ${[1, 2, 3, 4, 5].map(i => `<a class="btn sm${i === b ? ' on' : ''}" href="#/apresentacao/${i}">${i}</a>`).join('')}
     <a class="btn sm" href="#/apresentacao/${Math.min(5, b + 1)}" aria-label="Próximo bloco">▶</a><a class="btn sm${semana ? ' on' : ''}${diaSem && !semana ? ' hoje' : ''}" href="#/apresentacao/semana" title="Visão semanal: tendências de 7 e 30 dias, ações vencidas e recorrências${diaSem ? ' · hoje é o dia da visão semanal' : ''}">Semana${diaSem ? ' ●' : ''}</a>
-    <button class="btn sm" data-act="tmr">${P.rodando ? 'Pausar' : 'Iniciar'} cronômetro</button><button class="btn sm" data-act="zera">Zerar</button>
+    <button class="btn sm" data-act="tmr">${P.rodando ? 'Pausar' : 'Iniciar'} cronômetro</button><button class="btn sm" data-act="zera">Zerar</button><button class="btn sm" data-act="mais1" ${(P.extra || 0) >= EXTRA_MAX ? 'disabled' : ''} title="Acrescenta 1 minuto ao cronômetro deste bloco (até ${EXTRA_MAX} vezes por tela)">+1 min</button>
     <button class="btn sm" data-act="tela">Tela cheia</button><a class="btn sm" href="#/inicio">Sair</a>
-    <span class="cl">← → blocos · espaço cronômetro · F tela cheia</span></div>`);
+    <span class="cl">← → blocos · espaço cronômetro · + 1 minuto · F tela cheia</span></div>`);
   ajustarPalco(); encaixar($('.stage')); atualizarTimer();
-  $('[data-act="tmr"]').onclick = alternarTimer; $('[data-act="zera"]').onclick = () => { P.restante = CFG.timeboxMin * 60; P.rodando = false; P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0; rerender(); };
+  $('[data-act="tmr"]').onclick = alternarTimer;
+  $$('[data-act="zera"]').forEach(x => x.onclick = zerarTimer); $$('[data-act="mais1"]').forEach(x => x.onclick = maisUmMinuto);
   $('[data-act="tela"]').onclick = telaCheia;
   mostrarCtrl();
 }
 function fmtTimer(s) { const neg = s < 0, a = Math.abs(s); return `${neg ? '+' : ''}${pad(Math.floor(a / 60))}:${pad(a % 60)}`; }
-function atualizarTimer() { const el = $('[data-tmr]'); if (el) { el.textContent = fmtTimer(UI.pres.restante); el.classList.toggle('alerta', UI.pres.restante <= 60); } }
+/* D-66: passou 1 minuto do tempo do bloco → cronômetro pulsa em vermelho (1 s entre o forte e o fraco); passou 2 minutos → tela de tempo esgotado */
+const ESTOURO_PULSO = 60, ESTOURO_TELA = 120;
+function atualizarTimer() {
+  const r = UI.pres.restante, el = $('[data-tmr]');
+  if (el) { el.textContent = fmtTimer(r); el.classList.toggle('alerta', r <= 60 && r >= -ESTOURO_PULSO); el.classList.toggle('pulso', r < -ESTOURO_PULSO); }
+  const tx = $('[data-tx]'); if (tx) { tx.innerHTML = iconesExtra(UI.pres.extra || 0); tx.setAttribute('aria-label', `${UI.pres.extra || 0} de ${EXTRA_MAX} acréscimos de 1 minuto usados`); }
+  const esg = $('#esg'); if (esg) { const on = r < -ESTOURO_TELA; if (esg.hidden === on) { esg.hidden = !on; if (on) $('[data-act="zera"]', esg)?.focus({ preventScroll: true }); } const c = $('[data-esg-t]', esg); if (c) c.textContent = fmtTimer(r); }
+  $$('[data-act="mais1"]').forEach(x => x.disabled = (UI.pres.extra || 0) >= EXTRA_MAX);
+}
+function zerarTimer() { const P = UI.pres; P.restante = CFG.timeboxMin * 60; P.rodando = false; P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0; P.extra = 0; rerender(); }
+function maisUmMinuto() { const P = UI.pres; if ((P.extra || 0) >= EXTRA_MAX) return aviso(`Limite de ${EXTRA_MAX} acréscimos de 1 minuto nesta tela.`, 'erro'); P.extra = (P.extra || 0) + 1; P.restante += 60; atualizarTimer(); mostrarCtrl(); }
+/* D-66 · tempo esgotado: tela branca sobre a apresentação, com o aviso, o estouro correndo e as saídas (zerar, +1 min, próximo bloco) */
+function telaTempoEsgotado(b, semana) {
+  const nome = semana ? 'Visão semanal' : ['Abertura · GEPLAT', 'COPROD', 'COEMB', 'COMAN', 'Fechamento'][b - 1];
+  return `<div class="esg" id="esg" role="alertdialog" aria-modal="true" aria-labelledby="esg-h" aria-describedby="esg-d" hidden>
+    <div class="esg-c"><span class="esg-ic" aria-hidden="true"><svg viewBox="0 0 48 48" width="100%" height="100%"><path d="M14 6h20M14 42h20M16 6c0 9 8 12 8 18s-8 9-8 18M32 6c0 9-8 12-8 18s8 9 8 18" fill="none" stroke="#DA291C" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.5 38.5c1.5-3 3-4.2 4.5-4.2s3 1.2 4.5 4.2z" fill="#DA291C"/></svg></span>
+      <span class="esg-eye">REDIA ${esc(CFG.uep)} · ${semana ? 'visão semanal' : `bloco ${b} de 5`} · ${esc(nome)}</span>
+      <h1 id="esg-h">Tempo esgotado</h1>
+      <p id="esg-d" class="esg-sub">Vamos fechar este assunto e seguir a pauta.</p>
+      <div class="esg-t"><b data-esg-t>${fmtTimer(UI.pres.restante)}</b><span>além dos ${CFG.timeboxMin} minutos do bloco</span></div>
+      <ol class="esg-p"><li><b>1</b>Registre a decisão tomada</li><li><b>2</b>Pendência vira demanda do Canal Base x Bordo</li><li><b>3</b>Avance para o próximo bloco</li></ol>
+      <div class="esg-b"><button class="btn pri" data-act="zera">Zerar e voltar à apresentação</button><button class="btn" data-act="mais1" ${(UI.pres.extra || 0) >= EXTRA_MAX ? 'disabled' : ''}>+1 min</button>${!semana && b < 5 ? `<a class="btn" href="#/apresentacao/${b + 1}">Próximo bloco ▶</a>` : ''}</div></div></div>`;
+}
 function alternarTimer() {
   const P = UI.pres; P.rodando = !P.rodando; P.ult = Date.now();
   if (P.rodando) { if (!P.inicio) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } else if (P.pausaEm) { P.pausado = (P.pausado || 0) + (Date.now() - P.pausaEm); P.pausaEm = 0; } }
@@ -1022,6 +1074,36 @@ function ajustarPalco() {
   w.style.transform = `scale(${s})`; w.style.left = ((innerWidth - 1920 * s) / 2) + 'px'; w.style.top = ((innerHeight - 1080 * s) / 2) + 'px';
 }
 function telaCheia() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
+/* D-66 · dica dos semáforos diferentes de OK: aparece ao parar o mouse (ou focar) sobre o semáforo; texto em data-tip (estado + linhas).
+   Sem data-tip, um semáforo marcado com data-sem usa o contexto da linha em que está. */
+function textoDica(el) {
+  if (el.dataset.tip) { const [t, ...l] = el.dataset.tip.split('\n'); return { sem: el.dataset.tipSem || el.dataset.sem || 'at', t, l }; }
+  const sem = el.dataset.sem, ctx = el.closest('.li, .row2, .tgc, .dq, .dqx, .th2, .dl, .td, .w, tr, .hd') || el.parentElement;
+  const card = el.closest('.card, .pn')?.querySelector('.hd .t, h2, h3')?.textContent.trim().replace(/\s*›$/, '') || '';
+  const txt = (ctx?.textContent || '').replace(/\s+/g, ' ').trim();
+  return { sem, t: TIP_TIT[sem] || 'Atenção', l: [card ? `${card}: ${txt}` : txt].filter(Boolean) };
+}
+function iniciarDicas() {
+  const box = document.createElement('div'); box.className = 'dica'; box.id = 'dica'; box.setAttribute('role', 'tooltip'); box.hidden = true; document.body.appendChild(box);
+  let alvo = null;
+  const esconder = () => { alvo = null; box.hidden = true; };
+  const mostrar = el => {
+    alvo = el; if (el.title) { el.dataset.tituloOrig = el.title; el.removeAttribute('title'); }
+    const d = textoDica(el);
+    box.className = 'dica s-' + (d.sem || 'at');
+    box.innerHTML = `<b class="dica-t">${(SH[d.sem] || SH.at)(16)}${esc(d.t)}</b>${d.l.map(x => `<span>${esc(x)}</span>`).join('')}`;
+    box.hidden = false;
+    const r = el.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight, m = 10;
+    let x = r.left + r.width / 2 - w / 2, y = r.bottom + m;
+    if (y + h > innerHeight - 6) y = r.top - h - m;
+    box.style.left = Math.max(6, Math.min(innerWidth - w - 6, x)) + 'px'; box.style.top = Math.max(6, y) + 'px';
+  };
+  const alvoDe = t => t?.closest?.('[data-tip], [data-sem]');
+  document.addEventListener('mouseover', e => { const el = alvoDe(e.target); if (el === alvo) return; el ? mostrar(el) : esconder(); });
+  document.addEventListener('focusin', e => { const el = alvoDe(e.target); el ? mostrar(el) : esconder(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') esconder(); });
+  addEventListener('scroll', esconder, true); addEventListener('hashchange', esconder); addEventListener('resize', esconder);
+}
 function mostrarCtrl() { const c = $('#ctrl'); if (!c) return; c.classList.remove('hide'); clearTimeout(ocultarCtrl); ocultarCtrl = setTimeout(() => c.classList.add('hide'), 3000); }
 
 /* ======================= Fechamento e ata ======================= */
@@ -1344,14 +1426,16 @@ async function iniciar() {
   window.addEventListener('resize', ajustarPalco);
   matchMedia('(max-width: 900px)').addEventListener?.('change', () => { if (ROTA_ATUAL && ROTA_ATUAL.id !== 'apresentacao' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) rerender(); });
   document.addEventListener('mousemove', () => { if (ROTA_ATUAL?.id === 'apresentacao') mostrarCtrl(); });
+  iniciarDicas();
   document.addEventListener('keydown', e => {
-    if (ROTA_ATUAL?.id !== 'apresentacao' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (ROTA_ATUAL?.id !== 'apresentacao' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || (e.key === ' ' && /BUTTON|A/.test(e.target.tagName))) return;
     const b = UI.pres.bloco, det = !!ROTA_ATUAL.m?.[2];
     if (det && ['ArrowLeft', 'PageUp', 'Escape', 'Backspace'].includes(e.key) && !(e.key === 'Escape' && document.fullscreenElement)) { e.preventDefault(); location.hash = '#/apresentacao/' + b; return; }
     if (['ArrowRight', 'PageDown'].includes(e.key)) { e.preventDefault(); location.hash = '#/apresentacao/' + Math.min(5, b + 1); }
     else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); location.hash = '#/apresentacao/' + Math.max(1, b - 1); }
     else if (/^[1-5]$/.test(e.key)) location.hash = '#/apresentacao/' + e.key;
     else if (e.key === ' ') { e.preventDefault(); alternarTimer(); }
+    else if (e.key === '+' || e.key === '=') { e.preventDefault(); maisUmMinuto(); }
     else if (e.key.toLowerCase() === 'f') telaCheia();
     else if (e.key === 'Escape' && !document.fullscreenElement) location.hash = '#/inicio';
   });

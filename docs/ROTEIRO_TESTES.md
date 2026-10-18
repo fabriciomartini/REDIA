@@ -120,6 +120,17 @@ Registre cada problema como *issue* no GitHub (modelo "Problema ou sugestão no 
 | 10.6 | Início (administrador) › **Gerar histórico de 15 dias** | 15 REDIAs de exemplo encerradas; tendências, recorrência e visão semanal com dados. Rodar de novo não altera dias encerrados |
 | 10.7 | Menu › **Arquivo** | Uma linha por REDIA com pauta congelada/ata; "Baixar PDF arquivado" (quando houver), "Gerar PDF" e "Abrir REDIA" |
 
+## 11. Captura completa, dicas, déficit e cronômetro (v1.11)
+
+| # | Passo | Esperado |
+|---|---|---|
+| 11.1 | Curadoria › Dados automáticos › **Capturar todos os dados** | Progresso bloco a bloco; resultado em cada bloco e resumo no topo; botões de cada bloco seguem funcionando |
+| 11.2 | Apresentação › parar o mouse sobre um semáforo Atenção/Não OK | Dica com os dados e a regra; sobre semáforo OK, nada |
+| 11.3 | Abertura com injeção ou IUGA abaixo da meta | Número em vermelho, mais vivo quanto maior o déficit; tendência com o trecho abaixo da meta em vermelho |
+| 11.4 | Iniciar o cronômetro e deixar passar 1 min além do tempo | Cronômetro pulsa em vermelho (1 s) |
+| 11.5 | Deixar passar 2 min além do tempo | Tela branca "Tempo esgotado"; **Zerar** volta à apresentação |
+| 11.6 | **+1 min** (ou tecla +) três vezes | Cronômetro +3 min; três ícones preenchidos; botão desabilita; novo bloco recomeça sem acréscimos |
+
 ## Registro do resultado
 
 | Coordenação | Testador (chave) | Dispositivos | Data | Resultado | Issues |

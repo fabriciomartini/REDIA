@@ -134,6 +134,11 @@ async function checarPalco(page, nome) {
   const capLab = await page.evaluate(() => UI.captura['COMAN|Resultados de análises (eplab)'].faltando.map(f => f.id));
   ok(capLab.includes('lab.COMAN.iso_hid') && capLab.includes('lab.COMAN.iso_hid.data') && capLab.length === 2, `captura eplab: análise sem resultado na origem vira pedido de preenchimento (${capLab.join(', ')})`);
   ok(await page.$$eval('table.lab tbody tr', t => t.length) === 5 && await page.$('table.lab input[type=date]') !== null, 'Dados automáticos: tabela de análises com resultado, data e periodicidade');
+  /* D-66: Capturar todos os dados (todos os blocos da página, em sequência), mantendo o botão de cada bloco */
+  const nBl = await page.$$eval('[data-capturar]', b => new Set(b.map(x => x.dataset.capturar)).size);
+  await page.click('[data-act="capturar-todos"]'); await page.waitForFunction(() => !UI.capturando && UI.capturaTodos?.COMAN, null, { timeout: 60000 }); await page.waitForTimeout(300);
+  const ct = await page.evaluate(() => ({ r: UI.capturaTodos.COMAN, blocos: Object.keys(UI.captura).filter(k => k.startsWith('COMAN|')).length, bot: document.querySelectorAll('[data-capturar]').length, txt: document.querySelector('[data-capt="todos"]').textContent }));
+  ok(nBl >= 4 && ct.r.blocos === nBl && ct.r.feitos === nBl && ct.blocos >= nBl && ct.bot >= nBl && /Captura de todos os blocos/.test(ct.txt) && /não encontrado/.test(ct.txt), `Capturar todos os dados roda os ${nBl} blocos e mostra o resumo; os botões de cada bloco continuam (${JSON.stringify(ct.r)})`);
   const lab2 = await page.evaluate(() => labDe(E, 'COPROD').map(a => a.k + ':' + (a.atrasada ? 'atr' : 'ok')).join());
   ok(lab2 === 'bsw_oleo:ok,sal_oleo:ok,tog_agua:ok,h2s_gas:atr,so4_urs:ok,o2_inj:ok,h2o_gas:ok', `análises COPROD: H₂S atrasado pela periodicidade (${lab2})`);
   await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(300);
@@ -248,7 +253,7 @@ async function checarPalco(page, nome) {
   await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(300);
   const sp2 = await page.evaluate(() => { const sp = segurancaProcesso(E, DIA), c = document.querySelector('.stage .segc'); return { sem: sp.sem, t12: sp.t12.length, t3: sp.t3.length, t4: sp.t4.length, inib: sp.inib.length, antiga: sp.maisAntiga?.dias, antSem: sp.maisAntiga?.sem, venc: sp.venc.length, v7: sp.v7.length, card: c?.dataset.seg, txt: c?.textContent.replace(/\s+/g, ' ') }; });
   ok(sp2.sem === 'nok' && sp2.t12 === 0 && sp2.t3 === 1 && sp2.t4 === 1 && sp2.inib === 2 && sp2.antiga === 4 && sp2.antSem === 'nok' && sp2.venc === 1 && sp2.v7 === 1 && sp2.card === 'nok' && /Segurança de processo · 24 h/.test(sp2.txt) && /2\s*eventos/.test(sp2.txt) && /2 inibições/.test(sp2.txt) && /1 vencido/.test(sp2.txt), `abertura: coluna Segurança de processo (eventos, inibições com a mais antiga, críticos vencidos) (${JSON.stringify(sp2)})`);
-  ok(await page.evaluate(() => { const w = [...document.querySelectorAll('.stage .w.tv')].filter(x => !x.classList.contains('lg-tv')); return w.length === 1 && /BUZ-112/.test(w[0].textContent) && /vencido: 95 dias/.test(w[0].title); }), 'abertura: poço com teste de vazão vencido (> periodicidade da UEP) marcado com atenção');
+  ok(await page.evaluate(() => { const w = [...document.querySelectorAll('.stage .w.tv')].filter(x => !x.classList.contains('lg-tv')); return w.length === 1 && /BUZ-112/.test(w[0].textContent) && /vencido: 95 dias/.test(w[0].dataset.tip || w[0].title); }), 'abertura: poço com teste de vazão vencido (> periodicidade da UEP) marcado com atenção');
   await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(300);
   ok(await page.evaluate(() => /Teste de vazão vencido · 1/.test(document.querySelector('.stage .tvl')?.textContent || '') && /BUZ-112 95 d/.test(document.querySelector('.stage .tvl').textContent)), 'card de poços lista os testes de vazão vencidos');
   await page.goto(URL + '#/apresentacao/3'); await page.waitForTimeout(300);
@@ -298,6 +303,32 @@ async function checarPalco(page, nome) {
   await page.keyboard.press(' '); await page.waitForTimeout(2300);
   const tmr = await page.textContent('[data-tmr]'); ok(/^04:5[6-8]$/.test(tmr), `cronômetro corre (${tmr})`);
   await page.keyboard.press(' ');
+  /* D-66: +1 minuto (até 3 por tela, ícones ao lado do cronômetro), pulso vermelho após 1 min de estouro e tela de tempo esgotado após 2 min */
+  const t66 = await page.evaluate(() => { UI.pres.restante = 100; atualizarTimer(); return UI.pres.extra; });
+  for (let k = 0; k < 4; k++) { await page.evaluate(() => mostrarCtrl()); await page.click('#ctrl [data-act="mais1"]', { force: true }).catch(() => {}); }
+  await page.keyboard.press('+');
+  const m1 = await page.evaluate(() => ({ extra: UI.pres.extra, rest: UI.pres.restante, on: document.querySelectorAll('.stage [data-tx] i.on').length, tot: document.querySelectorAll('.stage [data-tx] i').length, dis: document.querySelector('#ctrl [data-act="mais1"]').disabled, txt: document.querySelector('.stage [data-tx]').textContent.trim() }));
+  ok(t66 === 0 && m1.extra === 3 && m1.rest === 280 && m1.on === 3 && m1.tot === 3 && m1.dis && m1.txt === '', `+1 min: soma 1 minuto por clique, no máximo 3 na tela; ícones sem texto ao lado do cronômetro (${JSON.stringify(m1)})`);
+  const p1 = await page.evaluate(() => { UI.pres.restante = -60; atualizarTimer(); const a = document.querySelector('[data-tmr]').classList.contains('pulso'); UI.pres.restante = -61; atualizarTimer(); const el = document.querySelector('[data-tmr]'); return { a, b: el.classList.contains('pulso'), anim: getComputedStyle(el).animationDuration, esg: document.querySelector('#esg').hidden }; });
+  ok(!p1.a && p1.b && p1.anim === '1s' && p1.esg, `cronômetro pulsa em vermelho (1 s) só depois de 1 minuto além do tempo (${JSON.stringify(p1)})`);
+  await page.evaluate(() => { UI.pres.restante = -121; atualizarTimer(); }); await page.waitForTimeout(400);
+  const e1 = await page.evaluate(() => { const e = document.querySelector('#esg'), r = e.getBoundingClientRect(); return { vis: !e.hidden, full: r.width >= innerWidth && r.height >= innerHeight, bg: getComputedStyle(e).backgroundColor, h: e.querySelector('h1').textContent, t: e.querySelector('[data-esg-t]').textContent }; });
+  ok(e1.vis && e1.full && e1.bg === 'rgb(255, 255, 255)' && e1.h === 'Tempo esgotado' && e1.t === '+02:01', `com 2 minutos além do tempo, tela branca de tempo esgotado (${JSON.stringify(e1)})`);
+  await page.click('#esg [data-act="zera"]'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => document.querySelector('#esg').hidden && UI.pres.restante === CFG.timeboxMin * 60 && UI.pres.extra === 0 && !!document.querySelector('.stage .scr')), 'Zerar volta para as telas da reunião, com o cronômetro e os acréscimos zerados');
+  await page.evaluate(() => { UI.pres.extra = 2; }); await page.goto(URL + '#/apresentacao/3'); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => UI.pres.extra === 0 && document.querySelectorAll('.stage [data-tx] i.on').length === 0), 'cada tela começa sem acréscimos de 1 minuto');
+  /* D-66: dica nos semáforos diferentes de OK e valores abaixo da meta em vermelho (gradiente) */
+  await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(300);
+  const tp = await page.evaluate(() => { const nok = [...document.querySelectorAll('.stage .hd .b.nok')].find(x => /Não OK/.test(x.textContent)), okp = document.querySelector('.stage .hd .b.ok'); return { nok: nok?.dataset.tip || '', ok: okp?.hasAttribute('data-tip'), n: document.querySelectorAll('.stage [data-tip]').length }; });
+  ok(/^Não OK\n/.test(tp.nok) && /meta/.test(tp.nok) && /Regra/.test(tp.nok) && tp.ok === false && tp.n >= 8, `semáforos fora de OK levam dica com os dados e a regra; OK não leva (${tp.n} dicas)`);
+  await page.hover('.stage .card.col6 .hd .b.nok'); await page.waitForTimeout(250);
+  const dc = await page.evaluate(() => { const d = document.querySelector('#dica'); return { vis: !d.hidden, cls: d.className, txt: d.textContent }; });
+  ok(dc.vis && /s-nok/.test(dc.cls) && /Injeção de gás D-1/.test(dc.txt) && /% da meta/.test(dc.txt), `ao parar o mouse, a dica explica o semáforo (${dc.txt.slice(0, 90)})`);
+  await page.mouse.move(5, 5); await page.waitForTimeout(150);
+  ok(await page.evaluate(() => document.querySelector('#dica').hidden), 'dica some ao tirar o mouse');
+  const df = await page.evaluate(() => { const big = [...document.querySelectorAll('.stage .r2 .big')]; const cor = el => el.getAttribute('style') || ''; const g = big[2], o = big[0], iu = big[1]; const l = s => +(/hsl\([\d.]+,(\d+)%,(\d+)%\)/.exec(s) || [])[2]; return { gas: cor(g), oleo: cor(o), iu: cor(iu), lg: l(cor(g)), li: l(cor(iu)), spk: document.querySelectorAll('.stage .spk-def').length, verm: document.querySelectorAll('.stage .spk svg path[stroke^="url(#spk"]').length }; });
+  ok(/hsl\(/.test(df.gas) && /hsl\(/.test(df.iu) && df.oleo === '' && df.lg < df.li && df.spk >= 2 && df.verm >= 2, `valores abaixo da meta em vermelho, mais forte quanto maior o déficit (gás 31% abaixo mais vivo que IUGA −0,65 p.p.); tendências com o trecho abaixo da meta em vermelho (${JSON.stringify(df)})`);
 
   /* ---- curadoria: aprovar a SDV ---- */
   await page.goto(URL + '#/curadoria/COPROD/sugestoes'); await page.waitForTimeout(200);
@@ -568,7 +599,7 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   ok(await page.evaluate(() => !!document.querySelector('.stage .an.an-nok') && /BSW do óleo tratado/.test(document.querySelector('.stage .an.an-nok').textContent)), 'card de análises destaca o resultado fora da especificação');
   /* D-65: enquadramento por corrente na abertura (BSW fora → óleo Desenquadrado) */
   await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(300);
-  const enq1 = await page.evaluate(() => ({ oleo: enquadramento(E, 'oleo').sem, gas: enquadramento(E, 'gas').sem, agua: enquadramento(E, 'agua').sem, el: [...document.querySelectorAll('.stage [data-enq]')].map(e => e.dataset.enq), txt: document.querySelector('.stage [data-enq^="oleo"]')?.textContent || '', tit: document.querySelector('.stage [data-enq^="oleo"]')?.title || '' }));
+  const enq1 = await page.evaluate(() => ({ oleo: enquadramento(E, 'oleo').sem, gas: enquadramento(E, 'gas').sem, agua: enquadramento(E, 'agua').sem, el: [...document.querySelectorAll('.stage [data-enq]')].map(e => e.dataset.enq), txt: document.querySelector('.stage [data-enq^="oleo"]')?.textContent || '', tit: (e => e ? e.dataset.tip || e.title : '')(document.querySelector('.stage [data-enq^="oleo"]')) }));
   ok(enq1.oleo === 'nok' && enq1.gas === 'ok' && enq1.agua === 'ok' && enq1.el.join() === 'oleo:nok,gas:ok,agua:ok' && /Desenquadrado/.test(enq1.txt) && /BSW/.test(enq1.txt) && /fora da especificação/.test(enq1.tit), `abertura: enquadramento por corrente; BSW acima do limite deixa o óleo Desenquadrado, com o parâmetro e o motivo (${JSON.stringify(enq1)})`);
   await page.goto(URL + '#/config'); await page.waitForTimeout(150); await page.fill('[data-ll="lab.COPROD.bsw_oleo"][data-ll-k="max"]', '1'); await page.click('[data-act="salvar-cfg"]'); await page.waitForTimeout(150);
   ok(await page.evaluate(() => enquadramento(E, 'oleo').sem === 'ok' && enquadramento(E, 'oleo').rot === 'Enquadrado'), 'com o BSW dentro do limite, o óleo volta a Enquadrado');

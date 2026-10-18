@@ -747,3 +747,39 @@ tr.falta td:first-child{box-shadow:inset 4px 0 0 var(--amarelo)}
 .stage .r2 .enq{padding:0}
 .stage .offa .ocup{font-size:16px}
 .stage .pobc .cap{line-height:1.15}
+/* ===== D-66 · dicas dos semáforos, valores abaixo da meta, cronômetro e tempo esgotado ===== */
+.dica{position:fixed;z-index:60;max-width:440px;background:#fff;color:#000;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.08);padding:10px 14px 11px;font:400 14px/1.4 var(--f);pointer-events:none;display:flex;flex-direction:column;gap:3px;border-left:5px solid var(--amarelo)}
+.dica[hidden]{display:none}
+.dica.s-nok{border-left-color:#DA291C}.dica.s-sd{border-left-color:#75787B}
+.dica .dica-t{display:flex;align-items:center;gap:6px;font-weight:700;font-size:15px;margin-bottom:2px}
+.dica span{color:#222}
+[data-tip],[data-sem]{cursor:help}
+[data-tip]:focus-visible{outline:2px solid #000;outline-offset:2px;border-radius:6px}
+.stage .spk-def .spk-t b.k{color:inherit}
+/* cronômetro: acréscimos de 1 minuto e estouro */
+.stage .tmx{display:flex;align-items:center;gap:10px}
+.stage .tx{display:flex;flex-direction:column;gap:3px}
+.stage .tx i{display:block;line-height:0;font-style:normal}
+.stage .tmr{border-radius:10px;padding:2px 8px;margin:-2px -8px}
+.stage .tmr.pulso{animation:tmrPulso 1s ease-in-out infinite alternate}
+.stage .tmr.pulso{color:#fff;text-shadow:0 1px 3px rgba(80,0,0,.55)}
+@keyframes tmrPulso{from{background:#E10600;box-shadow:0 0 0 3px #fff}to{background:#F39A94;box-shadow:0 0 0 3px rgba(255,255,255,.45)}}
+@media (prefers-reduced-motion:reduce){.stage .tmr.pulso{animation-duration:2s}}
+.ctrl .btn[disabled]{opacity:.45;cursor:not-allowed}
+/* tela de tempo esgotado: branca, sobre a apresentação, abaixo da barra de comandos */
+.esg{position:fixed;inset:0;z-index:25;background:#fff;display:flex;align-items:center;justify-content:center;padding:4vh 4vw;border-top:min(1.4vh,14px) solid #DA291C;animation:esgEntra .35s ease-out}
+.esg[hidden]{display:none}
+@keyframes esgEntra{from{opacity:0}to{opacity:1}}
+.esg-c{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:1400px;gap:min(2.2vh,22px)}
+.esg-ic{width:min(11vh,110px);height:min(11vh,110px);border-radius:50%;background:rgba(218,41,28,.08);padding:min(2vh,20px);box-sizing:border-box}
+.esg-eye{font-weight:700;color:#008542;font-size:min(2.4vh,24px);letter-spacing:.02em}
+.esg h1{margin:0;font-size:min(13vh,9vw);line-height:1;font-weight:800;color:#000;letter-spacing:-.02em}
+.esg-sub{margin:0;font-size:min(4vh,40px);color:#333}
+.esg-t{display:flex;align-items:baseline;gap:16px;color:#DA291C}
+.esg-t b{font-size:min(9vh,90px);font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.esg-t span{font-size:min(2.8vh,28px);color:#555}
+.esg-p{list-style:none;display:flex;gap:min(2.4vw,36px);margin:min(1vh,10px) 0 0;padding:0;flex-wrap:wrap;justify-content:center}
+.esg-p li{display:flex;align-items:center;gap:10px;font-size:min(2.6vh,26px);color:#222;max-width:560px;text-align:left}
+.esg-p li b{flex:none;width:min(4.2vh,42px);height:min(4.2vh,42px);border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-size:min(2.2vh,22px)}
+.esg-b{display:flex;gap:12px;margin-top:min(2vh,20px);flex-wrap:wrap;justify-content:center}
+.esg-b .btn{font-size:min(2.4vh,22px);min-height:min(6vh,56px);padding:0 26px}
