@@ -1073,7 +1073,7 @@ async function preencherFicticio(iso, E) {
   const ex = montarExemplo(iso), novos = [], marca = r => ({ ...r, payload: { ...r.payload, exemplo: true, ficticio: true } });
   const temItem = c => E.itens.some(i => i.payload.coord === c), temServ = c => E.servicos.some(i => i.payload.coord === c);
   for (const r of ex) {
-    if (r.escopo === 'demandas' || r.tipo === 'redia') continue;
+    if (r.escopo === 'demandas' || r.tipo === 'redia' || r.data !== iso) continue;   // D-69: só o dia aberto (o exemplo traz também valores de dias anteriores, que estão encerrados)
     if (r.tipo === 'valor' && (E.valores[r.payload.campo]?.valor ?? '') !== '') continue;
     if (r.tipo === 'lista' && (E.listas[r.payload.campo]?.itens || []).length) continue;
     if (r.tipo === 'sugestao' && E.sugestoes.length) continue;

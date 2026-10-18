@@ -148,6 +148,9 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   const orig = (await srv.sql(`select payload->'autorOriginal'->>'nome' n, autor->>'nome' a from public.registros where payload->>'campo' = 'man.sensores' and payload->>'valor' = '9'`)).rows[0];
   ok(imp2 === 1 && orig.n === 'Pessoa do protótipo' && orig.a === 'Usuário GEPLAT Teste', 'importação grava quem importou e guarda o autor original no registro');
 
+  /* D-69: preencher a REDIA aberta (fictício) grava só no dia aberto; antes, valores de dias encerrados faziam a base recusar o lote */
+  const pfc = await g.evaluate(async () => { const hoje = DIA, dv = addDias(hoje, 1); await abrirDia(dv); try { const r = await preencherFicticio(DIA, E); await Store.carregar(DIA); atualizarEstado(); const out = { ok: true, n: r.n, valores: r.valores, outros: [...Store.cache.values()].filter(x => x.payload?.ficticio && x.data !== DIA).length, concl: naoConcluidas(E).length, pend: COORDS.reduce((a, c) => a + pendentes(E, c).length, 0) }; await abrirDia(hoje); return out; } catch (e) { await abrirDia(hoje); return { ok: false, erro: e.message }; } });   // dia vazio, como a REDIA recém-iniciada
+  ok(pfc.ok && pfc.valores > 50 && pfc.outros === 0 && pfc.concl === 0 && pfc.pend === 0, `preencher a REDIA aberta (fictício) na base: num dia vazio grava só nesse dia (dias anteriores encerrados ficam de fora), aprova as pendentes e conclui (${JSON.stringify(pfc)})`);
   /* ---- D-67: de acordo dos responsáveis, ata em PDF no Storage e dia encerrado ---- */
   await g.goto(URL + '#/inicio'); await g.waitForTimeout(400); await g.click('[data-act="congelar-ini"]'); await g.waitForTimeout(400);
   if (await g.$('.mdl')) { await g.click('[data-mdl="congelar"]'); await g.waitForTimeout(1200); }

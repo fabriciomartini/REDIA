@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 1.12.2 · D-69 (2026-10-18)
+
+- **Correção · Preencher a REDIA aberta (fictício):** na base, o botão não gravava nada. O gerador do exemplo monta também valores dos dias anteriores (acumulados do mês e tendências); num dia ainda vazio, esses valores entravam no lote, e a base recusava o lote inteiro porque aqueles dias já estão encerrados (ata fechada ou pauta congelada). Agora o preenchimento grava só no dia aberto. Teste novo na nuvem com dia vazio.
+
 ## 1.12.1 · D-68 (2026-10-18)
 
 - **Início:** sai o calendário e o botão "Abrir" do card REDIA do dia; o card mostra sempre o dia corrente (dias anteriores ficam no Arquivo). O login abre a REDIA de hoje também no modo demonstração.
