@@ -106,6 +106,19 @@ export async function iniciarServidor({ estatico, porta = 0, supabase = false, e
       for (const l of lotacoes) await serial(() => db.query('insert into public.lotacoes (user_id, uep, admin, editor) values ($1,$2,$3,$4)', [id, l.uep, !!l.admin, !!l.editor]));
       return { id };
     };
+    if (rota === '/functions/v1/redia-ata-auto' && req.method === 'POST') {   // D-75: mesma lógica de supabase/functions/redia-ata-auto (só o caminho do administrador)
+      const t = quem(req); if (!t) return json(res, 200, { ok: true, mensagem: 'Fora da janela das 23:59 (Brasília): nada a fazer.', feito: [] });
+      const adm = (await serial(() => db.query('select chave, admin_sistema from public.perfis where user_id = $1', [t.uid]))).rows[0];
+      if (!adm?.admin_sistema) return json(res, 403, { ok: false, mensagem: 'Só o administrador do sistema.' });
+      const b = JSON.parse((await corpo(req)).toString() || '{}');
+      const { gerarAtaAutomatica } = await import('../supabase/functions/redia-ata-auto/gerador.js');
+      const rows = (await serial(() => db.query(`select r.* from public.registros r where uep = $1 and data = $2 and escopo = 'dia'`, [b.uep, b.dia]))).rows;
+      if (rows.some(r => r.tipo === 'ata')) return json(res, 200, { ok: true, feito: [{ uep: b.uep, situacao: 'já tem ata' }] });
+      const regsDia = rows.map(r => ({ v: 1, id: r.id, tipo: r.tipo, data: b.dia, uep: r.uep, escopo: r.escopo, criadoEm: new Date(r.criado_em).toISOString(), gravadoEm: new Date(r.gravado_em).toISOString(), autor: r.autor, payload: r.payload }));
+      const regs = gerarAtaAutomatica(b.uep, {}, b.dia, regsDia);
+      const n = (await serial(() => db.query('select public.redia_sistema_gravar($1, $2::date, $3::jsonb) as n', [b.uep, b.dia, JSON.stringify(regs)]))).rows[0].n;
+      return json(res, 200, { ok: true, dia: b.dia, feito: [{ uep: b.uep, situacao: 'ata gerada', registros: n }] });
+    }
     if (rota === '/functions/v1/redia-cadastro' && req.method === 'POST') {
       const b = JSON.parse((await corpo(req)).toString() || '{}'), chave = String(b.chave || '').toUpperCase(), uep = String(b.uep || ''), posto = String(b.posto || '').toUpperCase(), email = String(b.email || '').toLowerCase();
       if (!/^[A-Z0-9]{4}$/.test(chave)) return json(res, 400, { ok: false, mensagem: 'A chave precisa ter exatamente 4 letras ou números.' });

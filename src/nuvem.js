@@ -113,6 +113,7 @@ const Nuvem = {
   },
   cadastrar(p) { return this.funcao('redia-cadastro', p); },
   adminAcao(acao, p = {}) { return this.funcao('redia-admin', { acao, ...p }, true); },
+  ataAutomatica(uep, dia) { return this.funcao('redia-ata-auto', { uep, dia }, true); },   // D-75
   adminUsuarios() { return this.rpc('redia_admin_usuarios'); },
   adminSalvarUsuario(p) { return this.rpc('redia_admin_salvar_usuario', { p }); },
   adminRevisar(userId) { return this.rpc('redia_admin_revisar', { p_user: userId }); },

@@ -798,7 +798,7 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   await dk.goto(srv.url + '/apresentacao/#1'); await dk.waitForTimeout(1500);
   const capa = await dk.evaluate(async () => { const imgs = [...document.querySelectorAll('img')]; await Promise.all(imgs.map(i => i.decode().catch(() => null))); const v = document.querySelector('.capa video'); const bg = getComputedStyle(document.querySelector('.capa .bg')).backgroundImage.match(/url\("?([^")]+)/)?.[1]; return { ok: imgs.filter(i => i.complete && i.naturalWidth > 0).length, total: imgs.length, video: v ? v.readyState : -1, err: v?.error?.code || 0, bg: bg ? await new Promise(res => { const im = new Image(); im.onload = () => res(200); im.onerror = () => res(404); im.src = bg; }) : 0, texto: document.body.innerText }; });
   ok(capa.ok === capa.total && capa.total >= 20 && capa.video >= 2 && capa.bg === 200 && !http404.length, `deck: capa com vídeo, imagem de fundo, marca e todas as capturas carregadas (${capa.ok}/${capa.total} imagens, vídeo ${capa.video}, fundo ${capa.bg}) ${http404.join(' ')}`);
-  ok(!/75 minutos/.test(capa.texto) && /versão 2\.1/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
+  ok(!/75 minutos/.test(capa.texto) && /versão 2\.2/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
   await dk.close();
 
   /* ---- D-70 a D-73: REDIA Búzios · unidades, administração, autocadastro e Studio ---- */
@@ -915,6 +915,20 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
     ok(ap.t && ap.oc === 1, `Studio: todos da P-77 veem o layout publicado na apresentação (${JSON.stringify(ap)})`);
     await entrar('CP78'); await fecharAviso(b); await b.goto(URL + '#/apresentacao/1'); await b.waitForTimeout(700);
     ok(await b.evaluate(() => ![...document.querySelectorAll('.stage .card .hd .t')].some(t => t.textContent.includes('Óleo do dia'))), 'Studio: o layout de uma unidade não muda as telas das outras');
+    // D-75 · ata automática das 23:59 (demonstração): dias sem ata recebem a ata completa na próxima abertura; às 23:59 com o app aberto, o dia de hoje
+    await entrar('GP76'); await fecharAviso(b);
+    const hj = await b.evaluate(() => isoData(Relogio.agora()));
+    await b.evaluate(h => { localStorage.setItem('redia.demo.ataAuto.inicio.P-76', JSON.stringify(addDias(h, -2))); localStorage.removeItem('redia.demo.ataAuto.ult.P-76'); }, hj);
+    await entrar('GP76'); await fecharAviso(b); await b.waitForTimeout(400);
+    const aa = await b.evaluate(() => { const at = [...Store.cache.values()].filter(r => r.tipo === 'ata' && r.payload.automatica).map(r => r.data).sort(); const d = at[0]; const doDia = [...Store.cache.values()].filter(r => r.data === d); return { at, valores: doDia.filter(r => r.tipo === 'valor').length, tipos: [...new Set(doDia.map(r => r.tipo))].join(',') }; });
+    ok(aa.at.join() === [-2, -1].map(k => { const d = new Date(hj + 'T12:00:00'); d.setDate(d.getDate() + k); return d.toISOString().slice(0, 10); }).join() && aa.valores > 50 && /redia/.test(aa.tipos) && /congelamento/.test(aa.tipos) && /acordo/.test(aa.tipos), `D-75 ata automática: os dias sem ata desde o primeiro uso recebem uma ata totalmente preenchida (${JSON.stringify(aa)})`);
+    await b.evaluate(() => Relogio.simular('23:59')); await b.waitForTimeout(1500);
+    const a2359 = await b.evaluate(() => { const ok = [...Store.cache.values()].some(r => r.tipo === 'ata' && r.data === isoData(Relogio.agora()) && r.payload.automatica); Relogio.real(); return ok; });
+    ok(a2359, 'D-75 ata automática: às 23:59, com o app aberto, a REDIA do dia sem ata é completada e a ata fechada');
+    await entrar('AD01'); await fecharAviso(b); await b.click('[data-uep="P-77"]'); await b.waitForTimeout(700);
+    await b.goto(URL + '#/admin'); await b.waitForTimeout(400); await b.click('[data-aba="testes"]'); await b.waitForTimeout(300); await b.selectOption('#at-un', 'P-77'); await b.waitForTimeout(300);
+    await b.click('[data-t="ata"]'); await b.waitForTimeout(250); await b.click('.mdl [data-mdl="ok"]'); await b.waitForTimeout(800);
+    ok(await b.evaluate(() => [...Store.cache.values()].some(r => r.tipo === 'ata' && r.data === isoData(Relogio.agora()) && r.payload.automatica) && USUARIO.uep === 'P-77'), 'Administração › Dados de teste: "Gerar a ata automática de hoje agora" (para testar a função)');
     await bc.close();
   }
 

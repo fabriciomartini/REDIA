@@ -140,6 +140,13 @@ A V2.0 atende as 10 plataformas de Búzios. Cada usuário é lotado em uma ou ma
 4. **E-mail ao usuário:** sem domínio verificado, o Resend só entrega ao e-mail da própria conta. Até verificar um domínio (ou usar outro serviço aprovado pela TIC), a senha provisória do autocadastro vai ao **e-mail do administrador**, que a repassa; na Administração, a senha de um usuário criado sem e-mail aparece uma vez na tela.
 5. **Contas de teste das novas plataformas:** na Administração › Usuários › **Importar contas de teste** (13 funções por unidade, senha única digitada por você) ou `python tools/provisionar_usuarios.py tools/testes_buzios.csv --compartilhado --senha-fixa`.
 
+## 9. Ata automática das 23:59 (V2.2, versão de teste)
+
+1. **Base:** reaplique `supabase/00_instalar_tudo.sql` (cria `redia_sistema_gravar`, só para a chave do servidor).
+2. **Função:** publique `redia-ata-auto` com **dois arquivos**: `index.ts` e `gerador.js` (este é gerado pelo `build.py` a partir do código do app; republique sempre que o gerador mudar). "Verify JWT" desligado.
+3. **Agendamento:** rode `supabase/04_agendamento.sql` no SQL Editor (liga pg_cron e pg_net e agenda às 23:59 e às 00:10 de Brasília).
+4. **Teste:** Administração › Dados de teste › **Gerar a ata automática de hoje agora** (encerra a REDIA do dia da unidade escolhida). Para desfazer: Início › Resetar a REDIA de hoje.
+
 ## Se algo não funcionar
 
 | Sintoma | Causa provável | O que fazer |

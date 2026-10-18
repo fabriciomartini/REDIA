@@ -203,11 +203,23 @@ ok(/violates check|tipo/.test(await falha(U.cp, `select public.redia_gravar($1::
 const hojeSP = (await db.query(`select to_char((now() at time zone 'America/Sao_Paulo')::date, 'YYYY-MM-DD') d`)).rows[0].d;
 await gravar(U.gp, [reg('valor', { campo: 'oleo.real', valor: 7, origem: 'M' }, { data: hojeSP }), reg('valor', { campo: 'gas.real', valor: 8, origem: 'M' }, { data: hojeSP })]);
 const antesDia = (await db.query(`select count(*)::int n from public.registros where uep = 'P-83' and data <> $1`, [hojeSP])).rows[0].n;
-ok(/SEM_PERMISSAO_RESET_DIA/.test(await falha(U.em, `select public.redia_resetar_dia('P-83', $1::date)`, [hojeSP]) || ''), 'reset do dia: SUEMB (supervisor, não coordenador) não reseta');
+ok(/SEM_PERMISSAO_RESET_DIA/.test(await falha(U.outra, `select public.redia_resetar_dia('P-83', $1::date)`, [hojeSP]) || ''), 'reset do dia: quem não está lotado na unidade não reseta');
 ok(/RESET_SO_HOJE/.test(await falha(U.gp, `select public.redia_resetar_dia('P-83', '2026-10-14'::date)`) || ''), 'reset do dia: só a REDIA de hoje (dias anteriores, não)');
 const nDia = (await como(U.gp, `select public.redia_resetar_dia('P-83', $1::date) as n`, [hojeSP])).rows[0].n;
 ok(nDia === 2 && (await db.query(`select count(*)::int n from public.registros where uep = 'P-83' and data = $1`, [hojeSP])).rows[0].n === 0 && (await db.query(`select count(*)::int n from public.registros where uep = 'P-83' and data <> $1`, [hojeSP])).rows[0].n === antesDia, `reset do dia: GEPLAT apaga só os registros de hoje (${nDia}); os outros dias ficam`);
 ok((await db.query(`select count(*)::int n from public.auditoria where acao = 'teste.resetar_dia'`)).rows[0].n === 1, 'reset do dia fica na auditoria');
+await gravar(U.gp, [reg('valor', { campo: 'oleo.real', valor: 9, origem: 'M' }, { data: hojeSP })]);
+ok((await como(U.em, `select public.redia_resetar_dia('P-83', $1::date) as n`, [hojeSP])).rows[0].n === 1, 'D-75: supervisor (SUEMB) também reseta a REDIA do dia');
+// D-75 · gravação do sistema (ata automática das 23:59): só a chave do servidor; autoria SISTEMA; sem as regras de usuário; não repete
+ok(/permission denied/.test(await falha(U.gp, `select public.redia_sistema_gravar('P-83', $1::date, '[]'::jsonb)`, [hojeSP]) || ''), 'ata automática: usuário logado não executa a gravação do sistema');
+const regAuto = [reg('redia', { coord: 'GEPLAT' }, { data: hojeSP }), reg('valor', { campo: 'oleo.real', valor: 5, exemplo: true }, { data: hojeSP }), reg('congelamento', { coord: 'GEPLAT' }, { data: hojeSP }), reg('ata', { coord: 'GEPLAT', automatica: true }, { data: hojeSP })];
+const nAuto = (await db.query(`select public.redia_sistema_gravar('P-83', $1::date, $2::jsonb) as n`, [hojeSP, JSON.stringify(regAuto)])).rows[0].n;
+const ataAuto = (await db.query(`select autor_chave, payload from public.registros where uep = 'P-83' and data = $1 and tipo = 'ata'`, [hojeSP])).rows[0];
+ok(nAuto === 4 && ataAuto.autor_chave === 'SISTEMA' && /^REDIA-P83-/.test(ataAuto.payload.codigo), `ata automática: grava o dia completo e a ata com autoria SISTEMA e código (${nAuto} registros)`);
+ok((await db.query(`select public.redia_sistema_gravar('P-83', $1::date, $2::jsonb) as n`, [hojeSP, JSON.stringify([reg('ata', { coord: 'GEPLAT' }, { data: hojeSP })])])).rows[0].n === 0 && (await db.query(`select count(*)::int n from public.auditoria where acao = 'ata.automatica'`)).rows[0].n === 1, 'ata automática: dia que já tem ata não recebe outra; a geração fica na auditoria');
+ok(/ATA_FECHADA/.test(await falha(U.gp, `select public.redia_gravar($1::jsonb)`, [JSON.stringify([reg('valor', { campo: 'gas.real', valor: 1 }, { data: hojeSP })])]) || ''), 'depois da ata automática, o dia fica encerrado para os usuários');
+await como(U.gp, `select public.redia_resetar_dia('P-83', $1::date)`, [hojeSP]);
+ok((await db.query(`select count(*)::int n from public.registros where uep = 'P-83' and data = $1`, [hojeSP])).rows[0].n === 0, 'D-75: o reset do dia apaga também a ata do dia');
 // reset total da demonstração (D-52; D-74: só o administrador do sistema)
 ok(/SEM_PERMISSAO_RESET/.test(await falha(U.cp, `select public.redia_resetar('P-83')`) || ''), 'reset total: usuário comum não reseta');
 ok(/SEM_PERMISSAO_RESET/.test(await falha(U.gp, `select public.redia_resetar('P-83')`) || ''), 'reset total: administrador da unidade não reseta (só o administrador do sistema)');

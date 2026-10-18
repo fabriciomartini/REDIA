@@ -223,6 +223,22 @@ declare
   seq_cong bigint;
   falta text;
 begin
+  -- D-75: gravação do sistema (ata automática das 23:59, só pela função redia_sistema_gravar, executada pela Edge Function com a chave do servidor)
+  if current_setting('redia.sistema', true) = 'on' then
+    new.autor_id := '00000000-0000-0000-0000-000000000000'; new.autor_chave := 'SISTEMA';
+    if new.escopo = 'dia' then
+      perform pg_advisory_xact_lock(hashtextextended(new.uep || '|' || new.data::text, 0));
+      if exists (select 1 from public.registros r where r.uep = new.uep and r.data = new.data and r.escopo = 'dia' and r.tipo = 'ata') then
+        raise exception 'ATA_FECHADA' using errcode = 'P0001';
+      end if;
+      if new.tipo = 'redia' and exists (select 1 from public.registros r where r.uep = new.uep and r.data = new.data and r.escopo = 'dia' and r.tipo = 'redia') then
+        raise exception 'REDIA_JA_INICIADA' using errcode = 'P0001';
+      end if;
+      if new.tipo in ('redia', 'ata') then new.payload := new.payload || jsonb_build_object('codigo', public.redia_codigo(new.uep, new.data)); end if;
+    end if;
+    new.gravado_em := clock_timestamp();
+    return new;
+  end if;
   select * into p from public.perfis where user_id = auth.uid() and ativo;
   if not found then
     raise exception 'SEM_PERFIL' using errcode = 'P0001', hint = 'Usuário sem perfil ativo na REDIA.';
@@ -404,15 +420,16 @@ begin
 end $$;
 
 -- D-74: reseta só o preenchimento da REDIA de hoje da unidade (registros do dia; demandas do Canal Base x Bordo ficam)
--- quem pode: lotado na unidade com função de coordenador/GEPLAT, administrador da unidade ou do sistema
+-- quem pode: lotado na unidade com função de coordenador, supervisor ou GEPLAT, administrador da unidade ou do sistema (D-75: supervisores)
+-- apaga também a ata do dia (se fechada), que é um registro do dia
 create or replace function public.redia_resetar_dia(p_uep text, p_data date) returns integer
 language plpgsql volatile security definer set search_path = public as $$
 declare p public.perfis; n integer;
 begin
   select * into p from public.perfis where user_id = auth.uid() and ativo;
   if not found or not public.redia_pode_uep(p_uep)
-     or not (public.redia_admin_uep(p_uep) or upper(p.posto) in ('GEOP', 'GEPLAT', 'GESTÃO', 'COPROD', 'COEMB', 'COMAN')) then
-    raise exception 'SEM_PERMISSAO_RESET_DIA' using errcode = 'P0001', hint = 'Só coordenador, GEPLAT ou administrador resetam a REDIA do dia.';
+     or not (public.redia_admin_uep(p_uep) or upper(p.posto) in ('GEOP', 'GEPLAT', 'GESTÃO', 'COPROD', 'COEMB', 'COMAN', 'SUPROD', 'SUEMB', 'SUEIN', 'SUMEC')) then   -- D-75: supervisores também
+    raise exception 'SEM_PERMISSAO_RESET_DIA' using errcode = 'P0001', hint = 'Só coordenador, supervisor, GEPLAT ou administrador resetam a REDIA do dia.';
   end if;
   if p_data <> (now() at time zone 'America/Sao_Paulo')::date then
     raise exception 'RESET_SO_HOJE' using errcode = 'P0001', hint = 'Só a REDIA do próprio dia pode ser resetada.';
@@ -454,6 +471,30 @@ begin
     if found then saida := saida || jsonb_build_array(public.redia_json(novo)); end if;
   end loop;
   return saida;
+end $$;
+
+-- D-75: gravação do sistema (ata automática das 23:59). Só a chave do servidor (service_role) executa; marca a sessão como sistema
+-- para o gatilho (autoria SISTEMA; sem as regras de usuário), grava o lote numa transação e registra na auditoria.
+create or replace function public.redia_sistema_gravar(p_uep text, p_data date, p_regs jsonb) returns integer
+language plpgsql volatile security definer set search_path = public as $$
+declare r jsonb; n integer := 0;
+begin
+  if jsonb_typeof(p_regs) <> 'array' or jsonb_array_length(p_regs) = 0 or jsonb_array_length(p_regs) > 3000 then
+    raise exception 'LOTE_INVALIDO' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from public.registros x where x.uep = p_uep and x.data = p_data and x.escopo = 'dia' and x.tipo = 'ata') then return 0; end if;
+  perform set_config('redia.sistema', 'on', true);
+  for r in select value from jsonb_array_elements(p_regs) loop
+    if r ->> 'uep' is distinct from p_uep then continue; end if;
+    insert into public.registros (id, uep, data, escopo, tipo, criado_em, gravado_em_cliente, autor, payload)
+    values (r ->> 'id', p_uep, (r ->> 'data')::date, coalesce(r ->> 'escopo', 'dia'), r ->> 'tipo',
+            coalesce((r ->> 'criadoEm')::timestamptz, now()), r ->> 'gravadoEm', coalesce(r -> 'autor', '{}'::jsonb), r -> 'payload')
+    on conflict (uep, id) do nothing;
+    if found then n := n + 1; end if;
+  end loop;
+  perform set_config('redia.sistema', 'off', true);
+  insert into public.auditoria (por, acao, alvo, detalhe) values ('SISTEMA', 'ata.automatica', p_uep, jsonb_build_object('data', p_data, 'registros', n));
+  return n;
 end $$;
 
 -- Configuração da UEP.
@@ -773,6 +814,10 @@ begin
     execute 'alter publication supabase_realtime add table public.registros';
   end if;
 end $$;
+
+-- D-75: a gravação do sistema só pela chave do servidor (Edge Function redia-ata-auto)
+revoke all on function public.redia_sistema_gravar(text, date, jsonb) from public, anon, authenticated;
+grant execute on function public.redia_sistema_gravar(text, date, jsonb) to service_role;
 
 -- =====================================================================
 -- REDIA P-83 · V1.0 · arquivos (Supabase Storage)

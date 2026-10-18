@@ -77,6 +77,21 @@ def csp(cfg, unico):
 ICONE = "data:image/svg+xml," + "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23008542'/%3E%3Cpath d='M18 50V14h16c8 0 12 4 12 11 0 5-3 9-8 10l9 15h-8l-8-14h-6v14z M25 30h8c4 0 6-2 6-5s-2-5-6-5h-8z' fill='%23fff'/%3E%3Crect x='18' y='54' width='28' height='4' fill='%23FDC82F'/%3E%3C/svg%3E"
 
 
+def gerar_gerador_ata():
+    """D-75: supabase/functions/redia-ata-auto/gerador.js = core.js + model.js do app como módulo, sem navegador (Deno)."""
+    cab = ("// GERADO por build.py a partir de src/core.js e src/model.js (D-75) · não editar à mão\n"
+           "// Roda na Edge Function redia-ata-auto: o mesmo gerador de dados fictícios do app, sem navegador.\n"
+           "const window = globalThis; const location = { search: '' };\n")
+    fim = ("\nexport function gerarAtaAutomatica(uep, cfg, iso, regsDia) {\n"
+           "  CFG = mesclarCfg(cfg || {}); CFG.uep = uep;\n"
+           "  return montarAtaAutomatica(iso, regsDia || []);\n}\n")
+    txt = cab + ler('src', 'core.js') + '\n' + ler('src', 'model.js') + fim
+    destino = os.path.join(P, 'supabase', 'functions', 'redia-ata-auto', 'gerador.js')
+    os.makedirs(os.path.dirname(destino), exist_ok=True)
+    if not os.path.exists(destino) or open(destino, encoding='utf-8').read() != txt:
+        with open(destino, 'w', encoding='utf-8') as f: f.write(txt)
+
+
 def montar(saida, unico):
     cfg = configuracao()
     nuvem = bool(cfg['supabaseUrl'])
@@ -85,7 +100,8 @@ def montar(saida, unico):
     sem_exemplo = os.environ.get('REDIA_SEM_EXEMPLO', '') not in ('', '0', 'false')
     if sem_exemplo:   # site sem os dados de exemplo (derivados de material da P-75)
         i, j = js.index('/* EXEMPLO-INICIO */'), js.index('/* EXEMPLO-FIM */') + len('/* EXEMPLO-FIM */')
-        js = js[:i] + "const EXEMPLO_DISPONIVEL = false;\nfunction montarExemplo() { return []; }\nasync function carregarExemplo() { throw new Error('Dados de exemplo não incluídos nesta montagem.'); }" + js[j:]
+        js = js[:i] + "const EXEMPLO_DISPONIVEL = false;\nfunction montarExemplo() { return []; }\nasync function carregarExemplo() { throw new Error('Dados de exemplo não incluídos nesta montagem.'); }\nfunction montarAtaAutomatica() { return []; }" + js[j:]
+    gerar_gerador_ata()   # D-75: módulo da ata automática para a Edge Function (mesmo código do app)
     cfg_js = 'window.REDIA_CONFIG = ' + json.dumps(cfg, ensure_ascii=False) + ';\n'
     supa = ler('vendor', VENDOR_SUPABASE) if nuvem else ''
     head = f'''<meta charset="utf-8">

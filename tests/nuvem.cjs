@@ -181,7 +181,7 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   ok(await c.evaluate(async () => { try { await Nuvem.resetar(CFG.uep); return 'resetou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO_RESET', 'reset: servidor recusa pedido de quem não é administrador');
   await c.evaluate(() => sincronizarTela()); const antesC = await c.evaluate(() => Store.cache.size);
   // D-74: reset do dia (Início) só por coordenador/GEPLAT/administrador; reset total só pelo administrador do sistema (Administração)
-  ok(await c.evaluate(async () => { try { await Nuvem.resetarDia(CFG.uep, DIA); return 'resetou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO_RESET_DIA', 'reset do dia: servidor recusa SUPROD (não coordenador)');
+  ok(await c.evaluate(async () => { try { await Nuvem.resetarDia('P-74', DIA); return 'resetou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO_RESET_DIA', 'reset do dia: servidor recusa unidade em que o usuário não está lotado (D-75: supervisores da unidade podem)');
   ok(await g.evaluate(async () => { try { await Nuvem.resetar(CFG.uep); return 'resetou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO_RESET', 'reset total: servidor recusa administrador da unidade (só o administrador do sistema)');
   await srv.sql(`update public.perfis set admin_sistema = true where chave = 'GP01'`);
   await g.goto(URL + '#/sair'); await g.waitForTimeout(400); await login(g, 'GP01', 'Nova2026a');
@@ -277,6 +277,15 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
     const ly = (await srv.sql(`select versao, publicado from public.layouts where uep = 'P-75'`)).rows[0];
     ok(ly && ly.versao === 1 && Object.keys(ly.publicado.telas.abertura.cards).length === 1, 'nuvem: Studio publica o layout da unidade na base (versão 1)');
     await cs.close();
+    // D-75: ata automática pela função do servidor (botão da Administração para testar agora)
+    const { c: cq, p: q2 } = await novo('ata-auto');
+    await q2.goto(URL); await q2.waitForTimeout(600); await login(q2, 'GP01', 'Nova2026a');
+    await q2.click('[data-uep="P-80"]'); await q2.waitForTimeout(1200); await q2.goto(URL + '#/admin'); await q2.waitForTimeout(900); await q2.click('[data-aba="testes"]'); await q2.waitForTimeout(600); await q2.selectOption('#at-un', 'P-80'); await q2.waitForTimeout(900);
+    await q2.click('[data-t="ata"]'); await q2.waitForTimeout(300); await q2.click('.mdl [data-mdl="ok"]'); await q2.waitForTimeout(2500);
+    const aq = (await srv.sql(`select count(*)::int n, count(*) filter (where tipo = 'ata' and autor_chave = 'SISTEMA')::int ata, count(*) filter (where tipo = 'valor')::int val from public.registros where uep = 'P-80'`)).rows[0];
+    ok(aq.ata === 1 && aq.val > 50, `nuvem: D-75 ata automática gravada pela função do servidor, com autoria SISTEMA e o dia totalmente preenchido (${JSON.stringify(aq)})`);
+    ok(await q2.evaluate(async () => { const o = await fetch(NUVEM.supabaseUrl + '/functions/v1/redia-ata-auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()); return /Fora da janela/.test(o.mensagem); }), 'nuvem: sem credencial, a função só age na janela das 23:59 (fora dela, não faz nada)');
+    await cq.close();
     await srv.sql(`update public.perfis set admin_sistema = false where chave = 'GP01'`);
   }
 

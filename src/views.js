@@ -341,6 +341,7 @@ async function iniciarSessao0(novoLogin) {
     await Store.usarMemoria();
     await Store.carregar(DIA);
     await Layout.carregar(CFG.uep);   // D-73
+    await atasAutomaticasDemo();   // D-75
   }
   atualizarEstado();
 }
@@ -404,7 +405,7 @@ async function telaInicio() {
   const testes = [];
   if (Store.modo && EXEMPLO_DISPONIVEL && podeAdministrar()) testes.push(`<div class="tf"><button class="btn sm pri" data-act="preencher" ${!R || congelada() || ata ? 'disabled' : ''}>Preencher a REDIA aberta (fictício)</button><span class="note">${!R ? 'Inicie a REDIA do dia para usar.' : ata ? 'REDIA encerrada.' : congelada() ? 'Pauta congelada: reabra para preencher.' : 'Gera valores fictícios para todos os campos vazios das 3 coordenações e do GEPLAT, aprova as sugestões pendentes e conclui o preenchimento. Não apaga o que já foi preenchido; marcado como fictício.'}</span></div>`);
   if (Store.modo && !temDados && podeAdministrar() && EXEMPLO_DISPONIVEL) testes.push(`<div class="tf"><button class="btn sm sec" data-act="exemplo">Carregar dados de exemplo</button><span class="note">Dia sem registros: carrega o exemplo completo (P-75, sem nomes de pessoas)${nuvem ? ', gravado na base marcado como exemplo' : ''}, com 15 dias de histórico.</span></div>`);
-  if (Store.modo && hoje && (!nuvem || podeIniciarRedia() || USUARIO.admin)) { const nDia = regsDoDia().length; testes.push(`<div class="tf"><button class="btn sm sec" data-act="resetar-dia" ${nDia ? '' : 'disabled'}>Resetar a REDIA de hoje</button><span class="note">${nDia ? `Apaga só o preenchimento de ${ddmm(DIA)} (${nDia} registro${nDia === 1 ? '' : 's'}${nuvem ? ', para todos' : ''}): a REDIA volta a “não iniciada”. Histórico, demandas do Canal Base x Bordo e outros dias ficam.` : 'Nada a resetar: a REDIA de hoje ainda não tem registros.'}</span></div>`); }   // D-74
+  if (Store.modo && hoje && (!nuvem || podeIniciarRedia() || USUARIO.admin || ['SUPROD', 'SUEMB', 'SUEIN', 'SUMEC'].includes(USUARIO.posto))) { const nDia = regsDoDia().length; testes.push(`<div class="tf"><button class="btn sm sec" data-act="resetar-dia" ${nDia ? '' : 'disabled'}>Resetar a REDIA de hoje</button><span class="note">${nDia ? `Apaga só o preenchimento de ${ddmm(DIA)} (${nDia} registro${nDia === 1 ? '' : 's'}${nuvem ? ', para todos' : ''}): a REDIA volta a “não iniciada”. A ata do dia, se já fechada, também sai. Histórico, demandas do Canal Base x Bordo e outros dias ficam.` : 'Nada a resetar: a REDIA de hoje ainda não tem registros.'}</span></div>`); }   // D-74
   if (Store.modo && (!nuvem || USUARIO.admin || Relogio.simulado())) testes.push(`<div class="tf"><span class="row" style="gap:6px"><label class="lbl" for="sim" style="margin:0">Simular horário</label><input id="sim" type="time" class="in" style="width:auto" value="${hhmm(Relogio.agora())}"><button class="btn sm sec" data-act="simular">Aplicar</button>${Relogio.simulado() ? '<button class="btn sm" data-act="real">Voltar ao horário real</button>' : ''}</span><span class="note">Muda o relógio do app neste navegador para testar as fases do dia.</span></div>`);
   if (Store.modo) testes.push(`<div class="tf"><span class="row" style="gap:6px"><button class="btn sm sec" data-act="exportar">Exportar registros (JSON)</button>${!nuvem || podeAdministrar() ? `<label class="btn sm sec" for="imp">Importar registros</label><input id="imp" type="file" accept=".json" hidden>` : ''}</span><span class="note">Cópia e migração dos registros entre ambientes de teste.</span></div>`);
   render(cabecalhoApp({ id: 'inicio', titulo: 'Início' }) + `<div class="wrap ini">
@@ -1083,6 +1084,27 @@ async function viradaDoDia() {
   if (!USUARIO || !Store.modo || DIA !== ontem) return;
   try { await abrirDia(h); aviso(`Novo dia: ${ddmmaaaa(h)}. A REDIA de hoje pode ser iniciada em “Iniciar elaboração”.`, 'ok'); } catch (e) { Store.erros.push('virada do dia: ' + e.message); }
 }
+/* D-75 · versão de teste, demonstração: às 23:59 (com o app aberto) ou na próxima abertura, os dias sem ata arquivada desta unidade
+   recebem a ata automática (montarAtaAutomatica). Começa no primeiro dia em que a unidade foi aberta neste navegador; no máximo 30 dias
+   para trás. Na nuvem, quem faz isso é a função do servidor redia-ata-auto (agendada às 23:59 e às 00:10). */
+let ATA_AUTO_RODANDO = false;
+async function atasAutomaticasDemo() {
+  if (MODO_NUVEM || ATA_AUTO_RODANDO || !USUARIO?.uep || Store.modo !== 'memoria' || typeof EXEMPLO_DISPONIVEL === 'undefined' || !EXEMPLO_DISPONIVEL) return 0;
+  const uep = CFG.uep, hoje = isoData(Relogio.agora()), k = s => `demo.ataAuto.${s}.${uep}`, aposHora = Relogio.minutos() >= 23 * 60 + 59;
+  const ini = LS.get(k('inicio'), null); if (!ini) { LS.set(k('inicio'), hoje); if (!aposHora) return 0; }
+  const ult = LS.get(k('ult'), null), dias = [];
+  for (let d = [ult ? addDias(ult, 1) : null, ini || hoje, addDias(hoje, -30)].filter(Boolean).sort().pop(); d < hoje; d = addDias(d, 1)) dias.push(d);
+  if (aposHora && ult !== hoje) dias.push(hoje);
+  if (!dias.length) return 0;
+  ATA_AUTO_RODANDO = true; let n = 0;
+  try {
+    const todos = [...Store.cache.values()];
+    for (const d of dias) { const regs = montarAtaAutomatica(d, todos.filter(r => r.data === d)); if (regs.length) { await Store.gravarLote(regs); n++; } LS.set(k('ult'), d); }
+    if (n) { atualizarEstado(); if (ROTA_ATUAL && ROTA_ATUAL.id !== 'apresentacao') rerender(); aviso(`Ata automática gerada para ${n} dia(s) sem ata arquivada (versão de teste).`, 'info'); }
+  } catch (e) { Store.erros.push('ata automática: ' + e.message); }
+  finally { ATA_AUTO_RODANDO = false; }
+  return n;
+}
 /* ======================= Unidades (D-70) =======================
    Usuário lotado em mais de uma unidade (ou administrador do sistema) escolhe a unidade da REDIA; o administrador também vê a Administração. */
 function telaUnidades() {
@@ -1731,6 +1753,7 @@ async function iniciar() {
     const P = UI.pres;
     if (P.rodando) { const agora = Date.now(); if (agora - P.ult >= 1000) { P.restante -= Math.floor((agora - P.ult) / 1000); P.ult = agora - ((agora - P.ult) % 1000); atualizarTimer(); } }
     viradaDoDia();   // D-68: à meia-noite, quem estava na REDIA de hoje passa para o novo dia (com "Iniciar elaboração")
+    if (Relogio.minutos() >= 23 * 60 + 59) atasAutomaticasDemo();   // D-75: 23:59 · ata automática (na demonstração; na nuvem, o servidor)
     $$('[data-clk]').forEach(c => { const t = hhmm(Relogio.agora()); if (c.textContent !== t) c.textContent = t; });
   }, 250);
   // leitura periódica da base: a cada 15 s sem tempo real; a cada 60 s com tempo real (rede de segurança)

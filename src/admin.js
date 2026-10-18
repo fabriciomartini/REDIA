@@ -333,6 +333,7 @@ function admTestes(c, us, rs) {
       <span class="note">${fmtN(u.registros || 0)} registros · última REDIA ${u.ultimaRedia ? ddmmaaaa(String(u.ultimaRedia).slice(0, 10)) : '—'} · ${u.atas || 0} ata(s)</span></div>
     <div class="adm-tsg">
       ${EXEMPLO_DISPONIVEL ? `<div class="adm-tsc"><h3>Gerar histórico de 15 dias</h3><p>Grava REDIAs de exemplo encerradas dos 15 dias anteriores a hoje na ${esc(F.uepT)} ${MODO_NUVEM ? '(na base, visíveis para todos)' : '(neste navegador)'}, para tendências, recorrência, visão semanal e Arquivo. Dias que já têm pauta congelada ou ata ficam como estão.</p><button class="btn sec" data-t="hist">Gerar histórico de 15 dias</button></div>` : ''}
+      ${EXEMPLO_DISPONIVEL ? `<div class="adm-tsc"><h3>Ata automática das 23:59</h3><p>Todos os dias às 23:59, cada unidade sem ata arquivada recebe uma ata totalmente preenchida (dados fictícios onde estiver vazio), para manter a base do período de teste atualizada${MODO_NUVEM ? ' (função do servidor redia-ata-auto, agendada às 23:59 e às 00:10)' : ' (na demonstração, às 23:59 com o app aberto ou na próxima abertura)'}. Para testar agora, gere a de hoje: a REDIA da ${esc(F.uepT)} fica encerrada.</p><button class="btn sec" data-t="ata">Gerar a ata automática de hoje agora</button></div>` : ''}
       <div class="adm-tsc perigo"><h3>Resetar todos os dados de teste</h3><p>Apaga <b>todos os registros da ${esc(F.uepT)}</b>, de todos os dias ${MODO_NUVEM ? '(na base, para todos os usuários)' : '(neste navegador)'}. Usuários, configuração e layout do Studio continuam. Para apagar só o dia, use “Resetar a REDIA de hoje” no Início.</p><button class="btn perigo" data-t="reset">Resetar todos os dados da ${esc(F.uepT)}</button></div>
     </div></section>`;
   $('#at-un', c).onchange = e => { F.uepT = e.target.value; telaAdmin(); };
@@ -343,6 +344,17 @@ function admTestes(c, us, rs) {
     try { await abrirUnidadeAdm(F.uepT); const r = await gravarHistorico(DIA, 15); if (Store.remoto()) await Store.carregar(DIA); atualizarEstado(); if (!MODO_NUVEM) DiretorioDemo.auditar('teste.historico', F.uepT, { dias: r.dias, registros: r.n });
       aviso(r.n ? `Histórico gravado na ${F.uepT}: ${r.dias} dia(s), ${r.n} registros${r.pulados ? ` · ${r.pulados} dia(s) já encerrados foram mantidos` : ''}.` : 'Nada a gravar: os 15 dias anteriores já têm REDIA encerrada.', 'ok'); }
     catch (x) { aviso('Não foi possível gravar o histórico: ' + x.message, 'erro'); }
+    telaAdmin();
+  });
+  $('[data-t="ata"]', c) && ($('[data-t="ata"]', c).onclick = async e => {   // D-75
+    const hoje = isoData(Relogio.agora());
+    const r0 = await modal({ titulo: `Gerar a ata automática de hoje na ${esc(F.uepT)}?`, html: `<p>Completa a REDIA de ${ddmmaaaa(hoje)} com dados fictícios onde estiver vazio, congela a pauta e fecha a ata ${MODO_NUVEM ? '<b>na base, para todos</b>' : 'neste navegador'}. Depois disso, nada mais entra no dia (para recomeçar, use “Resetar a REDIA de hoje” no Início).</p>`, botoes: [{ id: 'cancelar', txt: 'Cancelar' }, { id: 'ok', txt: 'Gerar a ata', cls: 'pri' }] });
+    if (r0.id !== 'ok') return;
+    e.target.disabled = true;
+    try {
+      if (MODO_NUVEM) { const o = await Nuvem.ataAutomatica(F.uepT, hoje); const f = (o.feito || [])[0] || {}; if (f.erro) throw new Error(f.erro); aviso(`${F.uepT}: ${f.situacao || 'concluído'}${f.registros ? ` (${f.registros} registros)` : ''}.`, 'ok'); if (USUARIO.uep === F.uepT) { await Store.carregar(DIA); atualizarEstado(); } }
+      else { await abrirUnidadeAdm(F.uepT); const regs = montarAtaAutomatica(hoje, [...Store.cache.values()].filter(r => r.data === hoje)); if (regs.length) { await Store.gravarLote(regs); atualizarEstado(); DiretorioDemo.auditar('ata.automatica', F.uepT, { data: hoje, registros: regs.length }); } aviso(regs.length ? `Ata automática de ${ddmm(hoje)} gerada na ${F.uepT} (${regs.length} registros).` : 'A REDIA de hoje já tem ata arquivada.', 'ok'); }
+    } catch (x) { aviso('Não foi possível gerar a ata: ' + x.message, 'erro'); }
     telaAdmin();
   });
   $('[data-t="reset"]', c).onclick = async () => {
@@ -413,7 +425,7 @@ function admCadastro(c, us, rs) {
   $$('[data-ap]', c).forEach(b => b.onclick = async () => { try { const p = pc.find(x => String(x.id) === b.dataset.ap); const o = await Admin().acao('aprovar', { pedidoId: +b.dataset.ap }); if (o.senhaTemporaria) await mostrarSenha(p.chave, o.senhaTemporaria); else aviso(`Cadastro de ${p.chave} aprovado. Senha provisória enviada ao e-mail do usuário.`, 'ok'); telaAdmin(); } catch (e) { aviso(e.message, 'erro'); } });
   $$('[data-rc]', c).forEach(b => b.onclick = async () => { try { await Admin().acao('recusar', { pedidoId: +b.dataset.rc }); aviso('Pedido recusado.', 'ok'); telaAdmin(); } catch (e) { aviso(e.message, 'erro'); } });
 }
-const ACOES_AUD = { 'usuario.alterar': 'Usuário alterado', 'usuario.criar': 'Usuário criado', 'usuario.revisar_acesso': 'Acesso revisado', 'usuario.redefinir_senha': 'Senha redefinida', 'usuario.importar': 'Contas de teste importadas', 'usuario.autocadastro': 'Autocadastro', 'cadastro.aprovar': 'Cadastro aprovado', 'cadastro.recusar': 'Cadastro recusado', 'unidade.alterar': 'Unidade alterada', 'parametro.alterar': 'Parâmetro alterado', 'layout.publicar': 'Layout publicado (Studio)', 'layout.restaurar': 'Layout restaurado (Studio)', 'usuario.excluir': 'Conta excluída', 'teste.resetar_tudo': 'Dados de teste resetados (tudo)', 'teste.resetar_dia': 'REDIA do dia resetada', 'teste.historico': 'Histórico de 15 dias gerado' };
+const ACOES_AUD = { 'usuario.alterar': 'Usuário alterado', 'usuario.criar': 'Usuário criado', 'usuario.revisar_acesso': 'Acesso revisado', 'usuario.redefinir_senha': 'Senha redefinida', 'usuario.importar': 'Contas de teste importadas', 'usuario.autocadastro': 'Autocadastro', 'cadastro.aprovar': 'Cadastro aprovado', 'cadastro.recusar': 'Cadastro recusado', 'unidade.alterar': 'Unidade alterada', 'parametro.alterar': 'Parâmetro alterado', 'layout.publicar': 'Layout publicado (Studio)', 'layout.restaurar': 'Layout restaurado (Studio)', 'usuario.excluir': 'Conta excluída', 'teste.resetar_tudo': 'Dados de teste resetados (tudo)', 'teste.resetar_dia': 'REDIA do dia resetada', 'teste.historico': 'Histórico de 15 dias gerado', 'ata.automatica': 'Ata automática (23:59)' };
 function resumoDetalhe(a) {
   const d = a.detalhe || {};
   if (a.acao === 'usuario.alterar' && d.depois) {

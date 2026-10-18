@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 2.2.0 · D-75 (2026-10-18)
+
+- **Ata automática das 23:59 (versão de teste):** todos os dias às 23:59 (Brasília), cada unidade sem ata arquivada recebe uma ata totalmente preenchida, para manter a base do período de teste atualizada. Se a REDIA não foi iniciada, ela é aberta e preenchida com o gerador do exemplo; se foi iniciada e não encerrada, só o que está vazio é preenchido (se a pauta ainda não estiver congelada), as sugestões pendentes são aprovadas, as coordenações concluídas, a pauta congelada, o de acordo registrado e a ata fechada. Tudo marcado como fictício e "automática", com autoria SISTEMA e registro na auditoria.
+  - Nuvem: Edge Function `redia-ata-auto` (gerador montado pelo build.py a partir do código do app) agendada pelo banco (`supabase/04_agendamento.sql`, pg_cron às 23:59 e 00:10); sem credencial, só age na janela das 23:55–00:15. Gravação pela função `redia_sistema_gravar`, que só a chave do servidor executa.
+  - Demonstração: às 23:59 com o app aberto ou na próxima abertura (dias desde o primeiro uso, até 30).
+  - Administração › Dados de teste: "Gerar a ata automática de hoje agora", para testar.
+- **Resetar a REDIA de hoje:** liberado também para supervisores (SUPROD, SUEMB, SUEIN, SUMEC); apaga também a ata do dia, se já fechada.
+- Base: **reaplicar `supabase/00_instalar_tudo.sql`**, rodar `supabase/04_agendamento.sql` e publicar a Edge Function `redia-ata-auto` (index.ts + gerador.js).
+
 ## 2.1.0 · D-74 (2026-10-18)
 
 - **Administração › Usuários · excluir conta:** botão Excluir na lista e no editor do usuário, com confirmação digitando a chave. Exclui acesso, perfil e lotações; registros e atas guardam o nome do autor; a exclusão fica na auditoria. A conta do **proprietário do sistema** (`perfis.proprietario`) nunca é excluída, desativada nem perde o perfil de administrador, nem a própria conta de quem exclui.

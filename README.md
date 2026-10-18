@@ -46,7 +46,7 @@ Sem as variáveis do Supabase, o app publicado roda em **modo demonstração**: 
 ├─ assets/              vídeo e imagem da tela de acesso, marca Petrobras
 ├─ apresentacao/        deck de explicação do sistema (HTML), publicado em <site>/apresentacao/
 ├─ vendor/              supabase-js 2.112.4 (MIT), servido junto com o app
-├─ supabase/            01_schema.sql · 02_storage.sql · 03_perfis_modelo.sql · usuarios_modelo.csv · functions/ (recuperar-senha, cadastro, admin)
+├─ supabase/            01_schema.sql · 02_storage.sql · 03_perfis_modelo.sql · usuarios_modelo.csv · functions/ (recuperar-senha, cadastro, admin, ata-auto) · 04_agendamento.sql
 ├─ tools/               provisionar_usuarios.py (cadastro em lote no Supabase) · testes_buzios.csv (contas de teste)
 ├─ tests/               SQL/RLS, cadastro, ponta a ponta (demonstração e nuvem simulada), telas móveis
 ├─ docs/                implantação, segurança, arquitetura, roteiro de testes
@@ -75,10 +75,10 @@ O comando roda cinco conjuntos de testes:
 
 | Conjunto | O que verifica |
 |---|---|
-| SQL/RLS (91) | schema em PostgreSQL local (PGlite), lotação por unidade, administração e Studio |
+| SQL/RLS (97) | schema em PostgreSQL local (PGlite), lotação por unidade, administração e Studio |
 | Cadastro (11) | script de cadastro de usuários e lista de contas de teste de Búzios |
-| Ponta a ponta, demonstração (323) | fluxo completo no modo demonstração e o deck publicado |
-| Ponta a ponta, nuvem (83) | fluxo completo contra um Supabase simulado que roda o mesmo schema |
+| Ponta a ponta, demonstração (326) | fluxo completo no modo demonstração e o deck publicado |
+| Ponta a ponta, nuvem (85) | fluxo completo contra um Supabase simulado que roda o mesmo schema |
 | Telas móveis (60) | smartphone, tablet e notebook |
 
 ## Documentos

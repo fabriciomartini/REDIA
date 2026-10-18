@@ -1090,4 +1090,41 @@ async function preencherFicticio(iso, E) {
   if (novos.length) await Store.gravarLote(novos);
   return { n: novos.length, valores: novos.filter(r => r.tipo === 'valor').length, listas: novos.filter(r => r.tipo === 'lista').length, aprovadas: suges.length };
 }
+/* D-75 · versão de teste: ata automática às 23:59 · se o dia não tem ata arquivada, gera os registros que faltam para a REDIA ficar
+   completa e fechada, mantendo a base do período de teste atualizada. Usa o mesmo gerador do exemplo: preenche só o que está vazio (se a pauta ainda não foi congelada), aprova as sugestões
+   pendentes, conclui as coordenações, congela, dá o de acordo e fecha a ata (dia sem REDIA iniciada: abre a REDIA e preenche tudo). Tudo marcado como fictício e "automática". Função pura:
+   recebe os registros do dia e devolve os novos (o app grava na demonstração; a função do servidor grava na base). */
+function montarAtaAutomatica(iso, regsDia) {
+  const dia = regsDia.filter(r => r.data === iso && r.escopo !== 'demandas'), codigo = codigoRedia(CFG.uep, iso);
+  if (dia.some(r => r.tipo === 'ata')) return [];
+  const obs = 'Ata gerada automaticamente às 23:59 porque a REDIA do dia não foi encerrada (versão de teste). Campos vazios preenchidos com dados fictícios.';
+  const auto = r => ({ ...r, payload: { ...r.payload, exemplo: true, ficticio: true, automatica: true } });
+  let t = Date.parse(`${iso}T23:57:00-03:00`);
+  const sis = { nome: 'REDIA · ata automática', chave: '', papel: 'sistema' };
+  const mk = (tipo, payload) => auto({ v: 1, id: uid(), tipo, data: iso, uep: CFG.uep, criadoEm: new Date(t += 1000).toISOString(), gravadoEm: carimbo(), autor: sis, payload });
+  const tem = tp => dia.some(r => r.tipo === tp), ult = tp => dia.filter(r => tp.includes(r.tipo)).sort((a, b) => (a.gravadoEm || a.criadoEm) < (b.gravadoEm || b.criadoEm) ? -1 : 1).pop();
+  const out = [];
+  if (!tem('redia')) { const r = mk('redia', { coord: 'GEPLAT', codigo, iniciadaPor: 'sistema' }); out.push(r); dia.push(r); }   // dia sem REDIA iniciada: abre e preenche tudo
+  const congelada = ult(['congelamento', 'reabertura'])?.tipo === 'congelamento';
+  if (!congelada) {
+    const comValor = new Set(dia.filter(r => r.tipo === 'valor' && r.payload.valor !== '' && r.payload.valor != null).map(r => r.payload.campo));
+    const comLista = new Set(dia.filter(r => r.tipo === 'lista' && (r.payload.itens || []).length).map(r => r.payload.campo));
+    const coordCom = tp => new Set(dia.filter(r => r.tipo === tp).map(r => r.payload.coord));
+    const itens = coordCom('item'), servs = coordCom('servico'), temSug = tem('sugestao');
+    for (const r of montarExemplo(iso)) {
+      if (r.escopo === 'demandas' || r.data !== iso || ['redia', 'conclusao', 'congelamento', 'reabertura', 'acordo', 'ata', 'notificacao'].includes(r.tipo)) continue;
+      if (r.tipo === 'valor' ? comValor.has(r.payload.campo) : r.tipo === 'lista' ? comLista.has(r.payload.campo) : r.tipo === 'sugestao' || r.tipo === 'decisao' ? temSug
+        : r.tipo === 'item' ? itens.has(r.payload.coord) : r.tipo === 'servico' ? servs.has(r.payload.coord) : tem(r.tipo)) continue;
+      out.push(auto({ ...r, autor: r.autor || sis }));
+    }
+    const decididas = new Set([...dia, ...out].filter(r => r.tipo === 'decisao').map(r => r.payload.alvo));
+    [...dia, ...out].filter(r => r.tipo === 'sugestao' && !r.payload.somenteLeitura && !decididas.has(r.id)).forEach((s, k) => { const p = s.payload; out.push(mk('decisao', { coord: p.coord, alvo: s.id, acao: 'aprovar', titulo: p.titulo, tag: p.tag || '', status: p.status || 'Atenção', impacto: p.impacto || '', semaforo: 'at', abertura: k % 3 === 0 })); });
+    const concl = {}; dia.filter(r => r.tipo === 'conclusao').forEach(r => { concl[r.payload.coord] = r.payload.concluido; });
+    for (const c of COORDS) if (!concl[c]) out.push(mk('conclusao', { coord: c, concluido: true, pendentes: 0 }));
+    out.push(mk('congelamento', { coord: 'GEPLAT', snapshot: {}, hash: hash(iso + CFG.uep + 'auto'), semConclusao: [] }));
+  }
+  out.push(mk('acordo', { coord: 'GEPLAT', codigo }));
+  out.push(mk('ata', { coord: 'GEPLAT', codigo, participantes: ['Ata automática (23:59)'], observacoes: obs, formato: 'pdf', paginas: null, telas: null }));
+  return out;
+}
 /* EXEMPLO-FIM */
