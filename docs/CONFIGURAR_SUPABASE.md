@@ -135,7 +135,7 @@ A V2.0 atende as 10 plataformas de Búzios. Cada usuário é lotado em uma ou ma
    Para ser também editor de todas as unidades: `insert into public.lotacoes (user_id, uep, admin, editor) select user_id, u.uep, true, true from public.perfis, public.unidades u where chave = '<CHAVE>' on conflict (user_id, uep) do update set admin = true, editor = true;`
 3. **Funções:** publique, como no passo 7.3:
    - `redia-cadastro` (autocadastro da tela de acesso) com **"Verify JWT" desligado**;
-   - `redia-admin` (criar usuário, redefinir senha, aprovar autocadastro, importar contas de teste) com **"Verify JWT" ligado**: a função confere se quem chama é administrador do sistema.
+   - `redia-admin` (criar usuário, redefinir senha, aprovar autocadastro, importar contas de teste) também com **"Verify JWT" desligado**: a própria função valida a sessão do usuário (Auth) e confere se ele é administrador do sistema.
    As duas usam os mesmos segredos do passo 7. Opcionais: `REDIA_APP_URL` (endereço do app no e-mail) e `REDIA_EMAIL_DE` (remetente).
 4. **E-mail ao usuário:** sem domínio verificado, o Resend só entrega ao e-mail da própria conta. Até verificar um domínio (ou usar outro serviço aprovado pela TIC), a senha provisória do autocadastro vai ao **e-mail do administrador**, que a repassa; na Administração, a senha de um usuário criado sem e-mail aparece uma vez na tela.
 5. **Contas de teste das novas plataformas:** na Administração › Usuários › **Importar contas de teste** (13 funções por unidade, senha única digitada por você) ou `python tools/provisionar_usuarios.py tools/testes_buzios.csv --compartilhado --senha-fixa`.
