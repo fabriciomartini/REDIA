@@ -117,7 +117,7 @@ async function telaStudio() {
 }
 function escalarPrevia() { const pv = $('#sto-pv'), sc = $('.sto-sc'); if (!pv || !sc) return; const s = pv.clientWidth / 1920; sc.style.transform = `scale(${s})`; pv.style.height = (1080 * s) + 'px'; }
 function telaPrevia(id) {
-  const P = UI.pres, ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(P.restante ?? CFG.timeboxMin * 60), extra: 0 }, t = TELAS_STUDIO.find(x => x[0] === id);
+  const P = UI.pres, ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(timeboxSeg(TELAS_STUDIO.find(x => x[0] === id)?.[2] === 'semana' ? P.bloco || 1 : TELAS_STUDIO.find(x => x[0] === id)?.[2])), extra: 0 }, t = TELAS_STUDIO.find(x => x[0] === id);
   return t[2] === 'semana' ? telaSemana(E, ctx) : TELAS[t[2] - 1](estadoApresentacao(t[2]), ctx);
 }
 function marcarSujo(S) { S.sujo = true; const x = $('[data-sujo]'); if (x) x.innerHTML = '<br><b>Alterações não salvas</b>'; const d = $('[data-s="descartar"]'); if (d) d.disabled = false; }

@@ -533,7 +533,7 @@ const BLOCOS_NOME = { 1: 'Abertura · GEPLAT', 2: 'COPROD', 3: 'COEMB', 4: 'COMA
 function temposBlocos(E) {
   const ult = {};
   for (const r of reuniaoDe(E, 'tempo')) ult[r.payload.bloco] = r;   // em ordem de gravação: vale a última passagem por cada bloco
-  const linhas = [1, 2, 3, 4, 5].map(b => { const r = ult[b], p = r?.payload; return { bloco: b, nome: BLOCOS_NOME[b], reg: r || null, inicio: p?.inicio || null, fim: p?.fim || null, segundos: p ? +p.segundos : null, timebox: p ? +p.timebox : CFG.timeboxMin * 60, estouro: p ? Math.max(0, +p.segundos - +p.timebox) : null }; });
+  const linhas = [1, 2, 3, 4, 5].map(b => { const r = ult[b], p = r?.payload; return { bloco: b, nome: BLOCOS_NOME[b], reg: r || null, inicio: p?.inicio || null, fim: p?.fim || null, segundos: p ? +p.segundos : null, timebox: p ? +p.timebox : timeboxSeg(b), estouro: p ? Math.max(0, +p.segundos - +p.timebox) : null }; });
   const medidos = linhas.filter(l => l.segundos != null);
   return { linhas, medidos: medidos.length, total: medidos.reduce((a, l) => a + l.segundos, 0), estouro: medidos.reduce((a, l) => a + l.estouro, 0), previsto: linhas.reduce((a, l) => a + l.timebox, 0) };
 }
@@ -1029,7 +1029,7 @@ function montarHistorico(iso, dias = 15) {
     }
     // reunião: tempos medidos por bloco, decisão e aprendizado
     let ini = Date.parse(`${dia}T11:45:00.000Z`);
-    for (let b = 1; b <= 5; b++) { const seg = 250 + ((n * 37 + b * 53) % 140); regs.push(mk('reuniao', dia, '12:' + pad(5 + b * 8), { tipo: 'tempo', bloco: b, inicio: new Date(ini).toISOString(), fim: new Date(ini + seg * 1000).toISOString(), segundos: seg, timebox: CFG.timeboxMin * 60 })); ini += seg * 1000; }
+    for (let b = 1; b <= 5; b++) { const seg = 250 + ((n * 37 + b * 53) % 140); regs.push(mk('reuniao', dia, '12:' + pad(5 + b * 8), { tipo: 'tempo', bloco: b, inicio: new Date(ini).toISOString(), fim: new Date(ini + seg * 1000).toISOString(), segundos: seg, timebox: timeboxSeg(b) })); ini += seg * 1000; }
     const dec = HIST_DEC[n % HIST_DEC.length];
     regs.push(mk('reuniao', dia, '12:40', { tipo: 'decisao', texto: dec, por: 'GEOP', coord: 'GEPLAT' }));
     if (n % 3 === 0) regs.push(mk('reuniao', dia, '12:41', { tipo: 'aprendizado', texto: HIST_APZ[n % HIST_APZ.length] }));

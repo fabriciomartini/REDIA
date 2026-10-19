@@ -1249,15 +1249,15 @@ let tickPres = null, ocultarCtrl = null;
 function registrarTempoBloco() {
   const P = UI.pres; if (!P.inicio || !USUARIO) return;
   const fim = Relogio.agora().toISOString(), segundos = Math.max(0, Math.round((Date.now() - P.inicioMs) / 1000) - Math.round((P.pausado || 0) / 1000));
-  const payload = { tipo: 'tempo', bloco: P.bloco, inicio: P.inicio, fim, segundos, timebox: CFG.timeboxMin * 60, extras: P.extra || 0 };
+  const payload = { tipo: 'tempo', bloco: P.bloco, inicio: P.inicio, fim, segundos, timebox: timeboxSeg(P.bloco), extras: P.extra || 0 };
   P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0;
   if (segundos < 5) return;   // passagem relâmpago (navegação), não é apresentação
   registrar('reuniao', payload).then(() => { atualizarEstado(); }).catch(e => aviso('Tempo do bloco não registrado: ' + e.message, 'erro'));
 }
 function telaApresentacao(m) {
   const P = UI.pres, semana = m[1] === 'semana', b = semana ? P.bloco || 1 : +m[1];
-  if (!semana && (P.bloco !== b || P.restante === null)) { if (P.bloco !== b) registrarTempoBloco(); P.bloco = b; P.restante = CFG.timeboxMin * 60; P.extra = 0; P.rodando = P.rodando && P.restante > 0; if (P.rodando) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } }
-  if (P.restante === null) P.restante = CFG.timeboxMin * 60;
+  if (!semana && (P.bloco !== b || P.restante === null)) { if (P.bloco !== b) registrarTempoBloco(); P.bloco = b; P.restante = timeboxSeg(b); P.extra = 0; P.rodando = P.rodando && P.restante > 0; if (P.rodando) { P.inicio = Relogio.agora().toISOString(); P.inicioMs = Date.now(); P.pausado = 0; } }
+  if (P.restante === null) P.restante = timeboxSeg(P.bloco || 1);
   const ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(P.restante), extra: P.extra || 0 };
   const top = !semana && m[2] && topicoValido(b, m[2]) ? m[2] : null;
   const diaSem = parseData(DIA).getDay() === (CFG.diaVisaoSemanal ?? 5);
@@ -1300,7 +1300,7 @@ function atualizarTimer() {
   const esg = $('#esg'); if (esg) { const on = r < -ESTOURO_TELA; if (esg.hidden === on) { esg.hidden = !on; if (on) $('[data-act="zera"]', esg)?.focus({ preventScroll: true }); } const c = $('[data-esg-t]', esg); if (c) c.textContent = fmtTimer(r); }
   $$('[data-act="mais1"]').forEach(x => x.disabled = (UI.pres.extra || 0) >= EXTRA_MAX);
 }
-function zerarTimer() { if (Vivo.seguindo) return; const P = UI.pres; P.restante = CFG.timeboxMin * 60; P.rodando = false; P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0; P.extra = 0; rerender(); }
+function zerarTimer() { if (Vivo.seguindo) return; const P = UI.pres; P.restante = timeboxSeg(P.bloco || 1); P.rodando = false; P.inicio = null; P.inicioMs = 0; P.pausado = 0; P.pausaEm = 0; P.extra = 0; rerender(); }
 function maisUmMinuto() { if (Vivo.seguindo) return; const P = UI.pres; if ((P.extra || 0) >= EXTRA_MAX) return aviso(`Limite de ${EXTRA_MAX} acréscimos de 1 minuto nesta tela.`, 'erro'); P.extra = (P.extra || 0) + 1; P.restante += 60; atualizarTimer(); mostrarCtrl(); Vivo.transmitir(); }
 /* D-66 · tempo esgotado: tela branca sobre a apresentação, com o aviso, o estouro correndo e as saídas (zerar, +1 min, próximo bloco) */
 function telaTempoEsgotado(b, semana) {
@@ -1310,7 +1310,7 @@ function telaTempoEsgotado(b, semana) {
       <span class="esg-eye">REDIA ${esc(CFG.uep)} · ${semana ? 'visão semanal' : `bloco ${b} de 5`} · ${esc(nome)}</span>
       <h1 id="esg-h">Tempo esgotado</h1>
       <p id="esg-d" class="esg-sub">Vamos fechar este assunto e seguir a pauta.</p>
-      <div class="esg-t"><b data-esg-t>${fmtTimer(UI.pres.restante)}</b><span>além dos ${CFG.timeboxMin} minutos do bloco</span></div>
+      <div class="esg-t"><b data-esg-t>${fmtTimer(UI.pres.restante)}</b><span>além dos ${fmtN(timeboxSeg(semana ? UI.pres.bloco || 1 : b) / 60, timeboxSeg(semana ? UI.pres.bloco || 1 : b) % 60 ? 1 : 0)} minutos da tela</span></div>
       <ol class="esg-p"><li><b>1</b>Registre a decisão tomada</li><li><b>2</b>Pendência vira demanda do Canal Base x Bordo</li><li><b>3</b>Avance para o próximo bloco</li></ol>
       <div class="esg-b"><button class="btn pri" data-act="zera">Zerar e voltar à apresentação</button><button class="btn" data-act="mais1" ${(UI.pres.extra || 0) >= EXTRA_MAX ? 'disabled' : ''}>+1 min</button>${!semana && b < 5 ? `<a class="btn" href="#/apresentacao/${b + 1}">Próximo bloco ▶</a>` : ''}</div></div></div>`;
 }
@@ -1522,7 +1522,7 @@ function telaImprimir() {
   render(cabecalhoApp({ id: 'imprimir', titulo: 'Imprimir pauta' }) + `<div class="wrap"><div class="banner">A janela de impressão abre em seguida. Escolha “Salvar como PDF”. <a class="btn sm sec" href="#/ata">Voltar</a></div></div>`);
   let pr = $('.printroot'); if (pr) pr.remove();
   pr = document.createElement('div'); pr.className = 'printroot';
-  pr.innerHTML = TELAS.map((t, i) => `<div class="stage">${t(estadoApresentacao(i + 1), ctx)}</div>`).join('');
+  pr.innerHTML = TELAS.map((t, i) => `<div class="stage">${t(estadoApresentacao(i + 1), { ...ctx, timer: fmtTimer(timeboxSeg(i + 1)) })}</div>`).join('');
   document.body.appendChild(pr);
   pr.style.display = 'block'; pr.style.position = 'absolute'; pr.style.left = '-99999px';
   $$('.stage', pr).forEach(encaixar);
@@ -1628,7 +1628,9 @@ function telaConfig() {
         <div><label class="lbl" for="c-ativo">Ativo</label><input id="c-ativo" class="in" value="${esc(C.ativo)}"></div>
         <div><label class="lbl" for="c-modo">Modo</label><select id="c-modo" class="in"><option value="operacao" selected>Operação</option><option value="preoperacao" disabled>Pré-operação (próxima versão)</option></select></div></div>
         <h3>Horários</h3><div class="fgrid">${Object.entries({ preenchimento: 'Fim do preenchimento', congelamento: 'Congelamento', inicio: 'Início da REDIA', fim: 'Fim da REDIA' }).map(([k, r]) => `<div><label class="lbl" for="h-${k}">${r}</label><input id="h-${k}" type="time" class="in" value="${C.horarios[k]}"></div>`).join('')}</div>
-        <h3>Pauta</h3><div class="fgrid">${num('c-tb', 'Tempo por bloco (min)', C.timeboxMin, 1)}${num('c-dq', 'Destaques por bloco', C.destaquesPorBloco, 1)}${num('c-am', 'Atividades na abertura (máx.)', C.atividadesMax, 1)}${num('c-ar', 'Atividades recomendadas', C.atividadesRecomendado, 1)}</div>
+        <h3>Tempo de exibição de cada tela (min)</h3><div class="fgrid tb-telas">${[1, 2, 3, 4, 5].map(b => num('c-tb' + b, BLOCOS_NOME[b], +(C.timeboxBlocos || {})[b] > 0 ? C.timeboxBlocos[b] : C.timeboxMin, 0.5)).join('')}<div class="tb-tot"><span class="lbl">Total da apresentação</span><b data-tb-tot>—</b><span class="note" data-tb-jan></span></div></div>
+        <p class="note">Cada tela tem o seu cronômetro na apresentação (o “Tempo esgotado” e os acréscimos de +1 min valem por tela). A visão semanal usa o tempo da tela em que é aberta.</p>
+        <h3>Pauta</h3><div class="fgrid">${num('c-dq', 'Destaques por bloco', C.destaquesPorBloco, 1)}${num('c-am', 'Atividades na abertura (máx.)', C.atividadesMax, 1)}${num('c-ar', 'Atividades recomendadas', C.atividadesRecomendado, 1)}</div>
         <h3>Limites do offloading e estabilidade (D-63)</h3><div class="fgrid">${num('c-hs', 'Offloading · Hs máxima (m)', C.limitesOffloading?.hs ?? '')}${num('c-vt', 'Offloading · vento máximo (nós)', C.limitesOffloading?.vento ?? '')}${num('c-cr', 'Offloading · corrente máxima (nós)', C.limitesOffloading?.corrente ?? '')}${num('c-tr', 'Estabilidade · trim máximo (± m)', C.limitesEstabilidade?.trim ?? '')}${num('c-bd', 'Estabilidade · banda máxima (± °)', C.limitesEstabilidade?.banda ?? '')}${num('c-cm', 'Estabilidade · calado máximo (m)', C.limitesEstabilidade?.caladoMax ?? '')}</div>
         <h3>Poços, recorrência e visão semanal (D-63)</h3><div class="fgrid">${num('c-pd', 'Poço abaixo do potencial a partir de (% abaixo)', C.pocoDesvioPct, 1)}${num('c-rv', 'Recorrente a partir de (REDIAs)', C.recorrencia?.vezes ?? 3, 1)}${num('c-rd', 'Recorrência · janela (dias)', C.recorrencia?.dias ?? 30, 1)}<div><label class="lbl" for="c-ds">Dia da visão semanal</label><select id="c-ds" class="in">${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${d === (C.diaVisaoSemanal ?? 5) ? 'selected' : ''}>${DIAS[d]}</option>`).join('')}</select></div></div>
         <h3>Vencimentos (D-62)</h3><div class="fgrid">${num('c-tv', 'Teste de vazão · periodicidade por poço (dias)', C.testeVazaoDias, 1)}${num('l-ib-at', 'Inibição/bypass · Atenção a partir de (dias)', L.inibicaoDias?.at ?? 1, 1)}${num('l-ib-nok', 'Inibição/bypass · Não OK a partir de (dias)', L.inibicaoDias?.nok ?? 3, 1)}${num('l-ins', 'Inspeção de integridade · atenção se vence em (dias)', L.inspecaoJanelaDias ?? 30, 1)}</div></section>
@@ -1670,13 +1672,21 @@ function telaConfig() {
       <p class="note">A análise incluída ganha campo na aba Dados automáticos da coordenação (resultado e data). A captura do eplab a reconhece quando o sistema estiver integrado (I-51); até lá, preenchimento manual. Incluir, excluir e as caixas valem ao clicar em <b>Salvar configuração</b>.</p></section>
     <div class="row end" style="margin-top:16px"><button class="btn sec" data-act="padrao" ${podeAdministrar() ? '' : 'disabled'}>Restaurar padrão</button><button class="btn pri" data-act="salvar-cfg" ${podeAdministrar() ? '' : 'disabled'}>Salvar configuração</button></div>
   </div>`);
+  const totTb = () => {   // D-77: soma dos tempos das telas × janela da REDIA (início–fim)
+    const t = [1, 2, 3, 4, 5].reduce((a, b) => a + (+$('#c-tb' + b).value || 0), 0), jan = horaMin($('#h-fim').value || '00:00') - horaMin($('#h-inicio').value || '00:00');
+    $('[data-tb-tot]').textContent = fmtN(t, t % 1 ? 1 : 0) + ' min';
+    $('[data-tb-jan]').textContent = jan > 0 ? (t > jan ? `acima da janela da REDIA (${jan} min)` : `de ${jan} min da janela da REDIA`) : '';
+    $('[data-tb-jan]').classList.toggle('tb-alerta', jan > 0 && t > jan);
+  };
+  ['c-tb1', 'c-tb2', 'c-tb3', 'c-tb4', 'c-tb5', 'h-inicio', 'h-fim'].forEach(id => $('#' + id)?.addEventListener('input', totTb)); totTb();
   $('[data-act="salvar-cfg"]').onclick = async () => {
     const n = id => +$('#' + id).value;
     if (!Store.remoto()) CFG.uep = USUARIO?.uep || CFG.uep;   // D-70: a unidade vem da escolha na tela de unidades
     CFG.campo = $('#c-campo').value.trim(); CFG.ativo = $('#c-ativo').value.trim();
     for (const k of ['preenchimento', 'congelamento', 'inicio', 'fim']) CFG.horarios[k] = $('#h-' + k).value;
     CFG.horarios.preRedia = CFG.horarios.preenchimento;
-    CFG.timeboxMin = n('c-tb'); CFG.destaquesPorBloco = n('c-dq'); CFG.atividadesMax = n('c-am'); CFG.atividadesRecomendado = n('c-ar');
+    CFG.timeboxBlocos = Object.fromEntries([1, 2, 3, 4, 5].map(b => [b, Math.min(60, Math.max(0.5, n('c-tb' + b) || CFG.timeboxMin))])); CFG.timeboxMin = CFG.timeboxBlocos[1];   // D-77
+    CFG.destaquesPorBloco = n('c-dq'); CFG.atividadesMax = n('c-am'); CFG.atividadesRecomendado = n('c-ar');
     Object.assign(CFG.limiares.efop, { ok: n('l-ef-ok'), at: n('l-ef-at') }); Object.assign(CFG.limiares.injecao, { ok: n('l-in-ok'), at: n('l-in-at') });
     const nn = id => { const v = $('#' + id).value; return v === '' ? null : +v; };
     CFG.limitesOffloading = { hs: nn('c-hs'), vento: nn('c-vt'), corrente: nn('c-cr') }; CFG.limitesEstabilidade = { trim: nn('c-tr'), banda: nn('c-bd'), caladoMax: nn('c-cm') };

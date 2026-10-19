@@ -3,7 +3,7 @@
 const window = globalThis; const location = { search: '' };
 /* ===================== REDIA Búzios · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA Búzios', versao: '2.2.1', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA Búzios', versao: '2.3.0', fase: 'piloto', uep: 'P-83' };
 /* D-70 · REDIA Búzios: todas as plataformas do campo; cada usuário acessa as unidades em que está lotado */
 const UNIDADES = [['P-74', 'FPSO P-74'], ['P-75', 'FPSO P-75'], ['P-76', 'FPSO P-76'], ['P-77', 'FPSO P-77'], ['P-78', 'FPSO P-78'], ['P-79', 'FPSO P-79'], ['P-80', 'FPSO P-80'], ['P-82', 'FPSO P-82'], ['P-83', 'FPSO P-83'], ['P-91', 'FPSO P-91']].map(([uep, nome], i) => ({ uep, nome, ordem: i + 1, situacao: 'operacao' }));
 const ATIVO_UEP = { 'P-83': 'ATP-BUZ III' };   // ativo de cada unidade (os demais: definir na Configuração da unidade)
@@ -59,6 +59,7 @@ const CFG_PADRAO = {
   uep: 'P-83', campo: 'Búzios', ativo: 'ATP-BUZ III', modo: 'operacao',
   horarios: { preenchimento: '08:10', preRedia: '08:10', congelamento: '08:40', inicio: '08:45', fim: '10:00' },
   timeboxMin: 5,
+  timeboxBlocos: { 1: 5, 2: 5, 3: 5, 4: 5, 5: 5 },   // D-77: tempo de exibição de cada tela da apresentação (min)
   destaquesPorBloco: 5,
   atividadesMax: 4, atividadesRecomendado: 2, destaquesAberturaMax: 2, pfceoMax: 6,
   limiares: {
@@ -97,6 +98,8 @@ const CFG_PADRAO = {
   },
 };
 let CFG = JSON.parse(JSON.stringify(CFG_PADRAO));
+/* D-77: tempo da tela (bloco 1 a 5) em segundos; sem valor da tela, vale o tempo padrão por bloco */
+const timeboxSeg = b => Math.round((+(CFG.timeboxBlocos || {})[b] > 0 ? +CFG.timeboxBlocos[b] : CFG.timeboxMin) * 60);
 function horaMin(s) { const [h, m] = s.split(':').map(Number); return h * 60 + m; }
 
 /* ---------- usuário (autoria dos registros) ---------- */
@@ -913,7 +916,7 @@ const BLOCOS_NOME = { 1: 'Abertura · GEPLAT', 2: 'COPROD', 3: 'COEMB', 4: 'COMA
 function temposBlocos(E) {
   const ult = {};
   for (const r of reuniaoDe(E, 'tempo')) ult[r.payload.bloco] = r;   // em ordem de gravação: vale a última passagem por cada bloco
-  const linhas = [1, 2, 3, 4, 5].map(b => { const r = ult[b], p = r?.payload; return { bloco: b, nome: BLOCOS_NOME[b], reg: r || null, inicio: p?.inicio || null, fim: p?.fim || null, segundos: p ? +p.segundos : null, timebox: p ? +p.timebox : CFG.timeboxMin * 60, estouro: p ? Math.max(0, +p.segundos - +p.timebox) : null }; });
+  const linhas = [1, 2, 3, 4, 5].map(b => { const r = ult[b], p = r?.payload; return { bloco: b, nome: BLOCOS_NOME[b], reg: r || null, inicio: p?.inicio || null, fim: p?.fim || null, segundos: p ? +p.segundos : null, timebox: p ? +p.timebox : timeboxSeg(b), estouro: p ? Math.max(0, +p.segundos - +p.timebox) : null }; });
   const medidos = linhas.filter(l => l.segundos != null);
   return { linhas, medidos: medidos.length, total: medidos.reduce((a, l) => a + l.segundos, 0), estouro: medidos.reduce((a, l) => a + l.estouro, 0), previsto: linhas.reduce((a, l) => a + l.timebox, 0) };
 }
@@ -1409,7 +1412,7 @@ function montarHistorico(iso, dias = 15) {
     }
     // reunião: tempos medidos por bloco, decisão e aprendizado
     let ini = Date.parse(`${dia}T11:45:00.000Z`);
-    for (let b = 1; b <= 5; b++) { const seg = 250 + ((n * 37 + b * 53) % 140); regs.push(mk('reuniao', dia, '12:' + pad(5 + b * 8), { tipo: 'tempo', bloco: b, inicio: new Date(ini).toISOString(), fim: new Date(ini + seg * 1000).toISOString(), segundos: seg, timebox: CFG.timeboxMin * 60 })); ini += seg * 1000; }
+    for (let b = 1; b <= 5; b++) { const seg = 250 + ((n * 37 + b * 53) % 140); regs.push(mk('reuniao', dia, '12:' + pad(5 + b * 8), { tipo: 'tempo', bloco: b, inicio: new Date(ini).toISOString(), fim: new Date(ini + seg * 1000).toISOString(), segundos: seg, timebox: timeboxSeg(b) })); ini += seg * 1000; }
     const dec = HIST_DEC[n % HIST_DEC.length];
     regs.push(mk('reuniao', dia, '12:40', { tipo: 'decisao', texto: dec, por: 'GEOP', coord: 'GEPLAT' }));
     if (n % 3 === 0) regs.push(mk('reuniao', dia, '12:41', { tipo: 'aprendizado', texto: HIST_APZ[n % HIST_APZ.length] }));

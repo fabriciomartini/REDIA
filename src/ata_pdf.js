@@ -155,7 +155,7 @@ async function gerarAtaPdf(d) {
   const ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(CFG.timeboxMin * 60) };
   for (let i = 0; i < telas.length; i++) {
     const t = telas[i]; pdfProgresso(i + 1, total, `Capturando a tela ${i + 1} de ${telas.length}: ${t.titulo}`);
-    const St = estadoApresentacao(t.b);
+    const St = estadoApresentacao(t.b); ctx.timer = fmtTimer(timeboxSeg(t.b));   // D-77: tempo da tela
     const img = await capturarTela(t.top ? telaDetalhe(St, ctx, t.b, t.top) : TELAS[t.b - 1](St, ctx), t.top ? null : telaIdDoBloco(t.b));   // D-73: layout do Studio
     doc.addPage('a4', 'landscape');
     const L = 297, m = 10;

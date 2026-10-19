@@ -317,7 +317,7 @@ async function checarPalco(page, nome) {
   const e1 = await page.evaluate(() => { const e = document.querySelector('#esg'), r = e.getBoundingClientRect(); return { vis: !e.hidden, full: r.width >= innerWidth && r.height >= innerHeight, bg: getComputedStyle(e).backgroundColor, h: e.querySelector('h1').textContent, t: e.querySelector('[data-esg-t]').textContent }; });
   ok(e1.vis && e1.full && e1.bg === 'rgb(255, 255, 255)' && e1.h === 'Tempo esgotado' && e1.t === '+02:01', `com 2 minutos além do tempo, tela branca de tempo esgotado (${JSON.stringify(e1)})`);
   await page.click('#esg [data-act="zera"]'); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => document.querySelector('#esg').hidden && UI.pres.restante === CFG.timeboxMin * 60 && UI.pres.extra === 0 && !!document.querySelector('.stage .scr')), 'Zerar volta para as telas da reunião, com o cronômetro e os acréscimos zerados');
+  ok(await page.evaluate(() => document.querySelector('#esg').hidden && UI.pres.restante === timeboxSeg(UI.pres.bloco) && UI.pres.extra === 0 && !!document.querySelector('.stage .scr')), 'Zerar volta para as telas da reunião, com o cronômetro e os acréscimos zerados');
   await page.evaluate(() => { UI.pres.extra = 2; }); await page.goto(URL + '#/apresentacao/3'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => UI.pres.extra === 0 && document.querySelectorAll('.stage [data-tx] i.on').length === 0), 'cada tela começa sem acréscimos de 1 minuto');
   /* D-66: dica nos semáforos diferentes de OK e valores abaixo da meta em vermelho (gradiente) */
@@ -578,11 +578,19 @@ async function checarPalco(page, nome) {
   await page.screenshot({ path: path.join(OUT, 'ata_tela.png'), fullPage: true });
   await page.goto(URL + '#/curadoria/COPROD/sugestoes'); await page.waitForTimeout(150); await page.screenshot({ path: path.join(OUT, 'curadoria.png'), fullPage: true });
   await page.goto(URL + '#/curadoria/COPROD/dados'); await page.waitForTimeout(150); await page.screenshot({ path: path.join(OUT, 'dados.png') });
-  await page.goto(URL + '#/config'); await page.waitForTimeout(150); await page.fill('#c-tb', '6');
+  await page.goto(URL + '#/config'); await page.waitForTimeout(150); await page.fill('#c-tb1', '6'); await page.fill('#c-tb2', '8'); await page.fill('#c-tb5', '3.5');
   /* D-61 (propostas 24 e 13): metas de manutenção e limites das análises configuráveis por UEP */
   await page.fill('#mm-tab tr:has([data-mm-k][value="ICPMe"]) [data-mm-v]', '92'); await page.fill('[data-ll="lab.COPROD.bsw_oleo"][data-ll-k="max"]', '0.2'); await page.fill('[data-ll="lab.COPROD.h2s_gas"][data-ll-k="max"]', '10');
   await page.click('[data-act="salvar-cfg"]'); await page.waitForTimeout(150);
   ok(await page.evaluate(() => CFG.timeboxMin) === 6, 'configuração salva');
+  ok(await page.evaluate(() => [1, 2, 3, 4, 5].map(timeboxSeg).join()) === '360,480,300,300,210', 'D-77 configuração: tempo de exibição de cada tela ajustado individualmente (6, 8, 5, 5 e 3,5 min)');
+  await page.goto(URL + '#/apresentacao/1'); await page.waitForTimeout(250); await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(250);
+  const tb2 = await page.evaluate(() => ({ r: UI.pres.restante, t: document.querySelector('[data-tmr]')?.textContent }));
+  await page.goto(URL + '#/apresentacao/5'); await page.waitForTimeout(250);
+  const tb5 = await page.evaluate(() => ({ r: UI.pres.restante, t: document.querySelector('[data-tmr]')?.textContent }));
+  ok(tb2.r === 480 && /08:00/.test(tb2.t) && tb5.r === 210 && /03:30/.test(tb5.t), `D-77 apresentação: cada tela abre com o seu tempo (COPROD ${tb2.t}, Fechamento ${tb5.t})`);
+  await page.goto(URL + '#/config'); await page.waitForTimeout(150);
+  ok(/27,5 min/.test(await page.textContent('[data-tb-tot]')) && /janela da REDIA/.test(await page.textContent('[data-tb-jan]')), 'D-77 configuração: mostra o total da apresentação e compara com a janela da REDIA');
   const cfg24 = await page.evaluate(() => { const ind = L(E, 'man.ind').find(i => i.ind === 'ICPMe'); const lab = labDe(E, 'COPROD'); return { meta: metaManutencao(ind), sem: Regras.manutencao(+ind.valor, metaManutencao(ind)), bsw: lab.find(a => a.k === 'bsw_oleo').sem, h2s: lab.find(a => a.k === 'h2s_gas').sem, h2sTxt: lab.find(a => a.k === 'h2s_gas').limTxt, so4: lab.find(a => a.k === 'so4_urs').sem }; });
   ok(cfg24.meta === 92 && cfg24.sem === 'nok' && cfg24.bsw === 'nok' && cfg24.h2s === 'ok' && cfg24.h2sTxt === '≤ 10' && cfg24.so4 === 'ok', `metas de manutenção e limites das análises vêm da configuração da UEP, com semáforo por faixa (${JSON.stringify(cfg24)})`);
   await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(300);
@@ -804,7 +812,7 @@ r=pypdf.PdfReader(sys.argv[1]); print(json.dumps(''.join(p.extract_text() for p 
   await dk.goto(srv.url + '/apresentacao/#1'); await dk.waitForTimeout(1500);
   const capa = await dk.evaluate(async () => { const imgs = [...document.querySelectorAll('img')]; await Promise.all(imgs.map(i => i.decode().catch(() => null))); const v = document.querySelector('.capa video'); const bg = getComputedStyle(document.querySelector('.capa .bg')).backgroundImage.match(/url\("?([^")]+)/)?.[1]; return { ok: imgs.filter(i => i.complete && i.naturalWidth > 0).length, total: imgs.length, video: v ? v.readyState : -1, err: v?.error?.code || 0, bg: bg ? await new Promise(res => { const im = new Image(); im.onload = () => res(200); im.onerror = () => res(404); im.src = bg; }) : 0, texto: document.body.innerText }; });
   ok(capa.ok === capa.total && capa.total >= 20 && capa.video >= 2 && capa.bg === 200 && !http404.length, `deck: capa com vídeo, imagem de fundo, marca e todas as capturas carregadas (${capa.ok}/${capa.total} imagens, vídeo ${capa.video}, fundo ${capa.bg}) ${http404.join(' ')}`);
-  ok(!/75 minutos/.test(capa.texto) && /versão 2\.2/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
+  ok(!/75 minutos/.test(capa.texto) && /versão 2\.3/.test(capa.texto), 'deck: sem "75 minutos" e com a versão atual');
   await dk.close();
 
   /* ---- D-70 a D-73: REDIA Búzios · unidades, administração, autocadastro e Studio ---- */

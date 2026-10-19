@@ -106,9 +106,9 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   ok(await c.evaluate(async () => { try { await Nuvem.configSalvar(CFG.uep, CFG); return 'salvou'; } catch (e) { return e.codigo; } }) === 'SEM_PERMISSAO', 'servidor recusa configuração salva pela COPROD');
   await g.goto(URL + '#/config'); await g.waitForTimeout(300);
   ok(await g.$eval('#c-uep', i => i.disabled), 'UEP vem do perfil (campo bloqueado)');
-  await g.fill('#c-tb', '7'); await g.click('[data-act="salvar-cfg"]'); await g.waitForTimeout(600);
-  const cfgDb = (await srv.sql(`select config->>'timeboxMin' t, atualizado_por from public.uep_config where uep = 'P-83'`)).rows[0];
-  ok(cfgDb && cfgDb.t === '7' && cfgDb.atualizado_por === 'GP01', 'GEPLAT salva a configuração na base');
+  await g.fill('#c-tb1', '7'); await g.fill('#c-tb3', '4'); await g.click('[data-act="salvar-cfg"]'); await g.waitForTimeout(600);
+  const cfgDb = (await srv.sql(`select config->>'timeboxMin' t, config->'timeboxBlocos'->>'3' t3, atualizado_por from public.uep_config where uep = 'P-83'`)).rows[0];
+  ok(cfgDb && cfgDb.t === '7' && cfgDb.t3 === '4' && cfgDb.atualizado_por === 'GP01', 'GEPLAT salva a configuração na base (com o tempo de cada tela)');
   await c.reload(); await c.waitForTimeout(1500);
   ok(await c.$('.apph') !== null && await c.evaluate(() => USUARIO.chave === 'CP01' && CFG.timeboxMin === 7), 'recarregar mantém a sessão da aba e lê a configuração nova');
   /* D-61: a tendência de 7 dias e as classes de queima vêm da base (redia_carregar traz valores e listas dos dias anteriores) */

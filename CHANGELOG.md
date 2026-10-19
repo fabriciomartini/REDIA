@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 2.3.0 · D-77 (2026-10-18)
+
+- **Configuração › Tempo de exibição de cada tela:** um campo por tela da apresentação (Abertura · GEPLAT, COPROD, COEMB, COMAN, Fechamento), em minutos (de 0,5 a 60), com o total da apresentação comparado à janela da REDIA (início–fim). Cada tela abre com o seu cronômetro; o "Tempo esgotado", os acréscimos de +1 min, o tempo medido por bloco (Fechamento, ata e PDF) e o ao vivo usam o tempo da tela. A visão semanal usa o tempo da tela em que é aberta. Sem valor salvo, cada tela usa o tempo padrão anterior (5 min).
+
 ## 2.2.1 · correção R-52 (2026-10-18)
 
 - **Ao vivo com dois computadores:** a contagem de 5 s chegava aos outros usuários como um horário absoluto do relógio de quem iniciou; se o relógio do outro computador estivesse atrasado (ex.: 50 min), a contagem mostrava mais de 3000 s. O mesmo valia para o cronômetro de quem assiste e para "assumir o controle". Agora vai a duração (5 s), contada no relógio de quem recebe; o cronômetro chega pronto, sem desconto pelo relógio do outro computador; quem assume o controle fica sempre à frente de quem controlava. Teste novo com o relógio do segundo usuário 50 min atrasado.

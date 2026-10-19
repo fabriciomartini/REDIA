@@ -1004,3 +1004,5 @@ tr.adm-off td{color:var(--cinza)}tr.adm-off td b{color:var(--cinza)}
 @media (min-width:901px) and (max-width:1280px){.apph .apph-t{max-width:170px}}
 @media (max-width:900px){.apph .apph-t{max-width:none}}
 @media (min-width:901px) and (max-width:1500px){.apph .uni-tr span{display:none}.apph .uni-tr{padding:8px 10px}.apph .ntf{padding:6px 10px;font-size:12px}}
+/* D-77 · tempo de cada tela */
+.tb-telas .tb-tot{display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding-bottom:6px}.tb-tot b{font-size:20px;font-variant-numeric:tabular-nums}.tb-alerta{color:var(--vermelho);font-weight:700}
