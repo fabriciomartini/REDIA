@@ -3,7 +3,7 @@
 const window = globalThis; const location = { search: '' };
 /* ===================== REDIA Búzios · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA Búzios', versao: '2.3.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA Búzios', versao: '2.4.0', fase: 'piloto', uep: 'P-83' };
 /* D-70 · REDIA Búzios: todas as plataformas do campo; cada usuário acessa as unidades em que está lotado */
 const UNIDADES = [['P-74', 'FPSO P-74'], ['P-75', 'FPSO P-75'], ['P-76', 'FPSO P-76'], ['P-77', 'FPSO P-77'], ['P-78', 'FPSO P-78'], ['P-79', 'FPSO P-79'], ['P-80', 'FPSO P-80'], ['P-82', 'FPSO P-82'], ['P-83', 'FPSO P-83'], ['P-91', 'FPSO P-91']].map(([uep, nome], i) => ({ uep, nome, ordem: i + 1, situacao: 'operacao' }));
 const ATIVO_UEP = { 'P-83': 'ATP-BUZ III' };   // ativo de cada unidade (os demais: definir na Configuração da unidade)
@@ -60,6 +60,7 @@ const CFG_PADRAO = {
   horarios: { preenchimento: '08:10', preRedia: '08:10', congelamento: '08:40', inicio: '08:45', fim: '10:00' },
   timeboxMin: 5,
   timeboxBlocos: { 1: 5, 2: 5, 3: 5, 4: 5, 5: 5 },   // D-77: tempo de exibição de cada tela da apresentação (min)
+  timeboxDetalhes: {},   // D-78: tempo de exibição de cada tela de detalhe ('bloco:assunto' → min); sem valor, TIMEBOX_DET_PADRAO
   destaquesPorBloco: 5,
   atividadesMax: 4, atividadesRecomendado: 2, destaquesAberturaMax: 2, pfceoMax: 6,
   limiares: {
@@ -100,6 +101,10 @@ const CFG_PADRAO = {
 let CFG = JSON.parse(JSON.stringify(CFG_PADRAO));
 /* D-77: tempo da tela (bloco 1 a 5) em segundos; sem valor da tela, vale o tempo padrão por bloco */
 const timeboxSeg = b => Math.round((+(CFG.timeboxBlocos || {})[b] > 0 ? +CFG.timeboxBlocos[b] : CFG.timeboxMin) * 60);
+/* D-78: telas de detalhe dos assuntos (Indicadores, Poços, PFCEO…) têm tempo próprio; sem valor configurado, 2 min (PREMISSA) */
+const TIMEBOX_DET_PADRAO = 2;
+const timeboxDetMin = (b, top) => { const v = +(CFG.timeboxDetalhes || {})[b + ':' + top]; return v > 0 ? v : TIMEBOX_DET_PADRAO; };
+const timeboxTela = (b, top) => top ? Math.round(timeboxDetMin(b, top) * 60) : timeboxSeg(b);
 function horaMin(s) { const [h, m] = s.split(':').map(Number); return h * 60 + m; }
 
 /* ---------- usuário (autoria dos registros) ---------- */
@@ -914,11 +919,19 @@ function itensDe(E, coord, tipo) { return E.itens.filter(i => i.payload.coord ==
 function reuniaoDe(E, tipo) { return E.reuniao.filter(r => r.payload.tipo === tipo); }
 const BLOCOS_NOME = { 1: 'Abertura · GEPLAT', 2: 'COPROD', 3: 'COEMB', 4: 'COMAN', 5: 'Fechamento' };
 function temposBlocos(E) {
-  const ult = {};
-  for (const r of reuniaoDe(E, 'tempo')) ult[r.payload.bloco] = r;   // em ordem de gravação: vale a última passagem por cada bloco
-  const linhas = [1, 2, 3, 4, 5].map(b => { const r = ult[b], p = r?.payload; return { bloco: b, nome: BLOCOS_NOME[b], reg: r || null, inicio: p?.inicio || null, fim: p?.fim || null, segundos: p ? +p.segundos : null, timebox: p ? +p.timebox : timeboxSeg(b), estouro: p ? Math.max(0, +p.segundos - +p.timebox) : null }; });
-  const medidos = linhas.filter(l => l.segundos != null);
-  return { linhas, medidos: medidos.length, total: medidos.reduce((a, l) => a + l.segundos, 0), estouro: medidos.reduce((a, l) => a + l.estouro, 0), previsto: linhas.reduce((a, l) => a + l.timebox, 0) };
+  /* D-78: cada passagem por um bloco (P.passagem) pode ter vários trechos — a tela do bloco e as telas de detalhe, idas e voltas.
+     Vale a última passagem por bloco; na passagem, somam-se os trechos de cada tela. Registros antigos (sem passagem) contam como uma passagem cada. */
+  const regs = reuniaoDe(E, 'tempo'), ultPass = {};
+  for (const r of regs) ultPass[r.payload.bloco] = r.payload.passagem || r.id;   // em ordem de gravação
+  const soma = lista => { if (!lista.length) return null; const p0 = lista[0].payload; return { reg: lista[lista.length - 1], inicio: lista.map(r => r.payload.inicio).filter(Boolean).sort()[0] || null, fim: lista.map(r => r.payload.fim).filter(Boolean).sort().pop() || null, segundos: lista.reduce((a, r) => a + (+r.payload.segundos || 0), 0), timebox: +p0.timebox }; };
+  const daPass = b => regs.filter(r => r.payload.bloco === b && (r.payload.passagem || r.id) === ultPass[b]);
+  const linhas = [1, 2, 3, 4, 5].map(b => { const t = soma(daPass(b).filter(r => !r.payload.topico)); return { bloco: b, nome: BLOCOS_NOME[b], reg: t?.reg || null, inicio: t?.inicio || null, fim: t?.fim || null, segundos: t ? t.segundos : null, timebox: t ? t.timebox : timeboxSeg(b), estouro: t ? Math.max(0, t.segundos - t.timebox) : null }; });
+  const detalhes = [];
+  for (const b of [1, 2, 3, 4, 5]) { const ds = daPass(b).filter(r => r.payload.topico);
+    for (const top of [...new Set(ds.map(r => r.payload.topico))]) { const t = soma(ds.filter(r => r.payload.topico === top)), nomeT = (typeof TOPICOS !== 'undefined' && (TOPICOS[b] || []).find(x => x[0] === top)?.[1]) || top;
+      detalhes.push({ bloco: b, topico: top, nome: BLOCOS_NOME[b] + ' · ' + nomeT, reg: t.reg, inicio: t.inicio, fim: t.fim, segundos: t.segundos, timebox: t.timebox, estouro: Math.max(0, t.segundos - t.timebox) }); } }
+  const medidos = linhas.filter(l => l.segundos != null), todos = [...medidos, ...detalhes];
+  return { linhas, detalhes, medidos: medidos.length, total: todos.reduce((a, l) => a + l.segundos, 0), estouro: todos.reduce((a, l) => a + l.estouro, 0), previsto: linhas.reduce((a, l) => a + l.timebox, 0) + detalhes.reduce((a, l) => a + l.timebox, 0) };
 }
 /* D-62 · onda 2 · segurança de processo, barreiras e vencimentos (PREMISSAS de regra, ver 40_Pendencias D-62a) */
 const diasAte = (iso, hoje) => iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? diffDias(iso, hoje) : null;   // >0 futuro · <0 passado

@@ -138,8 +138,8 @@ async function gerarAtaPdf(d) {
   tit('Canal Base x Bordo · ações fechadas no prazo no mês');
   par(tx_.n ? `${fmtN(tx_.pct, 0)}% (${tx_.ok} de ${tx_.n} demandas do mês decididas)${tx_.porCoord.length ? ' · por coordenação: ' + tx_.porCoord.map(g => `${g.k} ${fmtN(g.pct, 0)}% (${g.ok}/${g.n})`).join(', ') : ''}${tx_.porSentido.length ? ' · por sentido: ' + tx_.porSentido.map(g => `${g.k} ${fmtN(g.pct, 0)}%`).join(', ') : ''}. Em aberto: ${tx_.abertas}.` : `Nenhuma demanda do mês decidida ainda. Em aberto: ${tx_.abertas}.`);
   tit('Tempo por bloco (agenda fixa: segurança primeiro)');
-  tabela(['Bloco', 'Previsto', 'Medido', 'Estouro', 'Início', 'Fim'], tb.linhas.map(l => [l.nome, mmss(l.timebox), mmss(l.segundos), l.segundos == null ? '—' : l.estouro > 0 ? '+' + mmss(l.estouro) : '0:00', l.inicio ? hhmm(l.inicio) : '—', l.fim ? hhmm(l.fim) : '—']), { 0: { cellWidth: 50 } });
-  par(tb.medidos ? `${tb.medidos} de 5 blocos medidos pelo cronômetro · ${mmss(tb.total)} de ${mmss(tb.previsto)} previstos · estouro total ${mmss(tb.estouro)}.` : 'Cronômetro não utilizado nesta REDIA.', { cor: CINZA, tam: 9.5 });
+  tabela(['Bloco', 'Previsto', 'Medido', 'Estouro', 'Início', 'Fim'], tb.linhas.flatMap(l => [l, ...tb.detalhes.filter(d => d.bloco === l.bloco).map(d => ({ ...d, nome: '   ↳ Detalhe · ' + d.nome.split(' · ').pop() }))]).map(l => [l.nome, mmss(l.timebox), mmss(l.segundos), l.segundos == null ? '—' : l.estouro > 0 ? '+' + mmss(l.estouro) : '0:00', l.inicio ? hhmm(l.inicio) : '—', l.fim ? hhmm(l.fim) : '—']), { 0: { cellWidth: 50 } });
+  par(tb.medidos ? `${tb.medidos} de 5 blocos${tb.detalhes.length ? ` e ${tb.detalhes.length} tela(s) de detalhe` : ''} medidos pelo cronômetro · ${mmss(tb.total)} de ${mmss(tb.previsto)} previstos · estouro total ${mmss(tb.estouro)}.` : 'Cronômetro não utilizado nesta REDIA.', { cor: CINZA, tam: 9.5 });
   tit('Transcrição'); par(E.anexos.filter(a => a.payload.tipo === 'transcricao').map(a => a.payload.nome + (a.payload.caminho ? ' · ' + a.payload.caminho : '')).join('\n') || 'Não anexada.');
 
   tit('Anexo · telas da apresentação');
@@ -155,7 +155,7 @@ async function gerarAtaPdf(d) {
   const ctx = { dia: DIA, congelada: congelada(), timer: fmtTimer(CFG.timeboxMin * 60) };
   for (let i = 0; i < telas.length; i++) {
     const t = telas[i]; pdfProgresso(i + 1, total, `Capturando a tela ${i + 1} de ${telas.length}: ${t.titulo}`);
-    const St = estadoApresentacao(t.b); ctx.timer = fmtTimer(timeboxSeg(t.b));   // D-77: tempo da tela
+    const St = estadoApresentacao(t.b); ctx.timer = fmtTimer(timeboxTela(t.b, t.top));   // D-77/D-78: tempo da tela (bloco ou detalhe)
     const img = await capturarTela(t.top ? telaDetalhe(St, ctx, t.b, t.top) : TELAS[t.b - 1](St, ctx), t.top ? null : telaIdDoBloco(t.b));   // D-73: layout do Studio
     doc.addPage('a4', 'landscape');
     const L = 297, m = 10;

@@ -1,6 +1,6 @@
 /* ===================== REDIA Búzios · núcleo ===================== */
 'use strict';
-const APP = { nome: 'REDIA Búzios', versao: '2.3.0', fase: 'piloto', uep: 'P-83' };
+const APP = { nome: 'REDIA Búzios', versao: '2.4.0', fase: 'piloto', uep: 'P-83' };
 /* D-70 · REDIA Búzios: todas as plataformas do campo; cada usuário acessa as unidades em que está lotado */
 const UNIDADES = [['P-74', 'FPSO P-74'], ['P-75', 'FPSO P-75'], ['P-76', 'FPSO P-76'], ['P-77', 'FPSO P-77'], ['P-78', 'FPSO P-78'], ['P-79', 'FPSO P-79'], ['P-80', 'FPSO P-80'], ['P-82', 'FPSO P-82'], ['P-83', 'FPSO P-83'], ['P-91', 'FPSO P-91']].map(([uep, nome], i) => ({ uep, nome, ordem: i + 1, situacao: 'operacao' }));
 const ATIVO_UEP = { 'P-83': 'ATP-BUZ III' };   // ativo de cada unidade (os demais: definir na Configuração da unidade)
@@ -57,6 +57,7 @@ const CFG_PADRAO = {
   horarios: { preenchimento: '08:10', preRedia: '08:10', congelamento: '08:40', inicio: '08:45', fim: '10:00' },
   timeboxMin: 5,
   timeboxBlocos: { 1: 5, 2: 5, 3: 5, 4: 5, 5: 5 },   // D-77: tempo de exibição de cada tela da apresentação (min)
+  timeboxDetalhes: {},   // D-78: tempo de exibição de cada tela de detalhe ('bloco:assunto' → min); sem valor, TIMEBOX_DET_PADRAO
   destaquesPorBloco: 5,
   atividadesMax: 4, atividadesRecomendado: 2, destaquesAberturaMax: 2, pfceoMax: 6,
   limiares: {
@@ -97,6 +98,10 @@ const CFG_PADRAO = {
 let CFG = JSON.parse(JSON.stringify(CFG_PADRAO));
 /* D-77: tempo da tela (bloco 1 a 5) em segundos; sem valor da tela, vale o tempo padrão por bloco */
 const timeboxSeg = b => Math.round((+(CFG.timeboxBlocos || {})[b] > 0 ? +CFG.timeboxBlocos[b] : CFG.timeboxMin) * 60);
+/* D-78: telas de detalhe dos assuntos (Indicadores, Poços, PFCEO…) têm tempo próprio; sem valor configurado, 2 min (PREMISSA) */
+const TIMEBOX_DET_PADRAO = 2;
+const timeboxDetMin = (b, top) => { const v = +(CFG.timeboxDetalhes || {})[b + ':' + top]; return v > 0 ? v : TIMEBOX_DET_PADRAO; };
+const timeboxTela = (b, top) => top ? Math.round(timeboxDetMin(b, top) * 60) : timeboxSeg(b);
 function horaMin(s) { const [h, m] = s.split(':').map(Number); return h * 60 + m; }
 
 /* ---------- usuário (autoria dos registros) ---------- */

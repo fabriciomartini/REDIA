@@ -589,6 +589,24 @@ async function checarPalco(page, nome) {
   await page.goto(URL + '#/apresentacao/5'); await page.waitForTimeout(250);
   const tb5 = await page.evaluate(() => ({ r: UI.pres.restante, t: document.querySelector('[data-tmr]')?.textContent }));
   ok(tb2.r === 480 && /08:00/.test(tb2.t) && tb5.r === 210 && /03:30/.test(tb5.t), `D-77 apresentação: cada tela abre com o seu tempo (COPROD ${tb2.t}, Fechamento ${tb5.t})`);
+  /* D-78: telas de detalhe com tempo próprio */
+  await page.goto(URL + '#/config'); await page.waitForTimeout(150);
+  ok(await page.evaluate(() => document.querySelectorAll('[id^="c-td-"]').length === TOPICOS[2].length + TOPICOS[3].length + TOPICOS[4].length && +document.querySelector('#c-td-3-utilidades').value === TIMEBOX_DET_PADRAO), 'D-78 configuração: um campo de tempo para cada tela de detalhe (padrão 2 min)');
+  await page.fill('#c-td-2-indicadores', '3'); await page.fill('#c-td-4-pfceo', '1.5'); await page.click('[data-act="salvar-cfg"]'); await page.waitForTimeout(150);
+  ok(await page.evaluate(() => timeboxTela(2, 'indicadores') === 180 && timeboxTela(4, 'pfceo') === 90 && timeboxTela(3, 'pfceo') === 120 && timeboxTela(2, null) === 480), 'D-78 configuração: tempo de cada tela de detalhe salvo individualmente');
+  await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(250); await page.evaluate(() => { UI.pres.restante = 400; });
+  await page.goto(URL + '#/apresentacao/2/indicadores'); await page.waitForTimeout(250);
+  const d1 = await page.evaluate(() => ({ r: UI.pres.restante, t: document.querySelector('[data-tmr]')?.textContent }));
+  await page.evaluate(() => { const P = UI.pres; P.restante = 100; P.inicio = new Date(Date.now() - 30000).toISOString(); P.inicioMs = Date.now() - 30000; P.pausado = 0; });
+  await page.goto(URL + '#/apresentacao/2'); await page.waitForTimeout(400);
+  const d2 = await page.evaluate(() => UI.pres.restante);
+  await page.goto(URL + '#/apresentacao/2/indicadores'); await page.waitForTimeout(250);
+  const d3 = await page.evaluate(() => UI.pres.restante);
+  await page.goto(URL + '#/apresentacao/3'); await page.waitForTimeout(250); await page.goto(URL + '#/apresentacao/2/indicadores'); await page.waitForTimeout(250);
+  const d4 = await page.evaluate(() => UI.pres.restante);
+  ok(d1.r === 180 && /03:00/.test(d1.t) && d2 === 400 && d3 === 100 && d4 === 180, `D-78 apresentação: detalhe abre com o seu tempo, a tela da coordenação continua de onde parou e outro bloco recomeça (${d1.t}, ${d2}, ${d3}, ${d4})`);
+  const td = await page.evaluate(() => temposBlocos(E).detalhes.find(d => d.bloco === 2 && d.topico === 'indicadores'));
+  ok(!!td && td.segundos >= 28 && td.timebox === 180 && /Indicadores/.test(td.nome), `D-78 tempo medido da tela de detalhe registrado à parte (${td && td.segundos} s de ${td && td.timebox} s)`);
   await page.goto(URL + '#/config'); await page.waitForTimeout(150);
   ok(/27,5 min/.test(await page.textContent('[data-tb-tot]')) && /janela da REDIA/.test(await page.textContent('[data-tb-jan]')), 'D-77 configuração: mostra o total da apresentação e compara com a janela da REDIA');
   const cfg24 = await page.evaluate(() => { const ind = L(E, 'man.ind').find(i => i.ind === 'ICPMe'); const lab = labDe(E, 'COPROD'); return { meta: metaManutencao(ind), sem: Regras.manutencao(+ind.valor, metaManutencao(ind)), bsw: lab.find(a => a.k === 'bsw_oleo').sem, h2s: lab.find(a => a.k === 'h2s_gas').sem, h2sTxt: lab.find(a => a.k === 'h2s_gas').limTxt, so4: lab.find(a => a.k === 'so4_urs').sem }; });

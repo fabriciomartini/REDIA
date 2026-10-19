@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 2.4.0 · D-78 (2026-10-18)
+
+- **Configuração › Tempo de exibição das telas de detalhe:** um campo por tela de detalhe de cada coordenação (COPROD, COEMB e COMAN: Indicadores, Queima projetada, Poços, Utilidades, Tanques, Integridade, Geração, Críticos e peças, Órgãos legais, PFCEO, Últimas 24h, Serviços e canal, Análises), em minutos (0,5 a 60; padrão 2 min). Mostra quanto somam todos os detalhes abertos; os detalhes ficam fora do total da apresentação, porque são abertos conforme a discussão.
+- **Apresentação:** cada tela de detalhe abre com o seu cronômetro (Tempo esgotado e +1 min por tela). Ao voltar para a tela da coordenação, o cronômetro dela continua de onde parou; reabrir um detalhe no mesmo bloco também retoma; ao passar para outro bloco, tudo recomeça. Ao vivo acompanha a tela atual.
+- **Tempo medido:** o tempo de cada tela de detalhe é registrado à parte e aparece abaixo do bloco no Fechamento e ata e no PDF da ata; o total e o estouro incluem os detalhes. Na mesma passagem pelo bloco, idas e voltas somam.
+
 ## 2.3.0 · D-77 (2026-10-18)
 
 - **Configuração › Tempo de exibição de cada tela:** um campo por tela da apresentação (Abertura · GEPLAT, COPROD, COEMB, COMAN, Fechamento), em minutos (de 0,5 a 60), com o total da apresentação comparado à janela da REDIA (início–fim). Cada tela abre com o seu cronômetro; o "Tempo esgotado", os acréscimos de +1 min, o tempo medido por bloco (Fechamento, ata e PDF) e o ao vivo usam o tempo da tela. A visão semanal usa o tempo da tela em que é aberta. Sem valor salvo, cada tela usa o tempo padrão anterior (5 min).
