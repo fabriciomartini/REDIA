@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## Decks · V2.4 (2026-10-18)
+
+- **Deck completo** (`apresentacao/`, 34 slides): todas as funções da V2.4 com capturas novas do app — acesso e 10 unidades, autocadastro, Início, curadoria, captura, PFCEO, Canal Base x Bordo, apresentação e detalhes, visão semanal, tempo por tela e por detalhe, **animações do tempo esgotado e do +1 min** (gravações reais, com legenda sincronizada e "Repetir"), ao vivo, congelamento, de acordo, ata em PDF, arquivo, ata automática, administração, Studio, celular, arquitetura, segurança e próximos passos.
+- **Visão gerencial** (`apresentacao/gerencial.html`, 5 slides): a proposta para os gerentes de Búzios — problema e proposta, como funciona, ganhos para a gestão, situação do piloto e pedido aos gerentes. Novo card na página inicial.
+- Capturas e animações regeneráveis: `node tests/prints_deck.cjs` e `node tests/videos_deck.cjs`.
+
 ## 2.4.0 · D-78 (2026-10-18)
 
 - **Configuração › Tempo de exibição das telas de detalhe:** um campo por tela de detalhe de cada coordenação (COPROD, COEMB e COMAN: Indicadores, Queima projetada, Poços, Utilidades, Tanques, Integridade, Geração, Críticos e peças, Órgãos legais, PFCEO, Últimas 24h, Serviços e canal, Análises), em minutos (0,5 a 60; padrão 2 min). Mostra quanto somam todos os detalhes abertos; os detalhes ficam fora do total da apresentação, porque são abertos conforme a discussão.

@@ -176,7 +176,7 @@ def montar(saida, unico):
     for v in VENDOR_PDF + ([VENDOR_SUPABASE] if nuvem else []):
         shutil.copy(os.path.join(P, 'vendor', v), os.path.join(app, 'vendor', v))
     versao = re.search(r"versao:\s*'([^']+)'", ler('src', 'core.js')).group(1)
-    landing = ler('landing', 'index.html').replace('{{VERSAO}}', versao).replace('{{MODO}}', 'Base de dados na nuvem · login individual' if nuvem else 'Modo demonstração')
+    landing = ler('landing', 'index.html').replace('{{VERSAO}}', versao).replace('{{MODO}}', 'Base de dados na nuvem · login individual' if nuvem else 'Modo demonstração').replace('{{SLIDES}}', str(ler('apresentacao', 'index.html').count('<section class="sl')) if os.path.isfile(os.path.join(P, 'apresentacao', 'index.html')) else '—')   # nº de slides do deck completo
     raiz = {'index.html': landing, 'robots.txt': 'User-agent: *\nDisallow: /\n', '.nojekyll': ''}
     for nome, conteudo in raiz.items():
         with open(os.path.join(saida, nome), 'w', encoding='utf8') as f:

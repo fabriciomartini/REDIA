@@ -38,6 +38,7 @@ main h2{font-size:17px;font-weight:700;color:var(--cinza);margin-bottom:14px}
 .op:focus-visible{outline:3px solid var(--verde);outline-offset:3px}
 .op .ic{width:48px;height:48px;display:grid;place-items:center;background:var(--verde);color:#fff}
 .op.deck .ic{background:var(--amarelo);color:#000}
+.op.ger{border-top-color:var(--verde-esc,#00693a)}.op.ger .ic{background:#111}
 .op h3{font-size:28px;font-weight:800;line-height:1.1}
 .op p{font-size:17px;line-height:1.45;color:#333}
 .op ul{padding-left:18px;font-size:15px;line-height:1.6;color:var(--cinza)}
@@ -83,9 +84,16 @@ footer .sp{flex:1}
     <a class="op deck" href="apresentacao/">
       <span class="ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="12" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 15v3M8 21l4-3 4 3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M7 8h10M7 11h6" stroke="currentColor" stroke-width="2.2"/></svg></span>
       <h3>Conhecer o sistema</h3>
-      <p>Deck de explicação: por que, como funciona e o que muda na rotina.</p>
-      <ul><li>Fluxo em 4 camadas e janela de tempo</li><li>Telas das coordenações e regras</li><li>17 slides · teclado, toque e PDF</li></ul>
-      <span class="cta">Ver o deck <span aria-hidden="true">›</span></span>
+      <p>Deck completo do sistema: por que, como funciona e cada função, tela a tela.</p>
+      <ul><li>Todas as funções, com as telas do app</li><li>Animações do tempo esgotado e do +1 min</li><li>{{SLIDES}} slides · teclado, toque e PDF</li></ul>
+      <span class="cta">Ver o deck completo <span aria-hidden="true">›</span></span>
+    </a>
+    <a class="op ger" href="apresentacao/gerencial.html">
+      <span class="ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></span>
+      <h3>Visão gerencial</h3>
+      <p>A proposta do sistema em 5 slides, para compartilhar com os gerentes de Búzios.</p>
+      <ul><li>Problema, proposta e como funciona</li><li>Ganhos para a gestão</li><li>Situação do piloto e pedido aos gerentes</li></ul>
+      <span class="cta">Ver a visão gerencial <span aria-hidden="true">›</span></span>
     </a>
   </div>
   <p class="nota">Piloto para testes funcionais. Use só dados de exemplo até a aprovação da TIC/SI para dados operacionais reais.</p>

@@ -128,13 +128,27 @@ b,strong{font-weight:800}
   .sl{display:flex!important;position:relative;width:1920px;height:1080px;page-break-after:always;break-after:page}
   .ui,.prog{display:none}
 }
+
+/* V2.4 · slides densos, animações com legenda sincronizada */
+.dens .dash{margin:16px 0 26px}
+.ger ul.l li{font-size:34px;line-height:1.35}.ger .bloco .n{font-size:24px}.ger.g3 ul.l li{font-size:31px}
+.dens .shot{max-height:330px;width:auto;max-width:100%;align-self:flex-start}
+.vid{position:relative}
+.vid video{background:#111}
+.rep{position:absolute;right:14px;bottom:14px;font:700 20px var(--f);color:#fff;background:rgba(17,17,17,.8);border:0;padding:10px 16px;cursor:pointer}
+.rep:focus-visible{outline:3px solid var(--amarelo)}
+ol.marcas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;align-self:start}
+ol.marcas li{font-size:25px;line-height:1.3;padding:14px 18px 14px 16px;border-left:8px solid var(--claro);background:var(--fundo);color:var(--texto2);cursor:pointer;transition:border-color .25s,background .25s,color .25s}
+ol.marcas li .tm{display:block;font-size:18px;font-weight:800;color:var(--cinza);letter-spacing:.04em}
+ol.marcas li.on{border-left-color:var(--amarelo);background:#fff8dc;color:var(--texto);font-weight:700}
+ol.marcas li.feito{border-left-color:var(--verde)}
+@media (prefers-reduced-motion: reduce){ol.marcas li{transition:none}}
 </style>
 </head>
 <body>
 <div class="prog" id="prog"></div>
 <div class="deck" id="deck"><div class="stw" id="stw">
 
-<!-- 1 · capa -->
 <section class="sl capa" data-t="Capa">
   <div class="bg"><video autoplay muted loop playsinline preload="auto" poster="assets/poster.jpg" aria-hidden="true"><source src="assets/intro.webm" type="video/webm"></video></div><div class="ov"></div>
   <img class="marca-c" src="assets/petrobras.png" alt="Petrobras">
@@ -149,7 +163,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>Desenvolvimento: Breno Martins e Fabricio Martini</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span></div>
 </section>
 
-<!-- 2 · o desafio -->
 <section class="sl" data-t="O desafio">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Por que um sistema</span>
@@ -170,7 +183,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 3 · o dia -->
 <section class="sl" data-t="O dia da REDIA">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Janela de tempo</span>
@@ -199,7 +211,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 4 · quatro camadas -->
 <section class="sl" data-t="Quatro camadas">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Como funciona</span>
@@ -209,30 +220,70 @@ b,strong{font-weight:800}
     <div class="etp"><span class="q">Fontes + bordo</span><h3>Coleta</h3><p>"Capturar dados" em cada bloco busca BDO, SITOP, PFCEO, APLAT, eplab e a passagem de serviço; as sugestões chegam das duas passagens de turno.</p><p class="peq">O que a captura não encontra vira alerta para digitar. A origem fica sempre visível.</p></div>
     <div class="etp"><span class="q">Coordenações</span><h3>Curadoria</h3><p>GEPLAT, COPROD, COEMB e COMAN revisam, aprovam, escrevem destaques e concluem o preenchimento.</p><p class="peq">O muito importante, e até 2 sistemas do PFCEO por coordenação, vão também para a abertura.</p></div>
     <div class="etp"><span class="q">Gerada sozinha</span><h3>Apresentação</h3><p>Cinco blocos 16:9 montados com o que foi aprovado, com semáforo padronizado e referência em cada valor.</p><p class="peq">Clique no título de um card para abrir o detalhe.</p></div>
-    <div class="etp"><span class="q">Registro</span><h3>Ata</h3><p>Pauta congelada, demandas base ↔ bordo, decisões e a transcrição do Teams, arquivados.</p><p class="peq">PDF da pauta pela impressão do navegador.</p></div>
+    <div class="etp"><span class="q">Registro</span><h3>Ata</h3><p>Pauta congelada, demandas base ↔ bordo, decisões e a transcrição do Teams, arquivados.</p><p class="peq">Ata em PDF com o print de todas as telas, arquivada por unidade e por dia.</p></div>
   </div>
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 5 · quem faz o quê -->
+<section class="sl" data-t="Búzios">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Uma REDIA por unidade</span>
+  <h2>10 FPSOs de Búzios no mesmo sistema</h2>
+  <span class="dash"></span>
+  <div class="cols c2 topo">
+    <div class="fig"><img class="shot" src="img/login.jpg" alt="Tela de acesso com chave e senha"><span class="leg">Acesso · chave + senha pessoal; “Cadastrar-se” e “Esqueci a senha” na própria tela</span></div>
+    <div class="fig"><img class="shot" src="img/unidades.jpg" alt="Escolha da unidade para quem está lotado em mais de uma FPSO"><span class="leg">Escolha da unidade · quem está lotado em mais de uma FPSO escolhe ao entrar e troca pelo cabeçalho</span></div>
+  </div>
+  <p class="peq" style="margin-top:22px">P-74, P-75, P-76, P-77, P-78, P-79, P-80, P-82, P-83 e P-91. Cada unidade tem a sua configuração, os seus dados e a sua ata; a lotação define em quais o usuário entra.</p>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<section class="sl" data-t="Cadastro">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Primeiro acesso</span>
+  <h2>Autocadastro e aviso de protótipo</h2>
+  <span class="dash"></span>
+  <div class="cols c2 topo">
+    <div class="fig"><img class="shot" src="img/cadastro.jpg" alt="Formulário de autocadastro"><span class="leg">Autocadastro · chave, nome, e-mail, unidade e posto; o administrador aprova (ou a conta é criada na hora, se a aprovação estiver desligada)</span></div>
+    <div class="fig"><img class="shot" src="img/aviso_prototipo.jpg" alt="Aviso de protótipo exibido depois do login"><span class="leg">Aviso de protótipo · a cada login: versão de testes, só dados de exemplo até a aprovação da TIC/SI</span></div>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
 <section class="sl" data-t="Quem faz o quê">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Papéis</span>
   <h2>Quem faz o quê</h2>
   <span class="dash"></span>
   <table class="tab">
-    <thead><tr><th style="width:330px">Quem</th><th>No sistema</th><th style="width:420px">Quando</th></tr></thead>
+    <thead><tr><th style="width:360px">Quem</th><th>No sistema</th><th style="width:380px">Quando</th></tr></thead>
     <tbody>
-      <tr><td>Supervisores</td><td>Sugerem itens para a REDIA na passagem de turno (SUPROD, SUEMB, SUEIN, SUMEC e os técnicos que reportam ao GEPLAT)</td><td>Passagens das 18:00 (D-1) e das 06:00</td></tr>
-      <tr><td>COPROD · COEMB · COMAN</td><td>Capturam e conferem os dados, aprovam ou recusam sugestões, criam destaques, ajustam o PFCEO e os serviços do dia, registram tópicos no Canal Base x Bordo e concluem o preenchimento</td><td>Até 08:10, ajustes nas pré-REDIAs</td></tr>
-      <tr><td>GEPLAT</td><td>Situação da unidade e pauta extra; vê quem concluiu; notifica, congela e descongela a pauta; abre a reunião; fecha a ata</td><td>08:40 congela · 08:45 abre</td></tr>
-      <tr><td>Base</td><td>Acompanha a curadoria, comenta itens antes da aprovação, registra e cobra demandas</td><td>Pré-REDIAs e reunião</td></tr>
+      <tr><td>Supervisores</td><td>Sugerem itens na passagem de turno (SUPROD, SUEMB, SUEIN, SUMEC e técnicos do GEPLAT); podem resetar a REDIA do dia na fase de testes</td><td>Passagens das 18:00 (D-1) e das 06:00</td></tr>
+      <tr><td>COPROD · COEMB · COMAN</td><td>Capturam e conferem os dados, aprovam ou recusam sugestões, criam destaques, ajustam PFCEO e serviços, registram no Canal Base x Bordo e concluem o preenchimento</td><td>Até 08:10, ajustes nas pré-REDIAs</td></tr>
+      <tr><td>GEPLAT</td><td>Situação da unidade e pauta extra; congela a pauta; conduz a apresentação (inclusive ao vivo); configura a UEP; fecha a ata</td><td>08:40 congela · 08:45 abre</td></tr>
+      <tr><td>Base</td><td>Acompanha a curadoria, comenta, registra e cobra demandas</td><td>Pré-REDIAs e reunião</td></tr>
+      <tr><td>Editor da unidade</td><td>Ajusta as telas da unidade no Studio (cards, títulos, cores, rótulos) e publica</td><td>Quando a unidade pedir</td></tr>
+      <tr><td>Administrador do sistema</td><td>Usuários, lotações, unidades, cadastros, senhas, dados de teste e auditoria</td><td>Sob demanda</td></tr>
     </tbody>
   </table>
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 6 · curadoria -->
+<section class="sl" data-t="Início">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Tela Início</span>
+  <h2>O dia da unidade em uma tela</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/inicio.jpg" alt="Tela Início com a fase do dia, a situação das coordenações e as funções de teste"><span class="leg">Início · fase atual, situação de cada coordenação, atalhos para curadoria, apresentação e ata</span></div>
+    <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
+      <div class="fig"><img class="shot" src="img/inicio_mais.jpg" alt="Cabeçalho com o menu Mais aberto"><span class="leg">Cabeçalho em uma linha: unidade, fase, “Ao vivo” e o menu “Mais”</span></div>
+      <ul class="l" style="gap:14px"><li><b>Fase do dia</b> e o horário do próximo marco (preenchimento, congelamento, REDIA).</li><li><b>Coordenações</b>: quem concluiu e o que falta.</li><li><b>Funções de teste</b>: carregar exemplo e <b>resetar a REDIA de hoje</b> (inclusive a ata).</li></ul>
+    </div>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
 <section class="sl" data-t="Curadoria">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Curadoria</span>
@@ -250,7 +301,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 7 · dados com origem -->
 <section class="sl" data-t="Dados com origem">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Regras de dados</span>
@@ -280,7 +330,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 8 · captura automática -->
 <section class="sl" data-t="Captura automática">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Coleta</span>
@@ -299,7 +348,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 9 · PFCEO -->
 <section class="sl" data-t="PFCEO">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Equipamentos e Sistemas – PFCEO</span>
@@ -317,7 +365,18 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 8 · apresentação -->
+<section class="sl" data-t="Canal e ameaças">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Base ↔ bordo</span>
+  <h2>Demandas rastreáveis e destaques com dono</h2>
+  <span class="dash"></span>
+  <div class="cols c2 topo">
+    <div class="fig"><img class="shot" src="img/canal.jpg" alt="Canal Base x Bordo da COPROD"><span class="leg">Canal Base x Bordo · demanda com sentido, responsável, prazo e situação; fica aberta de um dia para o outro</span></div>
+    <div class="fig"><img class="shot" src="img/ameacas.jpg" alt="Ameaças, oportunidades e pauta extra"><span class="leg">Ameaças, oportunidades e pauta extra · com semáforo; “Escalar” leva o item à decisão do GEOP ou da gerência</span></div>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
 <section class="sl" data-t="Apresentação">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Apresentação</span>
@@ -335,13 +394,12 @@ b,strong{font-weight:800}
           <tr><td>5</td><td>Fechamento: demandas, ata e retorno às passagens</td></tr>
         </tbody>
       </table>
-      <p class="peq">Tela 16:9 legível a 4 m nas TVs de 75". Setas ou números trocam o bloco; espaço controla o cronômetro de cada coordenação; F abre em tela cheia.</p>
+      <p class="peq">Tela 16:9 legível a 4 m nas TVs de 75". Setas ou números trocam o bloco; espaço controla o cronômetro de cada tela; F abre em tela cheia.</p>
     </div>
   </div>
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 9 · bloco da coordenação -->
 <section class="sl" data-t="Bloco da coordenação">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Blocos 2, 3 e 4</span>
@@ -358,21 +416,85 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 10 · detalhe -->
-<section class="sl" data-t="Detalhes">
+<section class="sl dens" data-t="Detalhes">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Detalhe por assunto</span>
   <h2>Clique no título do card para aprofundar</h2>
   <span class="dash"></span>
-  <div class="cols c2">
-    <div class="fig"><img class="shot" src="img/pres_2_pocos.jpg" alt="Detalhe de poços"><span class="leg">Poços · produtores por trem, próximo teste de vazão, injetores, operações em poços e cilindros de amostra</span></div>
-    <div class="fig"><img class="shot" src="img/pres_4_analises.jpg" alt="Detalhe de resultados de análises"><span class="leg">Análises · último resultado do eplab, data e periodicidade; atrasadas em destaque</span></div>
+  <div class="cols c2" style="gap:36px">
+    <div class="fig"><img class="shot" src="img/pres_2_indicadores.jpg" alt="Detalhe de indicadores da COPROD"><span class="leg">COPROD · Indicadores</span></div>
+    <div class="fig"><img class="shot" src="img/pres_2_queima.jpg" alt="Detalhe da queima projetada"><span class="leg">COPROD · Queima projetada e reserva tática do IUGA</span></div>
   </div>
-  <p class="peq" style="margin-top:22px">Cada detalhe tem "Tela COPROD/COEMB/COMAN" para voltar e "Próximo" para seguir para a coordenação seguinte. Esc também volta.</p>
+  <div class="cols c2" style="gap:36px;margin-top:18px">
+    <div class="fig"><img class="shot" src="img/pres_3_integridade.jpg" alt="Detalhe de integridade da COEMB"><span class="leg">COEMB · Inspeções de integridade</span></div>
+    <div class="fig"><img class="shot" src="img/pres_4_analises.jpg" alt="Detalhe de análises da COMAN"><span class="leg">COMAN · Resultados de análises</span></div>
+  </div>
+  <p class="peq" style="margin-top:14px">23 telas de detalhe nas três coordenações, cada uma com o seu tempo de exibição. “Tela da coordenação” volta; “Próximo” segue a pauta.</p>
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 11 · congelamento -->
+<section class="sl" data-t="Visão semanal">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Sexta-feira e dicas</span>
+  <h2>Tendências da semana e semáforos explicados</h2>
+  <span class="dash"></span>
+  <div class="cols c2 topo">
+    <div class="fig"><img class="shot" src="img/pres_semana.jpg" alt="Visão semanal"><span class="leg">Visão semanal · tendências de 7 e 30 dias, ações vencidas e recorrências (dia configurável)</span></div>
+    <div class="fig"><img class="shot" src="img/pres_dica.jpg" alt="Dica de um semáforo na apresentação"><span class="leg">Dica do semáforo · ao passar o mouse, o motivo da cor e o valor de referência</span></div>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<section class="sl" data-t="Tempo por tela">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Disciplina de tempo</span>
+  <h2>Cada tela com o seu tempo, inclusive os detalhes</h2>
+  <span class="dash"></span>
+  <div class="cols topo" style="grid-template-columns:600px 300px minmax(0,1fr);gap:48px">
+    <div class="fig"><img class="shot" src="img/config_tempos.jpg" alt="Configuração do tempo de cada tela da apresentação"><span class="leg">Telas da apresentação, com o total comparado à janela da REDIA</span></div>
+    <div class="fig"><img class="shot" src="img/config_detalhes.jpg" alt="Configuração do tempo de cada tela de detalhe" style="max-height:690px;width:auto"><span class="leg">Telas de detalhe (padrão 2 min)</span></div>
+    <ul class="l" style="gap:18px"><li>Na <b>Configuração</b> da unidade: de 0,5 a 60 min para cada tela.</li><li>As <b>5 telas da apresentação</b> somam o total, comparado à janela da REDIA.</li><li>As <b>23 telas de detalhe</b> de COPROD, COEMB e COMAN têm tempo próprio.</li><li>Ao voltar de um detalhe, o cronômetro da coordenação <b>continua de onde parou</b>; em outro bloco, tudo recomeça.</li><li>O <b>tempo medido</b> de cada tela vai para o Fechamento e para a ata.</li></ul>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<section class="sl vidsl" data-t="Tempo esgotado">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Animação · cronômetro</span>
+  <h2>O que acontece quando o tempo da tela acaba</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><div class="vid"><video class="shot anim" muted playsinline preload="auto" poster="img/anim_tempo_esgotado.jpg" aria-label="Gravação real da apresentação (COPROD). Os saltos de tempo aparecem na tela como “avanço”."><source src="img/anim_tempo_esgotado.webm" type="video/webm"></video><button type="button" class="rep" aria-label="Repetir a animação">↻ Repetir</button></div><span class="leg">Gravação real da apresentação (COPROD). Os saltos de tempo aparecem na tela como “avanço”.</span></div>
+    <ol class="marcas"><li data-t="0.0"><span class="tm">0:00</span>Cronômetro da tela correndo (tempo configurado para a COPROD)</li><li data-t="4.2"><span class="tm">0:04</span>Último minuto: o cronômetro fica amarelo</li><li data-t="9.8"><span class="tm">0:09</span>Passou do tempo: o estouro conta para cima (+)</li><li data-t="14.3"><span class="tm">0:14</span>1 minuto além: o cronômetro pulsa em vermelho</li><li data-t="26.1"><span class="tm">0:26</span>2 minutos além: tela branca de "Tempo esgotado", com o estouro correndo</li><li data-t="31.3"><span class="tm">0:31</span>Saídas: Zerar e voltar, +1 min ou Próximo bloco</li><li data-t="33.3"><span class="tm">0:33</span>Zerar: volta à tela da reunião com o tempo da tela</li></ol>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<section class="sl vidsl" data-t="+1 minuto">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Animação · acréscimo</span>
+  <h2>+1 min: até três acréscimos por tela</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><div class="vid"><video class="shot anim" muted playsinline preload="auto" poster="img/anim_mais1.jpg" aria-label="Gravação real da apresentação (COEMB). Cada clique soma 1 minuto ao cronômetro da tela atual."><source src="img/anim_mais1.webm" type="video/webm"></video><button type="button" class="rep" aria-label="Repetir a animação">↻ Repetir</button></div><span class="leg">Gravação real da apresentação (COEMB). Cada clique soma 1 minuto ao cronômetro da tela atual.</span></div>
+    <ol class="marcas"><li data-t="0.0"><span class="tm">0:00</span>Faltam poucos segundos para o fim do tempo da tela</li><li data-t="2.7"><span class="tm">0:02</span>1º acréscimo: +1 min e a 1ª ficha fica dourada</li><li data-t="6.3"><span class="tm">0:06</span>2º acréscimo: mais 1 minuto</li><li data-t="10.0"><span class="tm">0:09</span>3º acréscimo: limite da tela, botão desabilitado</li><li data-t="14.7"><span class="tm">0:14</span>As fichas mostram os acréscimos usados; o tempo medido guarda quantos foram</li></ol>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<section class="sl" data-t="Ao vivo">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Reunião conduzida</span>
+  <h2>Apresentação ao vivo: todos na mesma tela</h2>
+  <span class="dash"></span>
+  <div class="cols c2 topo">
+    <div class="fig"><img class="shot" src="img/vivo_modal.jpg" alt="Confirmação para iniciar a apresentação ao vivo"><span class="leg">Quem conduz confirma e leva todos os usuários da unidade para a apresentação</span></div>
+    <div class="fig"><img class="shot" src="img/vivo_contagem.jpg" alt="Contagem regressiva do início ao vivo"><span class="leg">Contagem de 5 s em todas as telas; depois, troca de telas e cronômetro seguem quem conduz</span></div>
+  </div>
+  <p class="peq" style="margin-top:18px">Quem assiste não navega nem mexe no cronômetro; pode sair e voltar a assistir. A contagem usa a duração, não o relógio de cada computador.</p>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
 <section class="sl" data-t="Congelamento">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">08:40</span>
@@ -390,11 +512,22 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 12 · ata -->
+<section class="sl" data-t="De acordo">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Antes da ata</span>
+  <h2>Fechamento: decisões, demandas e de acordo</h2>
+  <span class="dash"></span>
+  <div class="cols c2 topo">
+    <div class="fig"><img class="shot" src="img/ata_tela.jpg" alt="Tela Fechamento e ata"><span class="leg">Fechamento e ata · demandas, decisões, aprendizados, participantes e tempo medido por tela</span></div>
+    <div class="fig"><img class="shot" src="img/acordo.jpg" alt="De acordo dos responsáveis"><span class="leg">De acordo dos 4 responsáveis, depois do congelamento; só então “Fechar ata” é liberado</span></div>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
 <section class="sl" data-t="Fechamento e ata">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Depois das 10:00</span>
-  <h2>Demandas rastreáveis e ata em PDF</h2>
+  <h2>Fechar a ata gera o PDF</h2>
   <span class="dash"></span>
   <div class="cols c73">
     <div class="fig"><img class="shot" src="img/ata_gerando.jpg" alt="Tela de fechamento gerando a ata em PDF, com barra de progresso da captura das telas"><span class="leg">Fechar ata e gerar PDF · o app captura cada tela da apresentação e mostra o progresso</span></div>
@@ -408,7 +541,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- ata em PDF -->
 <section class="sl" data-t="Ata em PDF">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Registro</span>
@@ -427,7 +559,59 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 13 · celular -->
+<section class="sl" data-t="Arquivo">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Histórico</span>
+  <h2>Arquivo: todas as REDIAs, com busca</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/arquivo.jpg" alt="Tela Arquivo com as REDIAs anteriores"><span class="leg">Arquivo · REDIAs anteriores por data, com código, situação da ata e busca</span></div>
+    <ul class="l"><li>Cada REDIA tem um <b>código único</b> e a ata fechada é <b>imutável</b>.</li><li>Busca por texto em destaques, demandas e decisões.</li><li>Abre a ata em PDF e a pauta congelada de qualquer dia.</li></ul>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<section class="sl" data-t="Ata automática">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Período de testes</span>
+  <h2>Base de testes sempre completa</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/admin_testes.jpg" alt="Administração, aba Dados de teste"><span class="leg">Administração › Dados de teste · histórico de 15 dias, ata automática e reset por unidade</span></div>
+    <ul class="l"><li><b>Às 23:59</b> (Brasília), cada unidade sem ata arquivada recebe uma ata completa, marcada como fictícia e automática.</li><li>Roda no servidor (agendamento do banco); não depende de ninguém com o app aberto.</li><li><b>Resetar a REDIA de hoje</b>: GEPLAT, coordenadores e supervisores apagam o teste do dia, inclusive a ata.</li><li>Tudo registrado na auditoria.</li></ul>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<section class="sl dens" data-t="Administração">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Administrador do sistema</span>
+  <h2>Usuários, lotações e auditoria em um lugar</h2>
+  <span class="dash"></span>
+  <div class="cols c3" style="gap:30px">
+    <div class="fig"><img class="shot" src="img/admin_painel.jpg" alt="Painel da administração"><span class="leg">Painel · usuários, pedidos e acessos a revisar</span></div>
+    <div class="fig"><img class="shot" src="img/admin_usuarios.jpg" alt="Lista de usuários"><span class="leg">Usuários · filtros por unidade, posto e situação</span></div>
+    <div class="fig"><img class="shot" src="img/admin_editar.jpg" alt="Edição de um usuário"><span class="leg">Editar · lotação, papéis, senha e excluir conta</span></div>
+  </div>
+  <div class="cols c2" style="margin-top:26px;flex:0 0 auto">
+    <ul class="l" style="gap:12px"><li>Lotação por unidade, com papéis de <b>administrador da unidade</b> e <b>editor</b>.</li><li>Aprovar ou recusar cadastros; redefinir senha.</li></ul>
+    <ul class="l" style="gap:12px"><li><b>Excluir conta</b> com confirmação; a conta do proprietário nunca é excluída.</li><li>Auditoria de cada ação e aba de <b>boas práticas</b>.</li></ul>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
+<section class="sl" data-t="Studio">
+  <img class="marca" src="assets/petrobras.png" alt="Petrobras">
+  <span class="k">Studio de telas</span>
+  <h2>Cada unidade ajusta as suas telas sem programar</h2>
+  <span class="dash"></span>
+  <div class="cols c73">
+    <div class="fig"><img class="shot" src="img/studio.jpg" alt="Studio de telas com a lista de cards e a prévia"><span class="leg">Studio · cards à esquerda, prévia com os dados do dia à direita</span></div>
+    <ul class="l"><li><b>Mostrar ou ocultar</b> cards, <b>renomear</b> títulos, mudar a <b>posição</b> na coluna e <b>destacar com cor</b>.</li><li><b>Rótulos dos campos</b>: troca o nome exibido; o dado e a regra não mudam.</li><li><b>Rascunho → publicar</b> para a unidade, com versões e restauração.</li><li>Vale para a apresentação e a ata daquela unidade; as outras não mudam.</li></ul>
+  </div>
+  <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
+</section>
+
 <section class="sl" data-t="Celular e tablet">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Em campo</span>
@@ -445,7 +629,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 14 · arquitetura -->
 <section class="sl" data-t="Arquitetura">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Por dentro da versão web</span>
@@ -460,7 +643,7 @@ b,strong{font-weight:800}
       <div class="cx"><h3>Login</h3><p>Chave + senha pessoal</p></div>
       <div class="cx"><h3>PostgreSQL</h3><p>Registros só de acréscimo, separados por UEP</p></div>
       <div class="cx"><h3>Arquivos</h3><p>Pauta congelada, ata, transcrição</p></div>
-      <div class="cx"><h3>Tempo real</h3><p>Avisa todos quando alguém grava</p></div>
+      <div class="cx"><h3>Tempo real e funções</h3><p>Avisa quem está on-line; cadastro, administração e ata automática no servidor</p></div>
     </div>
   </div>
   <div class="cols c3" style="margin-top:48px;flex:0 0 auto;gap:40px">
@@ -471,7 +654,6 @@ b,strong{font-weight:800}
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 15 · segurança -->
 <section class="sl" data-t="Segurança">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Acesso e segurança</span>
@@ -479,20 +661,19 @@ b,strong{font-weight:800}
   <span class="dash"></span>
   <div class="cols c2">
     <ul class="l">
-      <li><b>Chave Petrobras + senha pessoal.</b> A senha temporária é trocada no primeiro acesso.</li>
-      <li><b>Perfil cadastrado</b> pelo administrador: nome, posto, coordenação e UEP. Sem perfil, ninguém lê nem grava.</li>
-      <li><b>Cada UEP só vê os próprios dados.</b> A regra está na base, não só na tela.</li>
+      <li><b>Chave + senha pessoal.</b> Senha provisória trocada no primeiro acesso; “Esqueci a senha” por e-mail.</li>
+      <li><b>Lotação por unidade.</b> Sem lotação, ninguém lê nem grava; cada unidade só vê os próprios dados (regra na base, não só na tela).</li>
+      <li><b>Ata fechada imutável</b> e pauta congelada com código de integridade.</li>
     </ul>
     <ul class="l">
-      <li><b>Configuração da UEP e reset da demonstração</b> só pelo GEPLAT ou pelo administrador.</li>
-      <li><b>Nenhuma lista de pessoas no código.</b> A chave secreta da base nunca vai para o site.</li>
+      <li><b>Administração e Studio</b> só para quem tem o papel; ações registradas na auditoria.</li>
+      <li><b>Nenhuma lista de pessoas no código.</b> As chaves secretas ficam só no servidor.</li>
       <li><b>Dados reais só após aprovação da TIC/SI.</b> No piloto, só dados de exemplo.</li>
     </ul>
   </div>
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 16 · como testar -->
 <section class="sl" data-t="Como testar">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Piloto</span>
@@ -501,37 +682,37 @@ b,strong{font-weight:800}
   <div class="cols c2 topo">
     <div class="bloco" style="gap:20px"><span class="n">PILOTO NA BASE COMPARTILHADA</span>
       <p>1 · Na página inicial, clique em <a href="../app/" data-app><b>Entrar no app ›</b></a></p>
-      <p>2 · Entre com a sua <b>chave</b> ou com a <b>conta genérica do seu posto</b> (senha com o administrador). Esqueceu? Use <b>Esqueci a senha</b>.</p>
-      <p>3 · O administrador carrega os <b>dados de exemplo</b> no Início; <b>Resetar demonstração</b> apaga o que foi testado.</p>
-      <p>4 · Em cada coordenação: <b>Capturar dados</b>, curadoria, PFCEO, serviços e conclusão; depois congelamento, apresentação e ata.</p>
-      <p class="peq">Todos trabalham na mesma base, em tempo real. Sem a base configurada, o app abre em modo demonstração (chaves GP01, CP01, CE01, CM01 · senha 1234), com os dados só no navegador.</p>
+      <p>2 · Entre com a sua <b>chave</b> ou com a <b>conta de teste do seu posto</b> (senha com o administrador). Sem conta? <b>Cadastrar-se</b>.</p>
+      <p>3 · Escolha a unidade. No Início, <b>carregue os dados de exemplo</b>; <b>Resetar a REDIA de hoje</b> apaga o teste do dia.</p>
+      <p>4 · Em cada coordenação: <b>Capturar dados</b>, curadoria, PFCEO, serviços e conclusão; depois congelamento, apresentação (ao vivo) e ata.</p>
+      <p class="peq">Sem a base configurada, o app abre em modo demonstração (chaves GP01, CP01, CE01, CM01 · senha 1234), com os dados só no navegador.</p>
     </div>
     <div class="bloco" style="gap:20px"><span class="n">O QUE OBSERVAR</span>
       <ul class="l" style="gap:16px">
-        <li>A tela da coordenação é lida de longe em segundos?</li>
+        <li>A tela é lida de longe em segundos?</li>
         <li>A curadoria cabe até 08:10 sem retrabalho?</li>
+        <li>O tempo de cada tela está bom para a pauta?</li>
         <li>Falta algum dado, indicador ou fonte?</li>
         <li>Funciona no seu aparelho e no Teams?</li>
       </ul>
-      <p class="peq">Registre problemas e sugestões nas Issues do repositório, sem dados reais, nomes ou senhas.</p>
+      <p class="peq">Registre problemas e sugestões sem dados reais, nomes ou senhas.</p>
     </div>
   </div>
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
 
-<!-- 17 · próximos passos -->
 <section class="sl" data-t="Próximos passos">
   <img class="marca" src="assets/petrobras.png" alt="Petrobras">
   <span class="k">Situação</span>
   <h2>Onde estamos e o que falta</h2>
   <span class="dash"></span>
   <div class="cols c3 topo">
-    <div class="bloco"><span class="n">PRONTO</span>
-      <ul class="l" style="gap:14px"><li>Fluxo completo: coleta, curadoria, apresentação, congelamento e ata</li><li>Captura com um clique por bloco (simulada até liberar as integrações)</li><li>Ata em PDF com o print das telas</li><li>Versão web com base de dados, login e tempo real</li><li>Mais de 330 verificações automáticas aprovadas</li></ul></div>
+    <div class="bloco"><span class="n">PRONTO (V2.4)</span>
+      <ul class="l" style="gap:14px"><li>Fluxo completo: coleta, curadoria, apresentação, congelamento e ata</li><li>10 unidades, lotação, autocadastro, administração e Studio</li><li>Tempo por tela e por detalhe, tempo esgotado, +1 min e ao vivo</li><li>Ata em PDF, arquivo e ata automática de teste</li><li>Mais de 580 verificações automáticas aprovadas</li></ul></div>
     <div class="bloco"><span class="n">DEPENDE DA TIC</span>
-      <ul class="l" style="gap:14px"><li>Aprovação da base de dados e da hospedagem interna</li><li>Login corporativo (Microsoft)</li><li>Backup, retenção e LGPD</li><li>Rede de bordo liberada para o site e a base</li></ul></div>
+      <ul class="l" style="gap:14px"><li>Aprovação da base de dados e da hospedagem interna</li><li>Login corporativo (Microsoft)</li><li>Backup, retenção e LGPD</li><li>E-mail corporativo para o cadastro</li><li>Rede de bordo liberada para o site e a base</li></ul></div>
     <div class="bloco"><span class="n">PRÓXIMAS VERSÕES</span>
-      <ul class="l" style="gap:14px"><li>Conectores reais: SITOP, BDO, PFCEO, APLAT, eplab e passagem de serviço</li><li>Análises e equipamentos definidos por coordenação</li><li>Modo pré-operação (comissionamento)</li><li>Outras UEPs de Búzios</li></ul></div>
+      <ul class="l" style="gap:14px"><li>Conectores reais: SITOP, BDO, PFCEO, APLAT, eplab e passagem de serviço</li><li>Análises e equipamentos definidos por coordenação</li><li>Modo pré-operação (comissionamento)</li><li>Transcrição do Teams integrada</li></ul></div>
   </div>
   <div class="rod"><span>REDIA Búzios · V2.4</span><span class="sp"></span><span class="selo"><i>I</i>Interna</span><span class="pg"></span></div>
 </section>
@@ -562,7 +743,7 @@ b,strong{font-weight:800}
     sls.forEach((s, j) => s.classList.toggle('on', j === atual));
     num.textContent = (atual + 1) + ' / ' + N;
     prog.style.width = ((atual + 1) / N * 100) + '%';
-    document.title = 'REDIA P-83 · ' + (sls[atual].dataset.t || 'Apresentação');
+    document.title = 'REDIA Búzios · ' + (sls[atual].dataset.t || 'Apresentação');
     if (empurrar) { try { history.replaceState(null, '', '#' + (atual + 1)); } catch (e) { location.hash = String(atual + 1); } }
   }
   function cheia() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
@@ -584,6 +765,19 @@ b,strong{font-weight:800}
   addEventListener('mousemove', mostrar); addEventListener('touchstart', mostrar, { passive: true });
   addEventListener('resize', ajustar);
   addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (n) ir(n - 1, false); });
+
+  /* animações: tocam ao entrar no slide, legenda acompanha o vídeo, repetem ao fim */
+  const vids = [...document.querySelectorAll('video.anim')];
+  vids.forEach(v => {
+    const sl = v.closest('.sl'), lis = [...sl.querySelectorAll('ol.marcas li')];
+    const marcar = () => { const t = v.currentTime; let k = -1; lis.forEach((li, i) => { if (+li.dataset.t <= t + 0.05) k = i; }); lis.forEach((li, i) => { li.classList.toggle('on', i === k); li.classList.toggle('feito', i < k); }); };
+    v.addEventListener('timeupdate', marcar);
+    v.addEventListener('ended', () => { setTimeout(() => { if (sl.classList.contains('on')) { v.currentTime = 0; v.play().catch(() => { }); } }, 2500); });
+    lis.forEach(li => li.addEventListener('click', e => { e.stopPropagation(); v.currentTime = +li.dataset.t; v.play().catch(() => { }); }));
+    sl.querySelector('.rep').addEventListener('click', e => { e.stopPropagation(); v.currentTime = 0; v.play().catch(() => { }); });
+  });
+  const tocar = () => vids.forEach(v => { if (v.closest('.sl').classList.contains('on')) { v.currentTime = 0; v.play().catch(() => { }); } else v.pause(); });
+  new MutationObserver(tocar).observe(document.getElementById('stw'), { subtree: true, attributes: true, attributeFilter: ['class'] });
   ajustar();
   const n0 = parseInt(location.hash.slice(1), 10);
   ir(n0 ? n0 - 1 : 0, false); mostrar();

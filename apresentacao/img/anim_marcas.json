@@ -1,0 +1,60 @@
+{
+ "esgotado": {
+  "dur": 36.51,
+  "marcas": [
+   {
+    "t": 0.001,
+    "rot": "Cronômetro da tela correndo (tempo configurado para a COPROD)"
+   },
+   {
+    "t": 4.206,
+    "rot": "Último minuto: o cronômetro fica amarelo"
+   },
+   {
+    "t": 9.806,
+    "rot": "Passou do tempo: o estouro conta para cima (+)"
+   },
+   {
+    "t": 14.323,
+    "rot": "1 minuto além: o cronômetro pulsa em vermelho"
+   },
+   {
+    "t": 26.063,
+    "rot": "2 minutos além: tela branca de \"Tempo esgotado\", com o estouro correndo"
+   },
+   {
+    "t": 31.265,
+    "rot": "Saídas: Zerar e voltar, +1 min ou Próximo bloco"
+   },
+   {
+    "t": 33.251,
+    "rot": "Zerar: volta à tela da reunião com o tempo da tela"
+   }
+  ]
+ },
+ "mais1": {
+  "dur": 18.555,
+  "marcas": [
+   {
+    "t": 0,
+    "rot": "Faltam poucos segundos para o fim do tempo da tela"
+   },
+   {
+    "t": 2.702,
+    "rot": "1º acréscimo: +1 min e a 1ª ficha fica dourada"
+   },
+   {
+    "t": 6.328,
+    "rot": "2º acréscimo: mais 1 minuto"
+   },
+   {
+    "t": 9.968,
+    "rot": "3º acréscimo: limite da tela, botão desabilitado"
+   },
+   {
+    "t": 14.733,
+    "rot": "As fichas mostram os acréscimos usados; o tempo medido guarda quantos foram"
+   }
+  ]
+ }
+}
